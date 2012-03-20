@@ -156,7 +156,13 @@ class Emitter(object):
 
             if handler or fields:
                 v = lambda f: getattr(data, f.attname)
-
+                # FIXME
+                # Catch 22 here. Either we use the fields from the
+                # typemapped handler to make nested models work but the
+                # declared list_fields will ignored for models, or we
+                # use the list_fields from the base handler and accept that
+                # the nested models won't appear properly
+                # Refs #157
                 if handler:
                     fields = getattr(handler, 'fields')    
                 
