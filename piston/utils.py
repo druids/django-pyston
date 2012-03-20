@@ -86,7 +86,7 @@ class HttpStatusCode(Exception):
 def validate(v_form, operation='POST'):
     @decorator
     def wrap(f, self, request, *a, **kwa):
-        form = v_form(getattr(request, operation))
+        form = v_form(getattr(request, operation), request.FILES)
     
         if form.is_valid():
             setattr(request, 'form', form)

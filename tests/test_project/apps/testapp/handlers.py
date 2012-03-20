@@ -4,7 +4,7 @@ from piston.handler import BaseHandler
 from piston.utils import rc, validate
 
 from models import TestModel, ExpressiveTestModel, Comment, InheritedModel, PlainOldObject, Issue58Model, ListFieldsModel
-from forms import EchoForm
+from forms import EchoForm, FormWithFileField
 from test_project.apps.testapp import signals
 
 class EntryHandler(BaseHandler):
@@ -95,3 +95,11 @@ class Issue58Handler(BaseHandler):
             return rc.CREATED
         else:
             super(Issue58Model, self).create(request)
+
+class FileUploadHandler(BaseHandler):
+    allowed_methods = ('POST',)
+    
+    @validate(FormWithFileField)
+    def create(self, request):
+        return {'chaff': request.form.cleaned_data['chaff'],
+                'file_size': request.form.cleaned_data['le_file'].size}

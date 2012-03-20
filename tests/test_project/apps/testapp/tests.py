@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from django.utils import simplejson
 from django.conf import settings
@@ -13,7 +14,7 @@ except ImportError:
     print "Can't run YAML testsuite"
     yaml = None
 
-import urllib, base64
+import urllib, base64, tempfile
 
 from test_project.apps.testapp.models import TestModel, ExpressiveTestModel, Comment, InheritedModel, Issue58Model, ListFieldsModel
 from test_project.apps.testapp import signals
@@ -473,3 +474,26 @@ class Issue58ModelTests(MainTests):
         resp = self.client.post('/api/issue58.json', outgoing, content_type='application/json',
                                 HTTP_AUTHORIZATION=self.auth_string)
         self.assertEquals(resp.status_code, 201)
+
+class Issue188ValidateWithFiles(MainTests):
+    def test_whoops_no_file_upload(self):
+        resp = self.client.post(
+            reverse('file-upload-test'),
+            data={'chaff': 'pewpewpew'})
+        self.assertEquals(resp.status_code, 400)
+    
+    def test_upload_with_file(self):
+        tmp_fs = tempfile.NamedTemporaryFile(suffix='.txt')
+        content = 'le_content'
+        tmp_fs.write(content)
+        tmp_fs.seek(0)
+        resp = self.client.post(
+            reverse('file-upload-test'),
+            data={'chaff': 'pewpewpew',
+                  'le_file': tmp_fs})
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(simplejson.loads(resp.content),
+                          {'chaff': 'pewpewpew',
+                           'file_size': len(content)})
+
+                    
