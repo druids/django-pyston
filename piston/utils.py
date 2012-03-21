@@ -27,6 +27,7 @@ class rc_factory(object):
     """
     CODES = dict(ALL_OK = ('OK', 200),
                  CREATED = ('Created', 201),
+                 ACCEPTED = ('Accepted', 202),
                  DELETED = ('', 204), # 204 says "Don't send a body!"
                  BAD_REQUEST = ('Bad Request', 400),
                  FORBIDDEN = ('Forbidden', 401),
