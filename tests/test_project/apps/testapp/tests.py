@@ -496,4 +496,76 @@ class Issue188ValidateWithFiles(MainTests):
                           {'chaff': 'pewpewpew',
                            'file_size': len(content)})
 
-                    
+class EmitterFormat(MainTests):
+    def test_format_in_url(self):
+        resp = self.client.get('/api/entries.json',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/json; charset=utf-8')
+        resp = self.client.get('/api/entries.xml',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'text/xml; charset=utf-8')
+        resp = self.client.get('/api/entries.yaml',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/x-yaml; charset=utf-8')
+
+    def test_format_in_get_data(self):
+        resp = self.client.get('/api/entries/?format=json',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/json; charset=utf-8')
+        resp = self.client.get('/api/entries/?format=xml',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'text/xml; charset=utf-8')
+        resp = self.client.get('/api/entries/?format=yaml',
+                               HTTP_AUTHORIZATION=self.auth_string)
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/x-yaml; charset=utf-8')
+        
+    def test_format_in_accept_headers(self):
+        resp = self.client.get('/api/entries/',
+                               HTTP_AUTHORIZATION=self.auth_string,
+                               HTTP_ACCEPT='application/json')
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/json; charset=utf-8')
+        resp = self.client.get('/api/entries/',
+                               HTTP_AUTHORIZATION=self.auth_string,
+                               HTTP_ACCEPT='text/xml')
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'text/xml; charset=utf-8')
+        resp = self.client.get('/api/entries/',
+                               HTTP_AUTHORIZATION=self.auth_string,
+                               HTTP_ACCEPT='application/x-yaml')
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/x-yaml; charset=utf-8')
+    
+    def test_strict_accept_headers(self):
+        import urls
+        self.assertFalse(urls.entries.strict_accept)
+        self.assertEquals(urls.entries.default_emitter, 'json')
+        resp = self.client.get('/api/entries/',
+                               HTTP_AUTHORIZATION=self.auth_string,
+                               HTTP_ACCEPT='text/html')
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals(resp['Content-type'],
+                          'application/json; charset=utf-8')
+        
+        urls.entries.strict_accept = True
+        resp = self.client.get('/api/entries/',
+                               HTTP_AUTHORIZATION=self.auth_string,
+                               HTTP_ACCEPT='text/html')
+        self.assertEquals(resp.status_code, 406)
+
+        
