@@ -3,7 +3,7 @@ from django.core.paginator import Paginator
 from piston.handler import BaseHandler
 from piston.utils import rc, validate
 
-from models import TestModel, ExpressiveTestModel, Comment, InheritedModel, PlainOldObject, Issue58Model, ListFieldsModel
+from models import TestModel, ExpressiveTestModel, Comment, InheritedModel, PlainOldObject, Issue58Model, ListFieldsModel, CircularA, CircularB, CircularC
 from forms import EchoForm, FormWithFileField
 from test_project.apps.testapp import signals
 
@@ -103,3 +103,18 @@ class FileUploadHandler(BaseHandler):
     def create(self, request):
         return {'chaff': request.form.cleaned_data['chaff'],
                 'file_size': request.form.cleaned_data['le_file'].size}
+
+class CircularAHandler(BaseHandler):
+    allowed_methods = ('GET',)
+    fields = ('name', 'link')
+    model = CircularA
+
+class CircularAHandler(BaseHandler):
+    allowed_methods = ('GET',)
+    fields = ('name', 'link')
+    model = CircularB
+
+class CircularAHandler(BaseHandler):
+    allowed_methods = ('GET',)
+    fields = ('name', 'link')
+    model = CircularC

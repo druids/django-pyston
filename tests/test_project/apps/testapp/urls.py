@@ -2,7 +2,7 @@ from django.conf.urls.defaults import *
 from piston.resource import Resource
 from piston.authentication import HttpBasicAuthentication, HttpBasicSimple
 
-from test_project.apps.testapp.handlers import EntryHandler, ExpressiveHandler, AbstractHandler, EchoHandler, PlainOldObjectHandler, Issue58Handler, ListFieldsHandler, FileUploadHandler
+from test_project.apps.testapp.handlers import EntryHandler, ExpressiveHandler, AbstractHandler, EchoHandler, PlainOldObjectHandler, Issue58Handler, ListFieldsHandler, FileUploadHandler, CircularAHandler
 
 auth = HttpBasicAuthentication(realm='TestApplication')
 
@@ -14,6 +14,7 @@ popo = Resource(handler=PlainOldObjectHandler)
 list_fields = Resource(handler=ListFieldsHandler)
 issue58 = Resource(handler=Issue58Handler)
 fileupload = Resource(handler=FileUploadHandler)
+circular_a = Resource(handler=CircularAHandler)
 
 AUTHENTICATORS = [auth,]
 SIMPLE_USERS = (('admin', 'secr3t'),
@@ -47,6 +48,8 @@ urlpatterns = patterns(
     url(r'^file_upload/$', fileupload, name='file-upload-test'),
 
     url(r'^multiauth/$', multiauth),
+
+    url(r'^circular_a/$', circular_a),
 
     # oauth entrypoints
     url(r'^oauth/request_token$', 'piston.authentication.oauth_request_token'),

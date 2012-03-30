@@ -16,7 +16,7 @@ except ImportError:
 
 import urllib, base64, tempfile
 
-from test_project.apps.testapp.models import TestModel, ExpressiveTestModel, Comment, InheritedModel, Issue58Model, ListFieldsModel
+from test_project.apps.testapp.models import TestModel, ExpressiveTestModel, Comment, InheritedModel, Issue58Model, ListFieldsModel, CircularA, CircularB, CircularC
 from test_project.apps.testapp import signals
 
 class MainTests(TestCase):
@@ -568,4 +568,21 @@ class EmitterFormat(MainTests):
                                HTTP_ACCEPT='text/html')
         self.assertEquals(resp.status_code, 406)
 
+class CircularReferenceTest(MainTests):
+    def init_delegate(self):
+        self.a = CircularA.objects.create(name='foo')
+        self.b = CircularB.objects.create(name='bar')
+        self.c = CircularC.objects.create(name='baz')
+        self.a.link = self.b; self.a.save()
+        self.b.link = self.c; self.b.save()
+        self.c.link = self.a; self.c.save()
+
+    def test_circular_model_references(self):
+        self.assertRaises(
+            RuntimeError,
+            self.client.get,
+            '/api/circular_a/',
+            HTTP_AUTHORIZATION=self.auth_string)
+
+        
         
