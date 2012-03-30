@@ -1,5 +1,6 @@
 import sys, inspect
 
+import django
 from django.http import (HttpResponse, Http404, HttpResponseNotAllowed,
     HttpResponseForbidden, HttpResponseServerError)
 from django.views.debug import ExceptionReporter
@@ -204,13 +205,15 @@ class Resource(object):
         # If we're looking at a response object which contains non-string
         # content, then assume we should use the emitter to format that 
         # content
-        if isinstance(result, HttpResponse) and not result._is_string:
+        if self._use_emitter(result):
             status_code = result.status_code
-            # Note: We can't use result.content here because that method attempts
-            # to convert the content into a string which we don't want. 
-            # when _is_string is False _container is the raw data
+            # Note: We can't use result.content here because that
+            # method attempts to convert the content into a string
+            # which we don't want.  when
+            # _is_string/_base_content_is_iter is False _container is
+            # the raw data
             result = result._container
-     
+
         srl = emitter(result, typemapper, handler, fields, anonymous)
 
         try:
@@ -233,6 +236,16 @@ class Resource(object):
             return resp
         except HttpStatusCode, e:
             return e.response
+
+    @staticmethod
+    def _use_emitter(result):
+        """True iff result is a HttpResponse and contains non-string content."""
+        if not isinstance(result, HttpResponse):
+            return False
+        elif django.VERSION >= (1, 4):
+            return not result._base_content_is_iter
+        else:
+            return result._is_string
 
     @staticmethod
     def cleanup_request(request):
