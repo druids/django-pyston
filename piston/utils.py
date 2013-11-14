@@ -9,12 +9,14 @@ from django.core.mail import send_mail, mail_admins
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from django.template import loader, TemplateDoesNotExist
+from django.template.defaultfilters import lower
 from django.contrib.sites.models import Site
 from decorator import decorator
 
 from datetime import datetime, timedelta
 
 __version__ = '0.2.3rc1'
+
 
 def get_version():
     return __version__
@@ -42,7 +44,7 @@ class rc_factory(object):
 
     def __getattr__(self, attr):
         """
-        Returns a fresh `HttpResponse` when getting 
+        Returns a fresh `HttpResponse` when getting
         an "attribute". This is backwards compatible
         with 0.2, which is important.
         """
@@ -53,32 +55,26 @@ class rc_factory(object):
 
         class HttpResponseWrapper(HttpResponse):
             """
-            Wrap HttpResponse and make sure that the internal
-            _is_string/_base_content_is_iter flag is updated when the
-            _set_content method (via the content property) is called
+            Wrap HttpResponse and make sure that the internal_base_content_is_iter 
+            flag is updated when the _set_content method (via the content
+            property) is called
             """
             def _set_content(self, content):
                 """
-                Set the _container and _is_string /
-                _base_content_is_iter properties based on the type of
-                the value parameter. This logic is in the construtor
-                for HttpResponse, but doesn't get repeated when
-                setting HttpResponse.content although this bug report
-                (feature request) suggests that it should:
-                http://code.djangoproject.com/ticket/9403
+                Set the _container and _base_content_is_iter properties based on the
+                type of the value parameter. This logic is in the construtor
+                for HttpResponse, but doesn't get repeated when setting
+                HttpResponse.content although this bug report (feature request)
+                suggests that it should: http://code.djangoproject.com/ticket/9403
                 """
-                is_string = False
                 if not isinstance(content, basestring) and hasattr(content, '__iter__'):
                     self._container = content
+                    self._base_content_is_iter = False
                 else:
                     self._container = [content]
-                    is_string = True
-                if django.VERSION >= (1, 4):
-                    self._base_content_is_iter = not is_string
-                else:
-                    self._is_string = is_string
+                    self._base_content_is_iter = True
 
-            content = property(HttpResponse._get_content, _set_content)
+            content = property(HttpResponse.content.getter, _set_content)
 
         return HttpResponseWrapper(r, content_type='text/plain', status=c)
 
@@ -197,6 +193,13 @@ def coerce_put_post(request):
         request.PUT = request.POST
 
 
+class UnsupportedMediaTypeException(Exception):
+    """
+    Raised if the content_type has unssopported media type
+    """
+    pass
+
+
 class MimerDataException(Exception):
     """
     Raised if the content_type and data don't match
@@ -259,10 +262,9 @@ class Mimer(object):
 
         if not self.is_multipart() and ctype:
             loadee = self.loader_for_type(ctype)
-
             if loadee:
                 try:
-                    self.request.data = loadee(self.request.raw_post_data)
+                    self.request.data = loadee(self.request.body)
 
                     # Reset both POST and PUT from request, as its
                     # misleading having their presence around.
@@ -271,7 +273,7 @@ class Mimer(object):
                     # This also catches if loadee is None.
                     raise MimerDataException
             else:
-                self.request.data = None
+                raise UnsupportedMediaTypeException
 
         return self.request
 
@@ -358,3 +360,13 @@ def send_consumer_mail(consumer):
         print "Subject: %s" % _(subject)
         print body
 
+def model_handlers_to_dict():
+    from handler import handler_tracker
+
+    model_handlers = {}
+    for handler in handler_tracker:
+        if hasattr(handler, 'model'):
+            model = handler.model
+            label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
+            model_handlers[label] = handler
+    return model_handlers

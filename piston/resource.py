@@ -20,7 +20,7 @@ from handler import typemapper
 from doc import HandlerMethod
 from authentication import NoAuthentication
 from utils import coerce_put_post, FormValidationError, HttpStatusCode
-from utils import rc, format_error, translate_mime, MimerDataException
+from utils import rc, format_error, translate_mime, MimerDataException, UnsupportedMediaTypeException
 
 CHALLENGE = object()
 
@@ -77,7 +77,8 @@ class Resource(object):
             for name, (klass, content_type) in Emitter.EMITTERS.items():
                 content_type_without_encoding = content_type.split(';')[0]
                 supported_mime_types.add(content_type_without_encoding)
-                emitter_map[content_type_without_encoding] = name
+                emitter_map[content_type_without_encoding] = emitter_map.get(content_type_without_encoding, name)
+
             preferred_content_type = mimeparse.best_match(
                 list(supported_mime_types),
                 request.META['HTTP_ACCEPT'])
@@ -90,7 +91,7 @@ class Resource(object):
         `Resource` subclass.
         """
         resp = rc.BAD_REQUEST
-        resp.write(u' '+unicode(e.form.errors))
+        resp.write(u' ' + unicode(e.form.errors))
         return resp
 
     @property
@@ -155,6 +156,8 @@ class Resource(object):
                 translate_mime(request)
             except MimerDataException:
                 return rc.BAD_REQUEST
+            except UnsupportedMediaTypeException:
+                return rc.UNSUPPORTED_MEDIA_TYPE
             if not hasattr(request, 'data'):
                 if rm == 'POST':
                     request.data = request.POST
@@ -203,7 +206,7 @@ class Resource(object):
         status_code = 200
 
         # If we're looking at a response object which contains non-string
-        # content, then assume we should use the emitter to format that 
+        # content, then assume we should use the emitter to format that
         # content
         if self._use_emitter(result):
             status_code = result.status_code
@@ -273,7 +276,7 @@ class Resource(object):
         subject = "Piston crash report"
         html = reporter.get_traceback_html()
 
-        message = EmailMessage(settings.EMAIL_SUBJECT_PREFIX+subject,
+        message = EmailMessage(settings.EMAIL_SUBJECT_PREFIX + subject,
                                 html, settings.SERVER_EMAIL,
                                 [ admin[1] for admin in settings.ADMINS ])
 
@@ -311,8 +314,8 @@ class Resource(object):
 
         elif isinstance(e, HttpStatusCode):
             return e.response
- 
-        else: 
+
+        else:
             """
             On errors (like code errors), we'd like to be able to
             give crash reports to both admins and also the calling
