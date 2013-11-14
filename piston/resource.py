@@ -34,6 +34,7 @@ class Resource(object):
     """
     callmap = { 'GET': 'read', 'POST': 'create',
                 'PUT': 'update', 'DELETE': 'delete' }
+    preffered_content_type = 'application/json'
 
     def __init__(self, handler, authentication=None):
         if not callable(handler):
@@ -78,9 +79,10 @@ class Resource(object):
                 content_type_without_encoding = content_type.split(';')[0]
                 supported_mime_types.add(content_type_without_encoding)
                 emitter_map[content_type_without_encoding] = emitter_map.get(content_type_without_encoding, name)
-
+            supported_mime_types = list(supported_mime_types)
+            supported_mime_types.append(self.preffered_content_type)
             preferred_content_type = mimeparse.best_match(
-                list(supported_mime_types),
+                supported_mime_types,
                 request.META['HTTP_ACCEPT'])
             return emitter_map.get(preferred_content_type, None)
 
