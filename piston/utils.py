@@ -367,6 +367,10 @@ def model_handlers_to_dict():
     for handler in handler_tracker:
         if hasattr(handler, 'model'):
             model = handler.model
-            label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
-            model_handlers[label] = handler
+            model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
+            model_handlers[model_label] = handler
     return model_handlers
+
+def get_handler_of_model(model):
+    model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
+    return model_handlers_to_dict().get(model_label)
