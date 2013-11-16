@@ -360,6 +360,7 @@ def send_consumer_mail(consumer):
         print "Subject: %s" % _(subject)
         print body
 
+
 def model_handlers_to_dict():
     from handler import handler_tracker
 
@@ -370,6 +371,7 @@ def model_handlers_to_dict():
             model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
             model_handlers[model_label] = handler
     return model_handlers
+
 
 def get_handler_of_model(model):
     model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
