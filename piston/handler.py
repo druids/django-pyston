@@ -15,23 +15,24 @@ class HandlerMetaClass(type):
     def __new__(cls, name, bases, attrs):
         new_cls = type.__new__(cls, name, bases, attrs)
 
-        def already_registered(model, anon):
-            for k, (m, a) in typemapper.iteritems():
-                if model == m and anon == a:
-                    return k
+        if new_cls.register:
+            def already_registered(model, anon):
+                for k, (m, a) in typemapper.iteritems():
+                    if model == m and anon == a:
+                        return k
 
-        if hasattr(new_cls, 'model'):
-            if already_registered(new_cls.model, new_cls.is_anonymous):
-                if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
-                    warnings.warn("Handler already registered for model %s, "
-                        "you may experience inconsistent results." % new_cls.model.__name__)
+            if hasattr(new_cls, 'model'):
+                if already_registered(new_cls.model, new_cls.is_anonymous):
+                    if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
+                        warnings.warn("Handler already registered for model %s, "
+                            "you may experience inconsistent results." % new_cls.model.__name__)
 
-            typemapper[new_cls] = (new_cls.model, new_cls.is_anonymous)
-        else:
-            typemapper[new_cls] = (None, new_cls.is_anonymous)
+                typemapper[new_cls] = (new_cls.model, new_cls.is_anonymous)
+            else:
+                typemapper[new_cls] = (None, new_cls.is_anonymous)
 
-        if name not in ('BaseHandler', 'AnonymousBaseHandler'):
-            handler_tracker.append(new_cls)
+            if name not in ('BaseHandler', 'AnonymousBaseHandler'):
+                handler_tracker.append(new_cls)
 
         return new_cls
 
@@ -49,8 +50,9 @@ class BaseHandler(object):
 
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
     anonymous = is_anonymous = False
-    exclude = ( 'id', )
-    fields =  ( )
+    exclude = ('id',)
+    fields = ()
+    register = True
 
     def flatten_dict(self, dct):
         return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
@@ -88,7 +90,7 @@ class BaseHandler(object):
                 return self.queryset(request).get(pk=kwargs.get(pkfield))
             except ObjectDoesNotExist:
                 return rc.NOT_FOUND
-            except MultipleObjectsReturned: # should never happen, since we're using a PK
+            except MultipleObjectsReturned:  # should never happen, since we're using a PK
                 return rc.BAD_REQUEST
         else:
             return self.queryset(request).filter(*args, **kwargs)
@@ -123,12 +125,12 @@ class BaseHandler(object):
             inst = self.queryset(request).get(pk=kwargs.get(pkfield))
         except ObjectDoesNotExist:
             return rc.NOT_FOUND
-        except MultipleObjectsReturned: # should never happen, since we're using a PK
+        except MultipleObjectsReturned:  # should never happen, since we're using a PK
             return rc.BAD_REQUEST
 
         attrs = self.flatten_dict(request.data)
-        for k,v in attrs.iteritems():
-            setattr( inst, k, v )
+        for k, v in attrs.iteritems():
+            setattr(inst, k, v)
 
         inst.save()
         return rc.ALL_OK
