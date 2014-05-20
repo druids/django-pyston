@@ -1,14 +1,13 @@
-import sys, inspect
+import sys
 
 import django
-from django.http import (HttpResponse, Http404, HttpResponseNotAllowed,
-    HttpResponseForbidden, HttpResponseServerError)
+from django.http import (HttpResponse, HttpResponseNotAllowed,
+    HttpResponseServerError)
 from django.views.debug import ExceptionReporter
 from django.views.decorators.vary import vary_on_headers
 from django.conf import settings
-from django.core.mail import send_mail, EmailMessage
+from django.core.mail import EmailMessage
 from django.db.models.query import QuerySet
-from django.http import Http404
 
 try:
     import mimeparse
