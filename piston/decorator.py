@@ -4,14 +4,14 @@ http://www.phyast.pitt.edu/~micheles/python/documentation.html
 for the documentation and below for the licence.
 """
 
-## The basic trick is to generate the source code for the decorated function
-## with the right signature and to evaluate it.
-## Uncomment the statement 'print >> sys.stderr, func_src'  in _decorator
-## to understand what is going on.
+# # The basic trick is to generate the source code for the decorated function
+# # with the right signature and to evaluate it.
+# # Uncomment the statement 'print >> sys.stderr, func_src'  in _decorator
+# # to understand what is going on.
 
 __all__ = ["decorator", "new_wrapper", "getinfo"]
 
-import inspect, sys
+import inspect
 
 try:
     set
@@ -54,7 +54,7 @@ def getinfo(func):
     signature = inspect.formatargspec(regargs, varargs, varkwargs, defaults,
                                       formatvalue=lambda value: "")[1:-1]
     return dict(name=func.__name__, argnames=argnames, signature=signature,
-                defaults = func.func_defaults, doc=func.__doc__,
+                defaults=func.func_defaults, doc=func.__doc__,
                 module=func.__module__, dict=func.__dict__,
                 globals=func.func_globals, closure=func.func_closure)
 
@@ -63,7 +63,7 @@ def update_wrapper(wrapper, model, infodict=None):
     infodict = infodict or getinfo(model)
     try:
         wrapper.__name__ = infodict['name']
-    except: # Python version < 2.4
+    except:  # Python version < 2.4
         pass
     wrapper.__doc__ = infodict['doc']
     wrapper.__module__ = infodict['module']
@@ -82,7 +82,7 @@ def new_wrapper(wrapper, model):
     """
     if isinstance(model, dict):
         infodict = model
-    else: # assume model is a function
+    else:  # assume model is a function
         infodict = getinfo(model)
     assert not '_wrapper_' in infodict["argnames"], (
         '"_wrapper_" is a reserved argument name!')
@@ -149,7 +149,7 @@ def decorator(caller):
     """
     if inspect.isclass(caller):
         return decorator_factory(caller)
-    def _decorator(func): # the real meat is here
+    def _decorator(func):  # the real meat is here
         infodict = getinfo(func)
         argnames = infodict['argnames']
         assert not ('_call_' in argnames or '_func_' in argnames), (
@@ -164,23 +164,23 @@ if __name__ == "__main__":
     import doctest; doctest.testmod()
 
 ##########################     LEGALESE    ###############################
-      
-##   Redistributions of source code must retain the above copyright 
-##   notice, this list of conditions and the following disclaimer.
-##   Redistributions in bytecode form must reproduce the above copyright
-##   notice, this list of conditions and the following disclaimer in
-##   the documentation and/or other materials provided with the
-##   distribution. 
 
-##   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-##   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-##   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-##   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-##   HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-##   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-##   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-##   OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-##   ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
-##   TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-##   USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-##   DAMAGE.
+# #   Redistributions of source code must retain the above copyright
+# #   notice, this list of conditions and the following disclaimer.
+# #   Redistributions in bytecode form must reproduce the above copyright
+# #   notice, this list of conditions and the following disclaimer in
+# #   the documentation and/or other materials provided with the
+# #   distribution.
+
+# #   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# #   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# #   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# #   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# #   HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# #   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# #   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+# #   OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# #   ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+# #   TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+# #   USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+# #   DAMAGE.

@@ -1,13 +1,7 @@
-from __future__ import generators
+from __future__ import generators, unicode_literals
 
-import django
-import decimal, re, inspect
-import copy
+import datetime, decimal, re, inspect, json
 
-if django.VERSION >= (1, 6):
-    import json
-else:
-    import django.utils.simplejson as json
 
 try:
     # yaml isn't standard with python.  It shouldn't be required if it
@@ -29,14 +23,18 @@ except NameError:
 from django.db.models.query import QuerySet
 from django.db.models import Model, permalink
 from django.utils.xmlutils import SimplerXMLGenerator
-from django.utils.encoding import smart_unicode
-from django.core.urlresolvers import reverse, NoReverseMatch
+from django.utils.encoding import smart_unicode, force_text
+from django.core.urlresolvers import NoReverseMatch
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.http import HttpResponse
 from django.core import serializers
+from django.utils.translation import ugettext as _
+from django.utils import formats, timezone
+from django.db.models.fields.files import FileField
 
-from utils import HttpStatusCode, Mimer
-from validate_jsonp import is_valid_jsonp_callback_value
+from .utils import HttpStatusCode, Mimer, Enum
+from .validate_jsonp import is_valid_jsonp_callback_value
+from .handler import DefaultRestModelHandler
 
 try:
     import cStringIO as StringIO
@@ -50,6 +48,7 @@ except ImportError:
 
 # Allow people to change the reverser (default `permalink`).
 reverser = permalink
+
 
 class Emitter(object):
     """
@@ -65,15 +64,19 @@ class Emitter(object):
     """
     EMITTERS = { }
     RESERVED_FIELDS = set([ 'read', 'update', 'create',
-                            'delete', 'model', 'anonymous',
+                            'delete', 'model',
                             'allowed_methods', 'fields', 'exclude' ])
 
-    def __init__(self, payload, typemapper, handler, fields=(), anonymous=True):
+    SerializationTypes = Enum(('VERBOSE', 'RAW', 'BOTH'))
+
+    def __init__(self, payload, typemapper, handler, request, serialization_format, fields=(), fun_kwargs={}):
         self.typemapper = typemapper
         self.data = payload
         self.handler = handler
         self.fields = fields
-        self.anonymous = anonymous
+        self.fun_kwargs = fun_kwargs
+        self.request = request
+        self.serialization_format = serialization_format
 
         if isinstance(self.data, Exception):
             raise
@@ -92,6 +95,9 @@ class Emitter(object):
 
         return ret
 
+    def smart_unicode(self, thing):
+        return force_text(thing, strings_only=True)
+
     def construct(self):
         """
         Recursively serialize a lot of types, and
@@ -105,16 +111,6 @@ class Emitter(object):
             Dispatch, all types are routed through here.
             """
             ret = None
-
-            # return anything we've already seen as a string only
-            # this prevents infinite recursion in the case of recursive
-            # relationships
-
-            if thing in self.stack:
-                raise RuntimeError, (u'Circular reference detected while emitting '
-                                     'response')
-
-            self.stack.append(thing)
 
             if isinstance(thing, QuerySet):
                 ret = _qs(thing, fields)
@@ -138,9 +134,7 @@ class Emitter(object):
             elif repr(thing).startswith("<django.db.models.fields.related.RelatedManager"):
                 ret = _any(thing.all())
             else:
-                ret = smart_unicode(thing, strings_only=True)
-
-            self.stack.pop()
+                ret = self.smart_unicode(thing)
 
             return ret
 
@@ -162,34 +156,68 @@ class Emitter(object):
             """
             return [ _model(m, fields) for m in getattr(data, field.name).iterator() ]
 
+        def _raw(data, field):
+            val = getattr(data, field.attname)
+            if isinstance(field, FileField) and val:
+                val = val.url
+            return val
+
+        def _verbose(data, field):
+            humanize_method_name = 'get_%s_humanized' % field.attname
+            if hasattr(getattr(data, humanize_method_name, None), '__call__'):
+                return getattr(data, humanize_method_name)()
+            val = _raw(data, field)
+            if isinstance(val, bool):
+                val = val and _('Yes') or _('No')
+            elif field.choices:
+                val = getattr(data, 'get_%s_display' % field.attname)()
+            elif isinstance(val, datetime.datetime):
+                return formats.localize(timezone.template_localtime(val))
+            elif isinstance(val, (datetime.date, datetime.time)):
+                return formats.localize(val)
+            return val
+
         def _model(data, fields=None):
             """
             Models. Will respect the `fields` and/or
             `exclude` on the handler (see `typemapper`.)
             """
             ret = { }
-            handler = self.in_typemapper(type(data), self.anonymous)
+
+            handler = self.in_typemapper(type(data)) or DefaultRestModelHandler()
             get_absolute_uri = False
 
             if handler or fields:
-                v = lambda f: getattr(data, f.attname)
-                # FIXME
-                # Catch 22 here. Either we use the fields from the
-                # typemapped handler to make nested models work but the
-                # declared list_fields will ignored for models, or we
-                # use the list_fields from the base handler and accept that
-                # the nested models won't appear properly
-                # Refs #157
-                if handler:
-                    fields = getattr(handler, 'fields')
+                def v(f):
+                    """
+                    If field has choices this return display value
+                    """
+                    if self.serialization_format == self.SerializationTypes.RAW:
+                        return _raw(data, f)
+                    elif self.serialization_format == self.SerializationTypes.VERBOSE:
+                        return _verbose(data, f)
+                    else:
+                        raw = _raw(data, f)
+                        verbose = _verbose(data, f)
+                        if raw != verbose:
+                            return {'_raw': raw, '_verbose': verbose}
+                        return raw
 
-                if not fields or hasattr(handler, 'fields'):
+                if not fields and handler:
+                    fields = getattr(handler, 'fields')
+                    """
+                    If user has not read permission only get pid of the object
+                    """
+                    if not handler.has_read_permission(self.request, data):
+                        fields = set(('pk',))
+
+                if not fields:
                     """
                     Fields was not specified, try to find teh correct
                     version in the typemapper we were sent.
                     """
-                    mapped = self.in_typemapper(type(data), self.anonymous)
-                    get_fields = set(mapped.fields)
+                    mapped = self.in_typemapper(type(data))
+                    get_fields = set(mapped.default_fields)
                     exclude_fields = set(mapped.exclude).difference(get_fields)
 
                     if 'absolute_uri' in get_fields:
@@ -217,8 +245,10 @@ class Emitter(object):
 
                 met_fields = self.method_fields(handler, get_fields)
 
-                for f in data._meta.local_fields + data._meta.virtual_fields:
-                    if f.serialize and not any([ p in met_fields for p in [ f.attname, f.name ]]):
+                proxy_local_fields = data._meta.proxy_for_model._meta.local_fields if data._meta.proxy_for_model else []
+                for f in data._meta.local_fields + data._meta.virtual_fields + proxy_local_fields:
+                    if hasattr(f, 'serialize') and f.serialize \
+                       and not any([ p in met_fields for p in [ f.attname, f.name ]]):
                         if not f.rel:
                             if f.attname in get_fields:
                                 ret[f.attname] = _any(v(f))
@@ -236,6 +266,8 @@ class Emitter(object):
 
                 # try to get the remainder of fields
                 for maybe_field in get_fields:
+
+
                     if isinstance(maybe_field, (list, tuple)):
                         model, fields = maybe_field
                         inst = getattr(data, model, None)
@@ -253,21 +285,28 @@ class Emitter(object):
                         # Overriding normal field which has a "resource method"
                         # so you can alter the contents of certain fields without
                         # using different names.
-                        ret[maybe_field] = _any(met_fields[maybe_field](data))
+                        ret[maybe_field] = _any(met_fields[maybe_field](data, **self.fun_kwargs))
 
                     else:
                         maybe = getattr(data, maybe_field, None)
                         if maybe is not None:
                             if callable(maybe):
-                                if len(inspect.getargspec(maybe)[0]) <= 1:
-                                    ret[maybe_field] = _any(maybe())
+                                maybe_kwargs_names = inspect.getargspec(maybe)[0][1:]
+                                maybe_kwargs = {}
+
+                                for arg_name in maybe_kwargs_names:
+                                    if arg_name in self.fun_kwargs:
+                                        maybe_kwargs[arg_name] = self.fun_kwargs[arg_name]
+
+                                if len(maybe_kwargs_names) == len(maybe_kwargs):
+                                    ret[maybe_field] = _any(maybe(**maybe_kwargs))
                             else:
                                 ret[maybe_field] = _any(maybe)
                         else:
                             handler_f = getattr(handler or self.handler, maybe_field, None)
 
                             if handler_f:
-                                ret[maybe_field] = _any(handler_f(data))
+                                ret[maybe_field] = _any(handler_f(data, **self.fun_kwargs))
 
             else:
                 for f in data._meta.fields:
@@ -280,8 +319,8 @@ class Emitter(object):
                     ret[k] = _any(getattr(data, k))
 
             # resouce uri
-            if self.in_typemapper(type(data), self.anonymous):
-                handler = self.in_typemapper(type(data), self.anonymous)
+            if self.in_typemapper(type(data)):
+                handler = self.in_typemapper(type(data))
                 if hasattr(handler, 'resource_uri'):
                     url_id, fields = handler.resource_uri(data)
 
@@ -320,13 +359,11 @@ class Emitter(object):
             return dict([ (k, _any(v, fields)) for k, v in data.iteritems() ])
 
         # Kickstart the seralizin'.
-        self.stack = [];
+
         return _any(self.data, self.fields)
 
-    def in_typemapper(self, model, anonymous):
-        for klass, (km, is_anon) in self.typemapper.iteritems():
-            if model is km and is_anon is anonymous:
-                return klass
+    def in_typemapper(self, model):
+        return self.typemapper.get(model)
 
     def render(self):
         """
@@ -374,6 +411,7 @@ class Emitter(object):
         """
         return cls.EMITTERS.pop(name, None)
 
+
 class XMLEmitter(Emitter):
     def _to_xml(self, xml, data):
         if isinstance(data, (list, tuple)):
@@ -406,6 +444,7 @@ class XMLEmitter(Emitter):
 Emitter.register('xml', XMLEmitter, 'text/xml; charset=utf-8')
 Mimer.register(lambda *a: None, ('text/xml',))
 
+
 class JSONEmitter(Emitter):
     """
     JSON emitter, understands timestamps.
@@ -423,6 +462,7 @@ class JSONEmitter(Emitter):
 Emitter.register('json', JSONEmitter, 'application/json; charset=utf-8')
 Mimer.register(json.loads, ('application/json',))
 
+
 class YAMLEmitter(Emitter):
     """
     YAML emitter, uses `safe_dump` to omit the
@@ -434,6 +474,7 @@ class YAMLEmitter(Emitter):
 if yaml:  # Only register yaml if it was import successfully.
     Emitter.register('yaml', YAMLEmitter, 'application/x-yaml; charset=utf-8')
     Mimer.register(lambda s: dict(yaml.safe_load(s)), ('application/x-yaml',))
+
 
 class PickleEmitter(Emitter):
     """
@@ -454,6 +495,7 @@ Read more: http://nadiana.com/python-pickle-insecure
 Uncomment the line below to enable it. You're doing so at your own risk.
 """
 # Mimer.register(pickle.loads, ('application/python-pickle',))
+
 
 class DjangoEmitter(Emitter):
     """

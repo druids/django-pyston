@@ -1,46 +1,37 @@
 import time
 
-import django
-from django.http import HttpResponseNotAllowed, HttpResponseForbidden, HttpResponse, HttpResponseBadRequest
-from django.core.urlresolvers import reverse
+from django.http import HttpResponse
 from django.core.cache import cache
 from django import get_version as django_version
-from django.core.mail import send_mail, mail_admins
-from django.conf import settings
 from django.utils.translation import ugettext as _
-from django.template import loader, TemplateDoesNotExist
 from django.template.defaultfilters import lower
-from django.contrib.sites.models import Site
-from decorator import decorator
+from django.db.models.fields.related import RelatedField
 
-from datetime import datetime, timedelta
+from .decorator import decorator
+from .version import get_version
 
-__version__ = '0.2.3rc1'
-
-
-def get_version():
-    return __version__
 
 def format_error(error):
     return u"Piston/%s (Django %s) crash report:\n\n%s" % \
         (get_version(), django_version(), error)
 
+
 class rc_factory(object):
     """
     Status codes.
     """
-    CODES = dict(ALL_OK=({'success': 'OK'}, 200),
-                 CREATED=({'success': 'The record was created'}, 201),
+    CODES = dict(ALL_OK=({'success': _('OK')}, 200),
+                 CREATED=({'success': _('The record was created')}, 201),
                  DELETED=('', 204),  # 204 says "Don't send a body!"
-                 BAD_REQUEST=({'error': 'Bad Request'}, 400),
-                 FORBIDDEN=({'error':'Forbidden'}, 401),
-                 NOT_FOUND=({'error':'Not Found'}, 404),
-                 DUPLICATE_ENTRY=({'error': 'Conflict/Duplicate'}, 409),
-                 NOT_HERE=({'error': 'Gone'}, 410),
-                 UNSUPPORTED_MEDIA_TYPE=({'error': 'Unsupported Media Type'}, 415),
-                 INTERNAL_ERROR=({'error': 'Internal server error'}, 500),
-                 NOT_IMPLEMENTED=({'error': 'Not implemented'}, 501),
-                 THROTTLED=({'error': 'The resource was throttled'}, 503))
+                 BAD_REQUEST=({'error': _('Bad Request')}, 400),
+                 FORBIDDEN=({'error':_('Forbidden')}, 401),
+                 NOT_FOUND=({'error':_('Not Found')}, 404),
+                 DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
+                 NOT_HERE=({'error': _('Gone')}, 410),
+                 UNSUPPORTED_MEDIA_TYPE=({'error': _('Unsupported Media Type')}, 415),
+                 INTERNAL_ERROR=({'error': _('Internal server error')}, 500),
+                 NOT_IMPLEMENTED=({'error': _('Not implemented')}, 501),
+                 THROTTLED=({'error': _('The resource was throttled')}, 503))
 
     def __getattr__(self, attr):
         """
@@ -61,14 +52,13 @@ class rc_factory(object):
             """
             def _set_content(self, content):
                 """
-                Set the _container and _base_content_is_iter properties based on the
                 type of the value parameter. This logic is in the construtor
                 for HttpResponse, but doesn't get repeated when setting
                 HttpResponse.content although this bug report (feature request)
                 suggests that it should: http://code.djangoproject.com/ticket/9403
                 """
                 if not isinstance(content, basestring) and hasattr(content, '__iter__'):
-                    self._container = content
+                    self._container = {'messages': content}
                     self._base_content_is_iter = False
                 else:
                     self._container = [content]
@@ -80,13 +70,16 @@ class rc_factory(object):
 
 rc = rc_factory()
 
+
 class FormValidationError(Exception):
     def __init__(self, form):
         self.form = form
 
+
 class HttpStatusCode(Exception):
     def __init__(self, response):
         self.response = response
+
 
 def validate(v_form, operation='POST'):
     @decorator
@@ -99,6 +92,7 @@ def validate(v_form, operation='POST'):
         else:
             raise FormValidationError(form)
     return wrap
+
 
 def throttle(max_requests, timeout=60 * 60, extra=''):
     """
@@ -156,6 +150,7 @@ def throttle(max_requests, timeout=60 * 60, extra=''):
         return f(self, request, *args, **kwargs)
     return wrap
 
+
 def coerce_put_post(request):
     """
     Django doesn't particularly understand REST.
@@ -205,6 +200,7 @@ class MimerDataException(Exception):
     Raised if the content_type and data don't match
     """
     pass
+
 
 class Mimer(object):
     TYPES = dict()
@@ -285,8 +281,10 @@ class Mimer(object):
     def unregister(cls, loadee):
         return cls.TYPES.pop(loadee)
 
+
 def translate_mime(request):
     request = Mimer(request).translate()
+
 
 def require_mime(*mimes):
     """
@@ -313,52 +311,8 @@ def require_mime(*mimes):
         return f(self, request, *args, **kwargs)
     return wrap
 
+
 require_extended = require_mime('json', 'yaml', 'xml', 'pickle')
-
-def send_consumer_mail(consumer):
-    """
-    Send a consumer an email depending on what their status is.
-    """
-    try:
-        subject = settings.PISTON_OAUTH_EMAIL_SUBJECTS[consumer.status]
-    except AttributeError:
-        subject = "Your API Consumer for %s " % Site.objects.get_current().name
-        if consumer.status == "accepted":
-            subject += "was accepted!"
-        elif consumer.status == "canceled":
-            subject += "has been canceled."
-        elif consumer.status == "rejected":
-            subject += "has been rejected."
-        else:
-            subject += "is awaiting approval."
-
-    template = "piston/mails/consumer_%s.txt" % consumer.status
-
-    try:
-        body = loader.render_to_string(template,
-            { 'consumer' : consumer, 'user' : consumer.user })
-    except TemplateDoesNotExist:
-        """ 
-        They haven't set up the templates, which means they might not want
-        these emails sent.
-        """
-        return
-
-    try:
-        sender = settings.PISTON_FROM_EMAIL
-    except AttributeError:
-        sender = settings.DEFAULT_FROM_EMAIL
-
-    if consumer.user:
-        send_mail(_(subject), body, sender, [consumer.user.email], fail_silently=True)
-
-    if consumer.status == 'pending' and len(settings.ADMINS):
-        mail_admins(_(subject), body, fail_silently=True)
-
-    if settings.DEBUG and consumer.user:
-        print "Mail being sent, to=%s" % consumer.user.email
-        print "Subject: %s" % _(subject)
-        print body
 
 
 def model_handlers_to_dict():
@@ -373,6 +327,81 @@ def model_handlers_to_dict():
     return model_handlers
 
 
+def model_default_rest_fields(model):
+    rest_fields = []
+    for field in model._meta.fields:
+        if isinstance(field, RelatedField):
+            rest_fields.append((field.name, ('id', '_obj_name', '_rest_links')))
+        else:
+            rest_fields.append(field.name)
+    return rest_fields
+
+
 def get_handler_of_model(model):
     model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
     return model_handlers_to_dict().get(model_label)
+
+
+def list_to_dict(list_obj):
+    dict_obj = {}
+    for val in list_obj:
+        if isinstance(val, (list, tuple)):
+            dict_obj[val[0]] = list_to_dict(val[1])
+        else:
+            dict_obj[val] = {}
+    return dict_obj
+
+
+def dict_to_list(dict_obj):
+    list_obj = []
+    for key, val in dict_obj.items():
+        if val:
+            list_obj.append((key, dict_to_list(val)))
+        else:
+            list_obj.append(key)
+    return tuple(list_obj)
+
+
+def join_dicts(dict_obj1, dict_obj2):
+    joined_dict = dict_obj1.copy()
+
+    for key2, val2 in dict_obj2.items():
+        val1 = joined_dict.get(key2)
+        if not val1:
+            joined_dict[key2] = val2
+        elif not val2:
+            continue
+        else:
+            joined_dict[key2] = join_dicts(val1, val2)
+    return joined_dict
+
+
+def flat_list(list_obj):
+    flat_list_obj = []
+    for val in list_obj:
+        if isinstance(val, (list, tuple)):
+            flat_list_obj.append(val[0])
+        else:
+            flat_list_obj.append(val)
+    return flat_list_obj
+
+
+class JsonObj(dict):
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+
+class Enum(set):
+    def __getattr__(self, name):
+        if name in self:
+            return name
+        raise AttributeError
+
+
+class HeadersResult(object):
+
+    def __init__(self, result, http_headers={}, status_code=200):
+        self.result = result
+        self.http_headers = http_headers
+        self.status_code = status_code
