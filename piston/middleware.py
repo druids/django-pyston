@@ -1,6 +1,7 @@
 from django.middleware.http import ConditionalGetMiddleware
 from django.middleware.common import CommonMiddleware
 
+
 def compat_middleware_factory(klass):
     """
     Class wrapper that only executes `process_response`
@@ -15,6 +16,7 @@ def compat_middleware_factory(klass):
                 return klass.process_response(self, req, resp)
             return resp
     return compatwrapper
+
 
 ConditionalMiddlewareCompatProxy = compat_middleware_factory(ConditionalGetMiddleware)
 CommonMiddlewareCompatProxy = compat_middleware_factory(CommonMiddleware)

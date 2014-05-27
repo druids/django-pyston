@@ -315,16 +315,16 @@ def require_mime(*mimes):
 require_extended = require_mime('json', 'yaml', 'xml', 'pickle')
 
 
-def model_handlers_to_dict():
-    from handler import handler_tracker
+def model_resources_to_dict():
+    from resource import resource_tracker
 
-    model_handlers = {}
-    for handler in handler_tracker:
-        if hasattr(handler, 'model'):
-            model = handler.model
+    model_resources = {}
+    for resource in resource_tracker:
+        if hasattr(resource, 'model'):
+            model = resource.model
             model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
-            model_handlers[model_label] = handler
-    return model_handlers
+            model_resources[model_label] = resource
+    return model_resources
 
 
 def model_default_rest_fields(model):
@@ -337,9 +337,9 @@ def model_default_rest_fields(model):
     return rest_fields
 
 
-def get_handler_of_model(model):
+def get_resource_of_model(model):
     model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
-    return model_handlers_to_dict().get(model_label)
+    return model_resources_to_dict().get(model_label)
 
 
 def list_to_dict(list_obj):

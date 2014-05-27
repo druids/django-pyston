@@ -29,7 +29,7 @@ class DefaultSerializer(object):
 
     def serialize(self, request, result, fields):
         from .emitters import Emitter
-        from .handler import typemapper
+        from .resource import typemapper
 
         em_format = self.determine_emitter(request)
         if not em_format:
@@ -58,10 +58,10 @@ class DefaultSerializer(object):
             emitter_map = {}
             for name, (_, content_type) in Emitter.EMITTERS.items():
                 content_type_without_encoding = content_type.split(';')[0]
+                print content_type_without_encoding
                 supported_mime_types.add(content_type_without_encoding)
-                emitter_map[content_type_without_encoding] = emitter_map.get(content_type_without_encoding, name)
+                emitter_map[content_type_without_encoding] = name
             supported_mime_types = list(supported_mime_types)
-            supported_mime_types.append(self.preffered_content_type)
             preferred_content_type = mimeparse.best_match(
                 supported_mime_types,
                 request.META['HTTP_ACCEPT'])
@@ -74,4 +74,3 @@ class DefaultSerializer(object):
         if serialization_format not in Emitter.SerializationTypes:
             return Emitter.SerializationTypes.RAW
         return serialization_format
-

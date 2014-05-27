@@ -27,14 +27,13 @@ from django.utils.encoding import smart_unicode, force_text
 from django.core.urlresolvers import NoReverseMatch
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.http import HttpResponse
-from django.core import serializers
 from django.utils.translation import ugettext as _
 from django.utils import formats, timezone
 from django.db.models.fields.files import FileField
 
 from .utils import HttpStatusCode, Mimer, Enum
 from .validate_jsonp import is_valid_jsonp_callback_value
-from .handler import DefaultRestModelHandler
+from .resource import DefaultRestModelResource
 
 try:
     import cStringIO as StringIO
@@ -184,7 +183,7 @@ class Emitter(object):
             """
             ret = { }
 
-            handler = self.in_typemapper(type(data)) or DefaultRestModelHandler()
+            handler = self.in_typemapper(type(data)) or DefaultRestModelResource()
             get_absolute_uri = False
 
             if handler or fields:
@@ -496,19 +495,3 @@ Uncomment the line below to enable it. You're doing so at your own risk.
 """
 # Mimer.register(pickle.loads, ('application/python-pickle',))
 
-
-class DjangoEmitter(Emitter):
-    """
-    Emitter for the Django serialized format.
-    """
-    def render(self, request, format='xml'):
-        if isinstance(self.data, HttpResponse):
-            return self.data
-        elif isinstance(self.data, (int, str)):
-            response = self.data
-        else:
-            response = serializers.serialize(format, self.data, indent=True)
-
-        return response
-
-Emitter.register('django', DjangoEmitter, 'text/xml; charset=utf-8')

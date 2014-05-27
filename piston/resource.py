@@ -1,22 +1,23 @@
 import warnings
+import django
 
-from utils import rc
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
-from piston.serializer import DefaultSerializer
 from django.http import Http404, HttpResponse
-import django
-from piston.utils import HeadersResult, list_to_dict, dict_to_list
 from django.db.models.query import QuerySet
 from django.utils.decorators import classonlymethod
 
+from .utils import rc, HeadersResult, list_to_dict, dict_to_list
+from .serializer import DefaultSerializer
+
 
 typemapper = { }
-handler_tracker = [ ]
+resource_tracker = [ ]
 
-class HandlerMetaClass(type):
+
+class ResourceMetaClass(type):
     """
-    Metaclass that keeps a registry of class -> handler
+    Metaclass that keeps a registry of class -> resource
     mappings.
     """
     def __new__(cls, name, bases, attrs):
@@ -30,19 +31,19 @@ class HandlerMetaClass(type):
             if hasattr(new_cls, 'model'):
                 if already_registered(new_cls.model):
                     if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
-                        warnings.warn("Handler already registered for model %s, "
+                        warnings.warn("Resource already registered for model %s, "
                             "you may experience inconsistent results." % new_cls.model.__name__)
 
                 typemapper[new_cls.model] = new_cls
 
 
-            if name not in ('BaseHandler', 'AnonymousBaseHandler'):
-                handler_tracker.append(new_cls)
+            if name != 'BaseResource':
+                resource_tracker.append(new_cls)
 
         return new_cls
 
 
-class PermissionsHandler(object):
+class PermissionsResource(object):
 
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
 
@@ -77,9 +78,9 @@ class PermissionsHandler(object):
         return permissions_validators
 
 
-class BaseHandler(PermissionsHandler):
+class BaseResource(PermissionsResource):
     """
-    Basehandler that gives you CRUD for free.
+    BaseResource that gives you CRUD for free.
     You are supposed to subclass this for specific
     functionality.
 
@@ -87,7 +88,7 @@ class BaseHandler(PermissionsHandler):
     receive a request as the first argument from the
     resource. Use this for checking `request.user`, etc.
     """
-    __metaclass__ = HandlerMetaClass
+    __metaclass__ = ResourceMetaClass
 
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
     callmap = { 'GET': 'read', 'POST': 'create',
@@ -196,8 +197,7 @@ class BaseHandler(PermissionsHandler):
         return view
 
 
-
-class DefaultRestModelHandler(object):
+class DefaultRestModelResource(object):
 
     default_fields = ('id', '_obj_name')
 
@@ -206,7 +206,7 @@ class DefaultRestModelHandler(object):
         return unicode(obj)
 
 
-class BaseModelHandler(DefaultRestModelHandler, BaseHandler):
+class BaseModelResource(DefaultRestModelResource, BaseResource):
 
     register = True
     fields = ()

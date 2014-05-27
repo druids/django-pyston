@@ -18,6 +18,7 @@ try:
 except NameError:
     from sets import Set as set
 
+
 def getinfo(func):
     """
     Returns an info dictionary containing:
@@ -58,6 +59,7 @@ def getinfo(func):
                 module=func.__module__, dict=func.__dict__,
                 globals=func.func_globals, closure=func.func_closure)
 
+
 # akin to functools.update_wrapper
 def update_wrapper(wrapper, model, infodict=None):
     infodict = infodict or getinfo(model)
@@ -71,6 +73,7 @@ def update_wrapper(wrapper, model, infodict=None):
     wrapper.func_defaults = infodict['defaults']
     wrapper.undecorated = model
     return wrapper
+
 
 def new_wrapper(wrapper, model):
     """
@@ -90,6 +93,7 @@ def new_wrapper(wrapper, model):
     funcopy = eval(src, dict(_wrapper_=wrapper))
     return update_wrapper(funcopy, model, infodict)
 
+
 # helper used in decorator_factory
 def __call__(self, func):
     infodict = getinfo(func)
@@ -99,6 +103,7 @@ def __call__(self, func):
     src = "lambda %(signature)s: _self_.call(_func_, %(signature)s)"
     new = eval(src % infodict, dict(_func_=func, _self_=self))
     return update_wrapper(new, func, infodict)
+
 
 def decorator_factory(cls):
     """
@@ -116,6 +121,7 @@ def decorator_factory(cls):
                         '.call method')
     cls.__call__ = __call__
     return cls
+
 
 def decorator(caller):
     """
