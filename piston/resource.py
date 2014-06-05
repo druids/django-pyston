@@ -22,11 +22,9 @@ class ResourceMetaClass(type):
     """
     def __new__(cls, name, bases, attrs):
         new_cls = type.__new__(cls, name, bases, attrs)
-
         if new_cls.register:
             def already_registered(model):
-                for m in typemapper:
-                    return typemapper[m]
+                return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
                 if already_registered(new_cls.model):
@@ -35,7 +33,6 @@ class ResourceMetaClass(type):
                             "you may experience inconsistent results." % new_cls.model.__name__)
 
                 typemapper[new_cls.model] = new_cls
-
 
             if name != 'BaseResource':
                 resource_tracker.append(new_cls)
@@ -64,7 +61,7 @@ class PermissionsResource(object):
         return 'DELETE' in cls.allowed_methods
 
     @classmethod
-    def get_permission_validators(cls):
+    def get_permission_validators(cls, restricted_methods=None):
         all_permissions_validators = {
                                         'GET': cls.has_read_permission,
                                         'PUT': cls.has_update_permission,
@@ -73,7 +70,13 @@ class PermissionsResource(object):
                                     }
 
         permissions_validators = {}
-        for allowed_method in cls.allowed_methods:
+
+        if restricted_methods:
+            allowed_methods = set(restricted_methods) & set(cls.allowed_methods)
+        else:
+            allowed_methods = set(cls.allowed_methods)
+
+        for allowed_method in allowed_methods:
             permissions_validators[allowed_method] = all_permissions_validators[allowed_method]
         return permissions_validators
 
@@ -97,9 +100,9 @@ class BaseResource(PermissionsResource):
     register = False
 
     @classmethod
-    def get_allowed_methods(cls, user, obj):
+    def get_allowed_methods(cls, user, obj, restricted_methods=None):
         allowed_methods = []
-        for method, validator in cls.get_permission_validators().items():
+        for method, validator in cls.get_permission_validators(restricted_methods).items():
             if validator(user, obj):
                 allowed_methods.append(method)
         return allowed_methods

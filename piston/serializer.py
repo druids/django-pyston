@@ -56,12 +56,16 @@ class DefaultSerializer(object):
         if mimeparse and 'HTTP_ACCEPT' in request.META:
             supported_mime_types = set()
             emitter_map = {}
+            preferred_content_type = None
             for name, (_, content_type) in Emitter.EMITTERS.items():
                 content_type_without_encoding = content_type.split(';')[0]
-                print content_type_without_encoding
+                if name == self.default_emitter:
+                    preferred_content_type = content_type_without_encoding
                 supported_mime_types.add(content_type_without_encoding)
                 emitter_map[content_type_without_encoding] = name
             supported_mime_types = list(supported_mime_types)
+            if preferred_content_type:
+                supported_mime_types.append(preferred_content_type)
             preferred_content_type = mimeparse.best_match(
                 supported_mime_types,
                 request.META['HTTP_ACCEPT'])
