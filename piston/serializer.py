@@ -19,12 +19,7 @@ class DefaultSerializer(object):
             coerce_put_post(request)
 
         if rm in ('POST', 'PUT'):
-            try:
-                translate_mime(request)
-            except MimerDataException:
-                return rc.BAD_REQUEST
-            except UnsupportedMediaTypeException:
-                return rc.UNSUPPORTED_MEDIA_TYPE
+            translate_mime(request)
         return request
 
     def serialize(self, request, result, fields):

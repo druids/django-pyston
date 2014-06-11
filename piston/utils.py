@@ -59,10 +59,10 @@ class rc_factory(object):
                 """
                 if not isinstance(content, basestring) and hasattr(content, '__iter__'):
                     self._container = {'messages': content}
-                    self._base_content_is_iter = False
+                    self._base_content_is_iter = True
                 else:
                     self._container = [content]
-                    self._base_content_is_iter = True
+                    self._base_content_is_iter = False
 
             content = property(HttpResponse.content.getter, _set_content)
 
@@ -283,6 +283,8 @@ class Mimer(object):
 
 
 def translate_mime(request):
+    from .emitters import *
+
     request = Mimer(request).translate()
 
 

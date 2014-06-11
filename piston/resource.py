@@ -9,6 +9,7 @@ from django.utils.decorators import classonlymethod
 
 from .utils import rc, HeadersResult, list_to_dict, dict_to_list
 from .serializer import DefaultSerializer
+from piston.utils import UnsupportedMediaTypeException, MimerDataException
 
 
 typemapper = { }
@@ -100,10 +101,10 @@ class BaseResource(PermissionsResource):
     register = False
 
     @classmethod
-    def get_allowed_methods(cls, user, obj, restricted_methods=None):
+    def get_allowed_methods(cls, request, obj, restricted_methods=None):
         allowed_methods = []
         for method, validator in cls.get_permission_validators(restricted_methods).items():
-            if validator(user, obj):
+            if validator(request, obj):
                 allowed_methods.append(method)
         return allowed_methods
 
@@ -145,41 +146,32 @@ class BaseResource(PermissionsResource):
             http_headers = result.http_headers
             status_code = result.status_code
             result = result.result
+
+        if isinstance(result, HttpResponse):
+            status_code = result.status_code
+            result = result._container
         return result, http_headers, status_code
 
     def dispatch(self, request, *args, **kwargs):
-        request = self.deserialize(request)
+        try:
+            request = self.deserialize(request)
+        except MimerDataException:
+            return rc.BAD_REQUEST
+        except UnsupportedMediaTypeException:
+            return rc.UNSUPPORTED_MEDIA_TYPErequest
 
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
-        if self._use_emitter(result):
-            status_code = result.status_code
-            """ 
-             Note: We can't use result.content here because that method attempts to convert the content into a string
-             which we don't want. when _is_string/_base_content_is_iter is False _container is the raw data
-            """
-            result = result._container
-
         stream, ct = self.serialize(request, result)
 
         if not isinstance(stream, HttpResponse):
             resp = HttpResponse(stream, content_type=ct, status=status_code)
         else:
             resp = stream
-
         # resp.streaming = self.stream
 
-        for header, value in self.get_headers(request, http_headers).items():
-            resp[header] = value
+        # for header, value in self.get_headers(request, http_headers).items():
+        #    resp[header] = value
         return resp
-
-    def _use_emitter(self, result):
-        """True iff result is a HttpResponse and contains non-string content."""
-        if not isinstance(result, HttpResponse):
-            return False
-        elif django.VERSION >= (1, 4):
-            return result._base_content_is_iter
-        else:
-            return not result._is_string
 
     def get_headers(self, request, http_headers):
         from piston.emitters import Emitter
