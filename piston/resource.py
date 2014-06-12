@@ -99,6 +99,7 @@ class BaseResource(PermissionsResource):
                 'PUT': 'update', 'DELETE': 'delete' }
     serializer = DefaultSerializer
     register = False
+    csrf_exempt = True
 
     @classmethod
     def get_allowed_methods(cls, request, obj, restricted_methods=None):
@@ -135,12 +136,18 @@ class BaseResource(PermissionsResource):
     def get_result(self, request, *args, **kwargs):
         status_code = 200
         http_headers = {}
-        rm = request.method.upper()
-        meth = getattr(self, self.callmap.get(rm, ''), None)
-        if not meth:
-            raise Http404
+        try:
+            request = self.deserialize(request)
+            rm = request.method.upper()
+            meth = getattr(self, self.callmap.get(rm, ''), None)
+            if not meth:
+                raise Http404
 
-        result = meth(request, *args, **kwargs)
+            result = meth(request, *args, **kwargs)
+        except MimerDataException:
+            result = rc.BAD_REQUEST
+        except UnsupportedMediaTypeException:
+            result = rc.UNSUPPORTED_MEDIA_TYPE
 
         if isinstance(result, HeadersResult):
             http_headers = result.http_headers
@@ -153,13 +160,6 @@ class BaseResource(PermissionsResource):
         return result, http_headers, status_code
 
     def dispatch(self, request, *args, **kwargs):
-        try:
-            request = self.deserialize(request)
-        except MimerDataException:
-            return rc.BAD_REQUEST
-        except UnsupportedMediaTypeException:
-            return rc.UNSUPPORTED_MEDIA_TYPErequest
-
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
         stream, ct = self.serialize(request, result)
 
@@ -169,8 +169,8 @@ class BaseResource(PermissionsResource):
             resp = stream
         # resp.streaming = self.stream
 
-        # for header, value in self.get_headers(request, http_headers).items():
-        #    resp[header] = value
+        for header, value in self.get_headers(request, http_headers).items():
+            resp[header] = value
         return resp
 
     def get_headers(self, request, http_headers):
@@ -188,7 +188,7 @@ class BaseResource(PermissionsResource):
             self.args = args
             self.kwargs = kwargs
             return self.dispatch(request, *args, **kwargs)
-
+        view.csrf_exempt = cls.csrf_exempt
         return view
 
 
