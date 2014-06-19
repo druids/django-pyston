@@ -176,7 +176,7 @@ class BaseResource(PermissionsResource):
     def get_headers(self, request, http_headers):
         from piston.emitters import Emitter
 
-        http_headers['X-Serialization-Format-Options'] = ','.join(Emitter.SerializationTypes)
+        http_headers['X-Serialization-Format-Options'] = ','.join(Emitter.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'must-revalidate, private'
         return http_headers
 

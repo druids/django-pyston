@@ -49,6 +49,23 @@ except ImportError:
 reverser = permalink
 
 
+class RawVerboseValue(object):
+
+    def __init__(self, raw_value, verbose_value):
+        self.raw_value = raw_value
+        self.verbose_value = verbose_value
+
+    def get_value(self, serialization_format):
+        if serialization_format == Emitter.SERIALIZATION_TYPES.RAW:
+            return self.raw_value
+        elif serialization_format == Emitter.SERIALIZATION_TYPES.VERBOSE:
+            return self.verbose_value
+        elif self.raw_value == self.verbose_value:
+            return self.raw_value
+        else:
+            return {'_raw': self.raw_value, '_verbose': self.verbose_value}
+
+
 class Emitter(object):
     """
     Super emitter. All other emitters should subclass
@@ -66,7 +83,7 @@ class Emitter(object):
                             'delete', 'model',
                             'allowed_methods', 'fields', 'exclude' ])
 
-    SerializationTypes = Enum(('VERBOSE', 'RAW', 'BOTH'))
+    SERIALIZATION_TYPES = Enum(('VERBOSE', 'RAW', 'BOTH'))
 
     def __init__(self, payload, typemapper, handler, request, serialization_format, fields=(), fun_kwargs={}):
         self.typemapper = typemapper
@@ -111,7 +128,9 @@ class Emitter(object):
             """
             ret = None
 
-            if isinstance(thing, QuerySet):
+            if isinstance(thing, RawVerboseValue):
+                ret = _raw_verbose(thing)
+            elif isinstance(thing, QuerySet):
                 ret = _qs(thing, fields)
             elif isinstance(thing, (tuple, list, set)):
                 ret = _list(thing, fields)
@@ -137,6 +156,9 @@ class Emitter(object):
 
             return ret
 
+        def _raw_verbose(data):
+            return _any(data.get_value(self.serialization_format))
+
         def _fk(data, field):
             """
             Foreign keys.
@@ -155,17 +177,17 @@ class Emitter(object):
             """
             return [ _model(m, fields) for m in getattr(data, field.name).iterator() ]
 
-        def _raw(data, field):
+        def _model_field_raw(data, field):
             val = getattr(data, field.attname)
             if isinstance(field, FileField) and val:
                 val = val.url
             return val
 
-        def _verbose(data, field):
+        def _model_field_verbose(data, field):
             humanize_method_name = 'get_%s_humanized' % field.attname
             if hasattr(getattr(data, humanize_method_name, None), '__call__'):
                 return getattr(data, humanize_method_name)()
-            val = _raw(data, field)
+            val = _model_field_raw(data, field)
             if isinstance(val, bool):
                 val = val and _('Yes') or _('No')
             elif field.choices:
@@ -188,19 +210,9 @@ class Emitter(object):
 
             if handler or fields:
                 def v(f):
-                    """
-                    If field has choices this return display value
-                    """
-                    if self.serialization_format == self.SerializationTypes.RAW:
-                        return _raw(data, f)
-                    elif self.serialization_format == self.SerializationTypes.VERBOSE:
-                        return _verbose(data, f)
-                    else:
-                        raw = _raw(data, f)
-                        verbose = _verbose(data, f)
-                        if raw != verbose:
-                            return {'_raw': raw, '_verbose': verbose}
-                        return raw
+                    raw = _model_field_raw(data, f)
+                    verbose = _model_field_verbose(data, f)
+                    return RawVerboseValue(raw, verbose)
 
                 if not fields and handler:
                     fields = getattr(handler, 'fields')
@@ -358,7 +370,6 @@ class Emitter(object):
             return dict([ (k, _any(v, fields)) for k, v in data.iteritems() ])
 
         # Kickstart the seralizin'.
-
         return _any(self.data, self.fields)
 
     def in_typemapper(self, model):

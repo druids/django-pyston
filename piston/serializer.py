@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from .utils import coerce_put_post, translate_mime, MimerDataException, UnsupportedMediaTypeException, rc
+from .utils import coerce_put_post, translate_mime
 
 
 class DefaultSerializer(object):
@@ -69,7 +69,7 @@ class DefaultSerializer(object):
     def get_serialization_format(self, request):
         from .emitters import Emitter
 
-        serialization_format = request.META.get('HTTP_X_SERIALIZATION_FORMAT', Emitter.SerializationTypes.RAW)
-        if serialization_format not in Emitter.SerializationTypes:
-            return Emitter.SerializationTypes.RAW
+        serialization_format = request.META.get('HTTP_X_SERIALIZATION_FORMAT', Emitter.SERIALIZATION_TYPES.RAW)
+        if serialization_format not in Emitter.SERIALIZATION_TYPES:
+            return Emitter.SERIALIZATION_TYPES.RAW
         return serialization_format
