@@ -100,6 +100,7 @@ class BaseResource(PermissionsResource):
     serializer = DefaultSerializer
     register = False
     csrf_exempt = True
+    cache = None
 
     @classmethod
     def get_allowed_methods(cls, request, obj, restricted_methods=None):
@@ -160,6 +161,12 @@ class BaseResource(PermissionsResource):
         return result, http_headers, status_code
 
     def dispatch(self, request, *args, **kwargs):
+        if self.cache:
+            response = self.cache.get_response(request)
+            if response:
+                return response
+
+
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
         stream, ct = self.serialize(request, result)
 
@@ -171,6 +178,9 @@ class BaseResource(PermissionsResource):
 
         for header, value in self.get_headers(request, http_headers).items():
             resp[header] = value
+
+        if self.cache:
+            self.cache.cache_response(request, resp)
         return resp
 
     def get_headers(self, request, http_headers):
