@@ -9,7 +9,7 @@ from django.utils.decorators import classonlymethod
 
 from .utils import rc, HeadersResult, list_to_dict, dict_to_list
 from .serializer import DefaultSerializer
-from piston.utils import UnsupportedMediaTypeException, MimerDataException
+from piston.utils import UnsupportedMediaTypeException, MimerDataException, flat_list
 
 
 typemapper = { }
@@ -288,6 +288,14 @@ class BaseModelResource(DefaultRestModelResource, BaseResource):
             return rc.DUPLICATE_ENTRY
         except self.model.DoesNotExist:
             return rc.NOT_HERE
+
+    def get_headers(self, request, http_headers):
+        from piston.emitters import Emitter
+
+        http_headers = super(BaseModelResource, self).get_headers(request, http_headers)
+        http_headers['X-Fields-Options'] = ','.join(flat_list(self.fields))
+
+        return http_headers
 
     def get_fields(self, request, result):
         allowed_fields = list_to_dict(self.fields)
