@@ -215,7 +215,7 @@ class Emitter(object):
                     return RawVerboseValue(raw, verbose)
 
                 if not fields and handler:
-                    fields = getattr(handler, 'fields')
+                    fields = getattr(handler, 'default_obj_fields')
                     """
                     If user has not read permission only get pid of the object
                     """
