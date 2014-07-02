@@ -26,6 +26,7 @@ from django.utils.xmlutils import SimplerXMLGenerator
 from django.utils.encoding import smart_unicode, force_text
 from django.core.urlresolvers import NoReverseMatch
 from django.core.serializers.json import DateTimeAwareJSONEncoder
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 from django.utils import formats, timezone
@@ -299,7 +300,10 @@ class Emitter(object):
                         ret[maybe_field] = _any(met_fields[maybe_field](data, **self.fun_kwargs))
 
                     else:
-                        maybe = getattr(data, maybe_field, None)
+                        try:
+                            maybe = getattr(data, maybe_field, None)
+                        except ObjectDoesNotExist:
+                            maybe = None
                         if maybe is not None:
                             if callable(maybe):
                                 maybe_kwargs_names = inspect.getargspec(maybe)[0][1:]
