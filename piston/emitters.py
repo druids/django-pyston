@@ -220,7 +220,9 @@ class Emitter(object):
                     """
                     If user has not read permission only get pid of the object
                     """
-                    if not handler.has_read_permission(self.request, data):
+                    if (not handler.has_read_permission(self.request, data) and
+                        not handler.has_update_permission(self.request, data) and
+                        not handler.has_create_permission(self.request, data)):
                         fields = set(('pk',))
 
                 if not fields:
