@@ -1,6 +1,8 @@
 from __future__ import generators, unicode_literals
 
-import datetime, decimal, re, inspect, json
+import datetime, decimal, re, inspect, json, csv, io
+
+from piston.utils import CsvGenerator
 
 
 try:
@@ -21,6 +23,7 @@ except NameError:
         return False
 
 from django.db.models.query import QuerySet
+from django.db import models
 from django.db.models import Model, permalink
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.utils.encoding import smart_unicode, force_text
@@ -31,6 +34,7 @@ from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 from django.utils import formats, timezone
 from django.db.models.fields.files import FileField
+from django.db.models.fields import FieldDoesNotExist
 
 from .utils import HttpStatusCode, Mimer, Enum
 from .validate_jsonp import is_valid_jsonp_callback_value
@@ -512,3 +516,75 @@ Uncomment the line below to enable it. You're doing so at your own risk.
 """
 # Mimer.register(pickle.loads, ('application/python-pickle',))
 
+
+class CsvEmitter(Emitter):
+
+    def _get_label(self, field):
+        if hasattr(self.handler, 'model'):
+            model = self.handler.model
+            try:
+                return model._meta.get_field(field).verbose_name
+            except FieldDoesNotExist:
+                try:
+                    return getattr(model(), field).short_description
+                except (AttributeError, ObjectDoesNotExist):
+                    for rel in model._meta.get_all_related_objects():
+                        reverse_name = rel.get_accessor_name()
+                        if field == reverse_name:
+                            if isinstance(rel.field, models.OneToOneField):
+                                return rel.model._meta.verbose_name
+                            else:
+                                return rel.model._meta.verbose_name_plural
+        return field
+
+    def cleaned_fields(self):
+        cleaned_fields = []
+        for field in self.fields:
+            if not field.startswith('_'):
+                cleaned_fields.append(field)
+        return cleaned_fields
+
+    def _render_dict_value(self, dict_value):
+        value = dict_value.get('_obj_name')
+        if value is None:
+
+            value = '\t'.join([force_text(val) for key, val in dict_value.items() if not key.startswith('_')
+                               and not isinstance(val, (dict, list))])
+        return value or ''
+
+    def _render_list_value(self, list_value):
+        values = []
+        for value in list_value:
+            if isinstance(value, dict):
+                value = self._render_dict_value(value)
+            else:
+                value = force_text(value)
+            values.append(value)
+        return '\n '.join(values)
+
+    def render(self, request):
+        output = io.StringIO()
+        headers = []
+        fields = self.cleaned_fields()
+
+        for field in fields:
+            headers.append(self._get_label(field))
+
+        data = []
+        for row in self.construct():
+            out_row = []
+            for field in fields:
+                value = row.get(field)
+                if isinstance(value, dict):
+                    value = self._render_dict_value(value)
+                elif isinstance(value, list):
+                    value = self._render_list_value(value)
+
+                if not value:
+                    value = ''
+                out_row.append(value)
+            data.append(out_row)
+        CsvGenerator().generate(headers, data, output)
+        return output.getvalue()
+
+Emitter.register('csv', CsvEmitter, 'text/csv')
