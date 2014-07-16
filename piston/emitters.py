@@ -27,7 +27,6 @@ from django.db import models
 from django.db.models import Model, permalink
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.utils.encoding import smart_unicode, force_text
-from django.core.urlresolvers import NoReverseMatch
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
@@ -126,60 +125,60 @@ class Emitter(object):
 
         Returns `dict`.
         """
-        def _any(thing, fields=None):
+        def _any(thing, fields=None, via=None):
             """
             Dispatch, all types are routed through here.
             """
             ret = None
 
             if isinstance(thing, RawVerboseValue):
-                ret = _raw_verbose(thing)
+                ret = _raw_verbose(thing, via)
             elif isinstance(thing, QuerySet):
-                ret = _qs(thing, fields)
+                ret = _qs(thing, fields, via)
             elif isinstance(thing, (tuple, list, set)):
-                ret = _list(thing, fields)
+                ret = _list(thing, fields, via)
             elif isinstance(thing, dict):
-                ret = _dict(thing, fields)
+                ret = _dict(thing, fields, via)
             elif isinstance(thing, decimal.Decimal):
                 ret = str(thing)
             elif isinstance(thing, Model):
-                ret = _model(thing, fields)
+                ret = _model(thing, fields, via)
             elif isinstance(thing, HttpResponse):
                 raise HttpStatusCode(thing)
             elif inspect.isfunction(thing):
                 if not inspect.getargspec(thing)[0]:
-                    ret = _any(thing())
+                    ret = _any(thing(), via=via)
             elif hasattr(thing, '__emittable__'):
                 f = thing.__emittable__
                 if inspect.ismethod(f) and len(inspect.getargspec(f)[0]) == 1:
-                    ret = _any(f())
+                    ret = _any(f(), via=via)
             elif repr(thing).startswith("<django.db.models.fields.related.RelatedManager"):
-                ret = _any(thing.all())
+                ret = _any(thing.all(), via=via)
             else:
                 ret = self.smart_unicode(thing)
 
             return ret
 
-        def _raw_verbose(data):
-            return _any(data.get_value(self.serialization_format))
+        def _raw_verbose(data, via=None):
+            return _any(data.get_value(self.serialization_format), via=via)
 
-        def _fk(data, field):
+        def _fk(data, field, via=None):
             """
             Foreign keys.
             """
-            return _any(getattr(data, field.name))
+            return _any(getattr(data, field.name), via=via)
 
-        def _related(data, fields=None):
+        def _related(data, fields=None, via=None):
             """
             Foreign keys.
             """
-            return [ _model(m, fields) for m in data.iterator() ]
+            return [ _model(m, fields, via) for m in data.iterator() ]
 
-        def _m2m(data, field, fields=None):
+        def _m2m(data, field, fields=None, via=None):
             """
             Many to many (re-route to `_model`.)
             """
-            return [ _model(m, fields) for m in getattr(data, field.name).iterator() ]
+            return [ _model(m, fields, via) for m in getattr(data, field.name).iterator() ]
 
         def _model_field_raw(data, field):
             val = getattr(data, field.attname)
@@ -202,7 +201,7 @@ class Emitter(object):
                 return formats.localize(val)
             return val
 
-        def _model(data, fields=None):
+        def _model(data, fields=None, via=None):
             """
             Models. Will respect the `fields` and/or
             `exclude` on the handler (see `typemapper`.)
@@ -211,174 +210,117 @@ class Emitter(object):
             from .resource import DefaultRestModelResource
             ret = { }
 
+            if via is None:
+                via = []
+
             handler = self.in_typemapper(type(data)) or DefaultRestModelResource()
-            get_absolute_uri = False
 
-            if handler or fields:
-                def v(f):
-                    raw = _model_field_raw(data, f)
-                    verbose = _model_field_verbose(data, f)
-                    return RawVerboseValue(raw, verbose)
+            def v(f):
+                raw = _model_field_raw(data, f)
+                verbose = _model_field_verbose(data, f)
+                return RawVerboseValue(raw, verbose)
 
-                if not fields and handler:
-                    fields = getattr(handler, 'default_obj_fields')
-                    """
-                    If user has not read permission only get pid of the object
-                    """
-                    if (not handler.has_read_permission(self.request, data) and
-                        not handler.has_update_permission(self.request, data) and
-                        not handler.has_create_permission(self.request, data)):
-                        fields = set(('pk',))
+            if not fields:
+                fields = getattr(handler, 'default_obj_fields')
+                """
+                If user has not read permission only get pid of the object
+                """
+                if (not handler.has_read_permission(self.request, data, via) and
+                    not handler.has_update_permission(self.request, data, via) and
+                    not handler.has_create_permission(self.request, data, via)):
+                    fields = ('pk',)
 
-                if not fields:
-                    """
-                    Fields was not specified, try to find teh correct
-                    version in the typemapper we were sent.
-                    """
-                    mapped = self.in_typemapper(type(data))
-                    get_fields = set(mapped.default_fields)
-                    exclude_fields = set(mapped.exclude).difference(get_fields)
+            get_fields = set(fields)
+            met_fields = self.method_fields(handler, get_fields)
 
-                    if 'absolute_uri' in get_fields:
-                        get_absolute_uri = True
+            proxy_local_fields = data._meta.proxy_for_model._meta.local_fields if data._meta.proxy_for_model else []
 
-                    if not get_fields:
-                        get_fields = set([ f.attname.replace("_id", "", 1)
-                            for f in data._meta.fields + data._meta.virtual_fields])
+            for f in data._meta.local_fields + data._meta.virtual_fields + proxy_local_fields:
+                if hasattr(f, 'serialize') and f.serialize \
+                    and not any([ p in met_fields for p in [ f.attname, f.name ]]):
+                    if not f.rel:
+                        if f.attname in get_fields:
+                            ret[f.attname] = _any(v(f), via=via + [handler])
+                            get_fields.remove(f.attname)
+                    else:
+                        if f.attname[:-3] in get_fields:
+                            ret[f.name] = _fk(data, f, via + [handler])
+                            get_fields.remove(f.name)
 
-                    if hasattr(mapped, 'extra_fields'):
-                        get_fields.update(mapped.extra_fields)
+            for mf in data._meta.many_to_many:
+                if mf.serialize and mf.attname not in met_fields:
+                    if mf.attname in get_fields:
+                        ret[mf.name] = _m2m(data, mf, via + [handler])
+                        get_fields.remove(mf.name)
 
-                    # sets can be negated.
-                    for exclude in exclude_fields:
-                        if isinstance(exclude, basestring):
-                            get_fields.discard(exclude)
+            # try to get the remainder of fields
+            for maybe_field in get_fields:
 
-                        elif isinstance(exclude, re._pattern_type):
-                            for field in get_fields.copy():
-                                if exclude.match(field):
-                                    get_fields.discard(field)
+                if isinstance(maybe_field, (list, tuple)):
+                    model, fields = maybe_field
+                    inst = getattr(data, model, None)
+
+                    if inst:
+                        if hasattr(inst, 'all'):
+                            ret[model] = _related(inst, fields, via + [handler])
+                        elif callable(inst):
+                            if len(inspect.getargspec(inst)[0]) == 1:
+                                ret[model] = _any(inst(), fields, via + [handler])
+                        else:
+                            ret[model] = _model(inst, fields, via + [handler])
+
+                elif maybe_field in met_fields:
+                    # Overriding normal field which has a "resource method"
+                    # so you can alter the contents of certain fields without
+                    # using different names.
+                    ret[maybe_field] = _any(met_fields[maybe_field](data, **self.fun_kwargs), via=via + [handler])
 
                 else:
-                    get_fields = set(fields)
-
-                met_fields = self.method_fields(handler, get_fields)
-
-                proxy_local_fields = data._meta.proxy_for_model._meta.local_fields if data._meta.proxy_for_model else []
-                for f in data._meta.local_fields + data._meta.virtual_fields + proxy_local_fields:
-                    if hasattr(f, 'serialize') and f.serialize \
-                       and not any([ p in met_fields for p in [ f.attname, f.name ]]):
-                        if not f.rel:
-                            if f.attname in get_fields:
-                                ret[f.attname] = _any(v(f))
-                                get_fields.remove(f.attname)
-                        else:
-                            if f.attname[:-3] in get_fields:
-                                ret[f.name] = _fk(data, f)
-                                get_fields.remove(f.name)
-
-                for mf in data._meta.many_to_many:
-                    if mf.serialize and mf.attname not in met_fields:
-                        if mf.attname in get_fields:
-                            ret[mf.name] = _m2m(data, mf)
-                            get_fields.remove(mf.name)
-
-                # try to get the remainder of fields
-                for maybe_field in get_fields:
-
-
-                    if isinstance(maybe_field, (list, tuple)):
-                        model, fields = maybe_field
-                        inst = getattr(data, model, None)
-
-                        if inst:
-                            if hasattr(inst, 'all'):
-                                ret[model] = _related(inst, fields)
-                            elif callable(inst):
-                                if len(inspect.getargspec(inst)[0]) == 1:
-                                    ret[model] = _any(inst(), fields)
-                            else:
-                                ret[model] = _model(inst, fields)
-
-                    elif maybe_field in met_fields:
-                        # Overriding normal field which has a "resource method"
-                        # so you can alter the contents of certain fields without
-                        # using different names.
-                        ret[maybe_field] = _any(met_fields[maybe_field](data, **self.fun_kwargs))
-
-                    else:
-                        try:
-                            maybe = getattr(data, maybe_field, None)
-                        except ObjectDoesNotExist:
-                            maybe = None
-                        if maybe is not None:
-                            if callable(maybe):
-                                maybe_kwargs_names = inspect.getargspec(maybe)[0][1:]
-                                maybe_kwargs = {}
-
-                                for arg_name in maybe_kwargs_names:
-                                    if arg_name in self.fun_kwargs:
-                                        maybe_kwargs[arg_name] = self.fun_kwargs[arg_name]
-
-                                if len(maybe_kwargs_names) == len(maybe_kwargs):
-                                    ret[maybe_field] = _any(maybe(**maybe_kwargs))
-                            else:
-                                ret[maybe_field] = _any(maybe)
-                        else:
-                            handler_f = getattr(handler or self.handler, maybe_field, None)
-
-                            if handler_f:
-                                ret[maybe_field] = _any(handler_f(data, **self.fun_kwargs))
-
-            else:
-                for f in data._meta.fields:
-                    ret[f.attname] = _any(getattr(data, f.attname))
-
-                fields = dir(data.__class__) + ret.keys()
-                add_ons = [k for k in dir(data) if k not in fields]
-
-                for k in add_ons:
-                    ret[k] = _any(getattr(data, k))
-
-            # resouce uri
-            if self.in_typemapper(type(data)):
-                handler = self.in_typemapper(type(data))
-                if hasattr(handler, 'resource_uri'):
-                    url_id, fields = handler.resource_uri(data)
-
                     try:
-                        ret['resource_uri'] = reverser(lambda: (url_id, fields))()
-                    except NoReverseMatch, e:
-                        pass
+                        maybe = getattr(data, maybe_field, None)
+                    except ObjectDoesNotExist:
+                        maybe = None
+                    if maybe is not None:
+                        if callable(maybe):
+                            maybe_kwargs_names = inspect.getargspec(maybe)[0][1:]
+                            maybe_kwargs = {}
 
-            if hasattr(data, 'get_api_url') and 'resource_uri' not in ret:
-                try: ret['resource_uri'] = data.get_api_url()
-                except: pass
+                            for arg_name in maybe_kwargs_names:
+                                if arg_name in self.fun_kwargs:
+                                    maybe_kwargs[arg_name] = self.fun_kwargs[arg_name]
 
-            # absolute uri
-            if hasattr(data, 'get_absolute_url') and get_absolute_uri:
-                try: ret['absolute_uri'] = data.get_absolute_url()
-                except: pass
+                            if len(maybe_kwargs_names) == len(maybe_kwargs):
+                                ret[maybe_field] = _any(maybe(**maybe_kwargs), via=via + [handler])
+                        else:
+                            print  maybe_field
+                            print maybe
+                            ret[maybe_field] = _any(maybe, via=via + [handler])
+                    else:
+                        print '2'
+                        print  maybe_field
+                        handler_f = getattr(handler or self.handler, maybe_field, None)
 
+                        if handler_f:
+                            ret[maybe_field] = _any(handler_f(data, **self.fun_kwargs), via=via + [handler])
             return ret
 
-        def _qs(data, fields=None):
+        def _qs(data, fields=None, via=None):
             """
             Querysets.
             """
-            return [ _any(v, fields) for v in data ]
+            return [ _any(v, fields, via) for v in data ]
 
-        def _list(data, fields=None):
+        def _list(data, fields=None, via=None):
             """
             Lists.
             """
-            return [ _any(v, fields) for v in data ]
+            return [ _any(v, fields, via) for v in data ]
 
-        def _dict(data, fields=None):
+        def _dict(data, fields=None, via=None):
             """
             Dictionaries.
             """
-            return dict([ (k, _any(v, fields)) for k, v in data.iteritems() ])
+            return dict([ (k, _any(v, fields, via)) for k, v in data.iteritems() ])
 
         # Kickstart the seralizin'.
         return _any(self.data, self.fields)

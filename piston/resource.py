@@ -45,19 +45,19 @@ class PermissionsResource(object):
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
 
     @classmethod
-    def has_read_permission(cls, request, obj=None):
+    def has_read_permission(cls, request, obj=None, via=None):
         return 'GET' in cls.allowed_methods
 
     @classmethod
-    def has_create_permission(cls, request, obj=None):
+    def has_create_permission(cls, request, obj=None, via=None):
         return 'POST' in cls.allowed_methods
 
     @classmethod
-    def has_update_permission(cls, request, obj=None):
+    def has_update_permission(cls, request, obj=None, via=None):
         return 'PUT' in cls.allowed_methods
 
     @classmethod
-    def has_delete_permission(cls, request, obj=None):
+    def has_delete_permission(cls, request, obj=None, via=None):
         return 'DELETE' in cls.allowed_methods
 
     @classmethod
@@ -203,6 +203,8 @@ class BaseResource(PermissionsResource):
 class DefaultRestModelResource(object):
 
     default_fields = ('id', '_obj_name')
+    default_obj_fields = ('id', '_obj_name')
+    default_list_fields = ('id', '_obj_name')
 
     @classmethod
     def _obj_name(cls, obj, request):
@@ -212,9 +214,6 @@ class DefaultRestModelResource(object):
 class BaseModelResource(DefaultRestModelResource, BaseResource):
 
     register = True
-    fields = ()
-    default_obj_fields = ()
-    default_list_fields = ()
 
     def flatten_dict(self, dct):
         return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
