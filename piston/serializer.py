@@ -1,6 +1,9 @@
 from django.conf import settings
 
-from .utils import coerce_put_post, translate_mime
+from .utils import coerce_put_post
+from .mimers import translate_mime
+
+from .registration import *
 
 
 class DefaultSerializer(object):
@@ -23,7 +26,6 @@ class DefaultSerializer(object):
         return request
 
     def serialize(self, request, result, fields):
-        from .emitters import Emitter
         from .resource import typemapper
 
         em_format = self.determine_emitter(request)
@@ -42,7 +44,6 @@ class DefaultSerializer(object):
         for output. It lives here so you can easily subclass
         `Resource` in order to change how emission is detected.
         """
-        from .emitters import Emitter
         try:
             import mimeparse
         except ImportError:
@@ -67,8 +68,6 @@ class DefaultSerializer(object):
             return emitter_map.get(preferred_content_type, None)
 
     def get_serialization_format(self, request):
-        from .emitters import Emitter
-
         serialization_format = request.META.get('HTTP_X_SERIALIZATION_FORMAT', Emitter.SERIALIZATION_TYPES.RAW)
         if serialization_format not in Emitter.SERIALIZATION_TYPES:
             return Emitter.SERIALIZATION_TYPES.RAW

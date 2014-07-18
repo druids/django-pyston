@@ -36,9 +36,8 @@ from django.utils import formats, timezone
 from django.db.models.fields.files import FileField
 from django.db.models.fields import FieldDoesNotExist
 
-from .utils import HttpStatusCode, Mimer, Enum
+from .utils import HttpStatusCode, Enum
 from .validate_jsonp import is_valid_jsonp_callback_value
-from .resource import DefaultRestModelResource
 
 try:
     import cStringIO as StringIO
@@ -208,6 +207,8 @@ class Emitter(object):
             Models. Will respect the `fields` and/or
             `exclude` on the handler (see `typemapper`.)
             """
+
+            from .resource import DefaultRestModelResource
             ret = { }
 
             handler = self.in_typemapper(type(data)) or DefaultRestModelResource()
@@ -461,9 +462,6 @@ class XMLEmitter(Emitter):
 
         return stream.getvalue()
 
-Emitter.register('xml', XMLEmitter, 'text/xml; charset=utf-8')
-Mimer.register(lambda *a: None, ('text/xml',))
-
 
 class JSONEmitter(Emitter):
     """
@@ -479,9 +477,6 @@ class JSONEmitter(Emitter):
 
         return seria
 
-Emitter.register('json', JSONEmitter, 'application/json; charset=utf-8')
-Mimer.register(json.loads, ('application/json',))
-
 
 class YAMLEmitter(Emitter):
     """
@@ -490,10 +485,6 @@ class YAMLEmitter(Emitter):
     """
     def render(self, request):
         return yaml.safe_dump(self.construct())
-
-if yaml:  # Only register yaml if it was import successfully.
-    Emitter.register('yaml', YAMLEmitter, 'application/x-yaml; charset=utf-8')
-    Mimer.register(lambda s: dict(yaml.safe_load(s)), ('application/x-yaml',))
 
 
 class PickleEmitter(Emitter):
@@ -586,5 +577,3 @@ class CsvEmitter(Emitter):
             data.append(out_row)
         CsvGenerator().generate(headers, data, output)
         return output.getvalue()
-
-Emitter.register('csv', CsvEmitter, 'text/csv')

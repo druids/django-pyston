@@ -1,5 +1,4 @@
 import warnings
-import django
 
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
@@ -7,9 +6,9 @@ from django.http import Http404, HttpResponse
 from django.db.models.query import QuerySet
 from django.utils.decorators import classonlymethod
 
-from .utils import rc, HeadersResult, list_to_dict, dict_to_list
+from .utils import rc, HeadersResult, list_to_dict, dict_to_list, flat_list
 from .serializer import DefaultSerializer
-from piston.utils import UnsupportedMediaTypeException, MimerDataException, flat_list
+from .mimers import UnsupportedMediaTypeException, MimerDataException
 
 
 typemapper = { }
@@ -149,7 +148,6 @@ class BaseResource(PermissionsResource):
             result = rc.BAD_REQUEST
         except UnsupportedMediaTypeException:
             result = rc.UNSUPPORTED_MEDIA_TYPE
-
         if isinstance(result, HeadersResult):
             http_headers = result.http_headers
             status_code = result.status_code
