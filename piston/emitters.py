@@ -2,7 +2,8 @@ from __future__ import generators, unicode_literals
 
 import datetime, decimal, re, inspect, json, csv, io
 
-from piston.utils import CsvGenerator
+from piston.utils import CsvGenerator, list_to_dict, dict_to_list
+from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
 
 
 try:
@@ -125,24 +126,24 @@ class Emitter(object):
 
         Returns `dict`.
         """
-        def _any(thing, fields=None, via=None):
+        def _any(thing, fields=None, exclude_fields=None, via=None):
             """
             Dispatch, all types are routed through here.
             """
             ret = None
 
             if isinstance(thing, RawVerboseValue):
-                ret = _raw_verbose(thing, via)
+                ret = _raw_verbose(thing, via=via)
             elif isinstance(thing, QuerySet):
-                ret = _qs(thing, fields, via)
+                ret = _qs(thing, fields=fields, exclude_fields=exclude_fields, via=via)
             elif isinstance(thing, (tuple, list, set)):
-                ret = _list(thing, fields, via)
+                ret = _list(thing, fields, via=via)
             elif isinstance(thing, dict):
-                ret = _dict(thing, fields, via)
+                ret = _dict(thing, fields, via=via)
             elif isinstance(thing, decimal.Decimal):
                 ret = str(thing)
             elif isinstance(thing, Model):
-                ret = _model(thing, fields, via)
+                ret = _model(thing, fields=fields, exclude_fields=exclude_fields, via=via)
             elif isinstance(thing, HttpResponse):
                 raise HttpStatusCode(thing)
             elif inspect.isfunction(thing):
@@ -153,7 +154,7 @@ class Emitter(object):
                 if inspect.ismethod(f) and len(inspect.getargspec(f)[0]) == 1:
                     ret = _any(f(), via=via)
             elif repr(thing).startswith("<django.db.models.fields.related.RelatedManager"):
-                ret = _any(thing.all(), via=via)
+                ret = _any(thing.all(), fields=fields, exclude_fields=exclude_fields, via=via)
             else:
                 ret = self.smart_unicode(thing)
 
@@ -172,13 +173,13 @@ class Emitter(object):
             """
             Foreign keys.
             """
-            return [ _model(m, fields, via) for m in data.iterator() ]
+            return [ _model(m, fields, via=via) for m in data.iterator() ]
 
         def _m2m(data, field, fields=None, via=None):
             """
             Many to many (re-route to `_model`.)
             """
-            return [ _model(m, fields, via) for m in getattr(data, field.name).iterator() ]
+            return [ _model(m, fields, via=via) for m in getattr(data, field.name).iterator() ]
 
         def _model_field_raw(data, field):
             val = getattr(data, field.attname)
@@ -201,17 +202,16 @@ class Emitter(object):
                 return formats.localize(val)
             return val
 
-        def _model(data, fields=None, via=None):
+        def _model(data, fields=None, exclude_fields=None, via=None):
             """
             Models. Will respect the `fields` and/or
             `exclude` on the handler (see `typemapper`.)
             """
-
             from .resource import DefaultRestModelResource
             ret = { }
 
-            if via is None:
-                via = []
+            via = via or []
+            exclude_fields = exclude_fields or []
 
             handler = self.in_typemapper(type(data)) or DefaultRestModelResource()
 
@@ -219,7 +219,6 @@ class Emitter(object):
                 raw = _model_field_raw(data, f)
                 verbose = _model_field_verbose(data, f)
                 return RawVerboseValue(raw, verbose)
-
             if not fields:
                 fields = getattr(handler, 'default_obj_fields')
                 """
@@ -230,7 +229,11 @@ class Emitter(object):
                     not handler.has_create_permission(self.request, data, via)):
                     fields = ('pk',)
 
-            get_fields = set(fields)
+            # Remove exclude fields from serialized fields
+            get_fields = list_to_dict(fields)
+            for exclude_field in exclude_fields:
+                get_fields.pop(exclude_field, None)
+            get_fields = set(dict_to_list(get_fields))
             met_fields = self.method_fields(handler, get_fields)
 
             proxy_local_fields = data._meta.proxy_for_model._meta.local_fields if data._meta.proxy_for_model else []
@@ -255,7 +258,6 @@ class Emitter(object):
 
             # try to get the remainder of fields
             for maybe_field in get_fields:
-
                 if isinstance(maybe_field, (list, tuple)):
                     model, fields = maybe_field
                     inst = getattr(data, model, None)
@@ -292,35 +294,38 @@ class Emitter(object):
                             if len(maybe_kwargs_names) == len(maybe_kwargs):
                                 ret[maybe_field] = _any(maybe(**maybe_kwargs), via=via + [handler])
                         else:
-                            print  maybe_field
-                            print maybe
-                            ret[maybe_field] = _any(maybe, via=via + [handler])
+                            model = data.__class__
+                            exclude_fields = []
+                            if hasattr(model, maybe_field) and isinstance(getattr(model, maybe_field, None),
+                                                                          (ForeignRelatedObjectsDescriptor,
+                                                                           SingleRelatedObjectDescriptor)):
+                                exclude_fields.append(getattr(model, maybe_field).related.field.name)
+
+                            ret[maybe_field] = _any(maybe, exclude_fields=exclude_fields, via=via + [handler])
                     else:
-                        print '2'
-                        print  maybe_field
                         handler_f = getattr(handler or self.handler, maybe_field, None)
 
                         if handler_f:
                             ret[maybe_field] = _any(handler_f(data, **self.fun_kwargs), via=via + [handler])
             return ret
 
-        def _qs(data, fields=None, via=None):
+        def _qs(data, fields=None, exclude_fields=None, via=None):
             """
             Querysets.
             """
-            return [ _any(v, fields, via) for v in data ]
+            return [ _any(v, fields, exclude_fields, via=via) for v in data ]
 
         def _list(data, fields=None, via=None):
             """
             Lists.
             """
-            return [ _any(v, fields, via) for v in data ]
+            return [ _any(v, fields, via=via) for v in data ]
 
         def _dict(data, fields=None, via=None):
             """
             Dictionaries.
             """
-            return dict([ (k, _any(v, fields, via)) for k, v in data.iteritems() ])
+            return dict([ (k, _any(v, fields, via=via)) for k, v in data.iteritems() ])
 
         # Kickstart the seralizin'.
         return _any(self.data, self.fields)
