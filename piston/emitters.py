@@ -224,10 +224,11 @@ class Emitter(object):
                 """
                 If user has not read permission only get pid of the object
                 """
+                # TODO: Better permissions and add method for generation fields to core with request
                 if (not handler.has_read_permission(self.request, data, via) and
                     not handler.has_update_permission(self.request, data, via) and
                     not handler.has_create_permission(self.request, data, via)):
-                    fields = ('pk',)
+                    fields = ('pk', '_obj_name')
 
             # Remove exclude fields from serialized fields
             get_fields = list_to_dict(fields)
