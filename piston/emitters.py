@@ -1,6 +1,6 @@
 from __future__ import generators, unicode_literals
 
-import datetime, decimal, re, inspect, json, csv, io
+import datetime, decimal, inspect, json, io
 
 from piston.utils import CsvGenerator, list_to_dict, dict_to_list
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
@@ -213,14 +213,15 @@ class Emitter(object):
             via = via or []
             exclude_fields = exclude_fields or []
 
-            handler = self.in_typemapper(type(data)) or DefaultRestModelResource()
+            handler = self.in_typemapper(type(data))() or DefaultRestModelResource()
 
             def v(f):
                 raw = _model_field_raw(data, f)
                 verbose = _model_field_verbose(data, f)
                 return RawVerboseValue(raw, verbose)
             if not fields:
-                fields = getattr(handler, 'default_obj_fields')
+                print handler
+                fields = getattr(handler, 'get_default_obj_fields')(self.request, data)
                 """
                 If user has not read permission only get pid of the object
                 """
@@ -228,7 +229,7 @@ class Emitter(object):
                 if (not handler.has_read_permission(self.request, data, via) and
                     not handler.has_update_permission(self.request, data, via) and
                     not handler.has_create_permission(self.request, data, via)):
-                    fields = ('pk', '_obj_name')
+                    fields = getattr(handler, 'get_guest_fields')(self.request)
 
             # Remove exclude fields from serialized fields
             get_fields = list_to_dict(fields)

@@ -124,11 +124,11 @@ class BaseResource(PermissionsResource):
     def delete(self, request, *args, **kwargs):
         raise NotImplementedError
 
-    def get_fields(self, request, result):
+    def get_filtered_fields(self, request, result):
         return []
 
     def serialize(self, request, result):
-        return self.serializer(self).serialize(request, result, self.get_fields(request, result))
+        return self.serializer(self).serialize(request, result, self.get_filtered_fields(request, result))
 
     def deserialize(self, request):
         return self.serializer(self).deserialize(request)
@@ -174,14 +174,14 @@ class BaseResource(PermissionsResource):
             resp = stream
         # resp.streaming = self.stream
 
-        for header, value in self.get_headers(request, http_headers).items():
+        for header, value in self.get_headers(request, result, http_headers).items():
             resp[header] = value
 
         if self.cache:
             self.cache.cache_response(request, resp)
         return resp
 
-    def get_headers(self, request, http_headers):
+    def get_headers(self, request, result, http_headers):
         from piston.emitters import Emitter
 
         http_headers['X-Serialization-Format-Options'] = ','.join(Emitter.SERIALIZATION_TYPES)
@@ -202,13 +202,26 @@ class BaseResource(PermissionsResource):
 
 class DefaultRestModelResource(object):
 
-    default_fields = ('id', '_obj_name')
+    fields = ('id', '_obj_name')
     default_obj_fields = ('id', '_obj_name')
     default_list_fields = ('id', '_obj_name')
+    guest_fields = ('id', '_obj_name')
 
     @classmethod
     def _obj_name(cls, obj, request):
         return unicode(obj)
+
+    def get_fields(self, request, obj=None):
+        return self.fields
+
+    def get_default_obj_fields(self, request, obj):
+        return self.default_obj_fields
+
+    def get_default_list_fields(self, request):
+        return self.default_list_fields
+
+    def get_guest_fields(self, request):
+        return self.guest_fields
 
 
 class BaseModelResource(DefaultRestModelResource, BaseResource):
@@ -286,16 +299,24 @@ class BaseModelResource(DefaultRestModelResource, BaseResource):
         except self.model.DoesNotExist:
             return rc.NOT_HERE
 
-    def get_headers(self, request, http_headers):
+    def get_headers(self, request, result, http_headers):
         from piston.emitters import Emitter
 
-        http_headers = super(BaseModelResource, self).get_headers(request, http_headers)
-        http_headers['X-Fields-Options'] = ','.join(flat_list(self.fields))
+        obj = None
+        if not isinstance(result, QuerySet):
+            obj = result
+
+        http_headers = super(BaseModelResource, self).get_headers(request, result, http_headers)
+        http_headers['X-Fields-Options'] = ','.join(flat_list(self.get_fields(request, obj=obj)))
 
         return http_headers
 
-    def get_fields(self, request, result):
-        allowed_fields = list_to_dict(self.fields)
+    def get_filtered_fields(self, request, result):
+        obj = None
+        if not isinstance(result, QuerySet):
+            obj = result
+
+        allowed_fields = list_to_dict(self.get_fields(request, obj=obj))
 
         fields = {}
         x_fields = request.META.get('HTTP_X_FIELDS', '')
@@ -307,9 +328,9 @@ class BaseModelResource(DefaultRestModelResource, BaseResource):
             return dict_to_list(fields)
 
         if isinstance(result, QuerySet):
-            fields = self.default_list_fields
+            fields = self.get_default_list_fields(request)
         else:
-            fields = self.default_obj_fields
+            fields = self.get_default_obj_fields(request, result)
 
         fields = list_to_dict(fields)
 
