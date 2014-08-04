@@ -220,7 +220,6 @@ class Emitter(object):
                 verbose = _model_field_verbose(data, f)
                 return RawVerboseValue(raw, verbose)
             if not fields:
-                print handler
                 fields = getattr(handler, 'get_default_obj_fields')(self.request, data)
                 """
                 If user has not read permission only get pid of the object
