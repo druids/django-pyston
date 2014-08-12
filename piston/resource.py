@@ -164,7 +164,6 @@ class BaseResource(PermissionsResource):
             if response:
                 return response
 
-
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
         stream, ct = self.serialize(request, result)
 

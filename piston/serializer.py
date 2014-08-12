@@ -2,8 +2,37 @@ from django.conf import settings
 
 from .utils import coerce_put_post
 from .mimers import translate_mime
-
 from .registration import *
+
+
+def determine_emitter(request, default_emitter=None):
+    """
+    Function for determening which emitter to use
+    for output. It lives here so you can easily subclass
+    `Resource` in order to change how emission is detected.
+    """
+    try:
+        import mimeparse
+    except ImportError:
+        mimeparse = None
+
+    if mimeparse and 'HTTP_ACCEPT' in request.META:
+        supported_mime_types = set()
+        emitter_map = {}
+        preferred_content_type = None
+        for name, (_, content_type) in Emitter.EMITTERS.items():
+            content_type_without_encoding = content_type.split(';')[0]
+            if default_emitter and name == default_emitter:
+                preferred_content_type = content_type_without_encoding
+            supported_mime_types.add(content_type_without_encoding)
+            emitter_map[content_type_without_encoding] = name
+        supported_mime_types = list(supported_mime_types)
+        if preferred_content_type:
+            supported_mime_types.append(preferred_content_type)
+        preferred_content_type = mimeparse.best_match(
+            supported_mime_types,
+            request.META['HTTP_ACCEPT'])
+        return emitter_map.get(preferred_content_type, None)
 
 
 class DefaultSerializer(object):
@@ -28,7 +57,7 @@ class DefaultSerializer(object):
     def serialize(self, request, result, fields):
         from .resource import typemapper
 
-        em_format = self.determine_emitter(request)
+        em_format = determine_emitter(request, self.default_emitter)
         if not em_format:
             em_format = self.default_emitter
         emitter, ct = Emitter.get(em_format)
@@ -37,35 +66,6 @@ class DefaultSerializer(object):
         if self.stream: stream = srl.stream_render(request)
         else: stream = srl.render(request)
         return stream, ct
-
-    def determine_emitter(self, request):
-        """
-        Function for determening which emitter to use
-        for output. It lives here so you can easily subclass
-        `Resource` in order to change how emission is detected.
-        """
-        try:
-            import mimeparse
-        except ImportError:
-            mimeparse = None
-
-        if mimeparse and 'HTTP_ACCEPT' in request.META:
-            supported_mime_types = set()
-            emitter_map = {}
-            preferred_content_type = None
-            for name, (_, content_type) in Emitter.EMITTERS.items():
-                content_type_without_encoding = content_type.split(';')[0]
-                if name == self.default_emitter:
-                    preferred_content_type = content_type_without_encoding
-                supported_mime_types.add(content_type_without_encoding)
-                emitter_map[content_type_without_encoding] = name
-            supported_mime_types = list(supported_mime_types)
-            if preferred_content_type:
-                supported_mime_types.append(preferred_content_type)
-            preferred_content_type = mimeparse.best_match(
-                supported_mime_types,
-                request.META['HTTP_ACCEPT'])
-            return emitter_map.get(preferred_content_type, None)
 
     def get_serialization_format(self, request):
         serialization_format = request.META.get('HTTP_X_SERIALIZATION_FORMAT', Emitter.SERIALIZATION_TYPES.RAW)
