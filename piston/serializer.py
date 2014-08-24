@@ -16,6 +16,8 @@ def determine_emitter(request, default_emitter=None):
     except ImportError:
         mimeparse = None
 
+    default_emitter = default_emitter or getattr(settings, 'PISTON_DEFAULT_EMITTER', 'json')
+
     if mimeparse and 'HTTP_ACCEPT' in request.META:
         supported_mime_types = set()
         emitter_map = {}
@@ -33,6 +35,7 @@ def determine_emitter(request, default_emitter=None):
             supported_mime_types,
             request.META['HTTP_ACCEPT'])
         return emitter_map.get(preferred_content_type, None)
+    return default_emitter
 
 
 class DefaultSerializer(object):
@@ -58,8 +61,6 @@ class DefaultSerializer(object):
         from .resource import typemapper
 
         em_format = determine_emitter(request, self.default_emitter)
-        if not em_format:
-            em_format = self.default_emitter
         emitter, ct = Emitter.get(em_format)
         srl = emitter(result, typemapper, self.handler, request, self.get_serialization_format(request), fields,
                       fun_kwargs={'request': request})

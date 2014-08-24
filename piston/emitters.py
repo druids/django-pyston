@@ -213,7 +213,7 @@ class Emitter(object):
             via = via or []
             exclude_fields = exclude_fields or []
 
-            handler = self.in_typemapper(type(data))() or DefaultRestModelResource()
+            handler = (self.in_typemapper(type(data)) or DefaultRestModelResource)()
 
             def v(f):
                 raw = _model_field_raw(data, f)
