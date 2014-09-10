@@ -1,6 +1,10 @@
 from __future__ import generators, unicode_literals
 
-import datetime, decimal, inspect, json, io
+import datetime
+import decimal
+import inspect
+import json
+import io
 
 from piston.utils import CsvGenerator, list_to_dict, dict_to_list
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
@@ -479,6 +483,9 @@ class CsvEmitter(Emitter):
     def cleaned_fields(self):
         cleaned_fields = []
         for field in self.fields:
+            if isinstance(field, (tuple, list)):
+                field = field[0]
+
             if not field.startswith('_'):
                 cleaned_fields.append(field)
         return cleaned_fields
