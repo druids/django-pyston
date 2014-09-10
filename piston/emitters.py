@@ -510,7 +510,11 @@ class CsvEmitter(Emitter):
             headers.append(self._get_label(field))
 
         data = []
-        for row in self.construct():
+        constructed_data = self.construct()
+        if not isinstance(constructed_data, (list, tuple)):
+            constructed_data = [constructed_data]
+
+        for row in constructed_data:
             out_row = []
             for field in fields:
                 value = row.get(field)

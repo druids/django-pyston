@@ -71,12 +71,12 @@ class Mimer(object):
         ctype = self.content_type()
         self.request.content_type = ctype
 
+        self.request.data = {}
         if not self.is_multipart() and ctype:
             loadee = self.loader_for_type(ctype)
             if loadee:
                 try:
-                    self.request.data = loadee(self.request.body)
-
+                    self.request.data = loadee(self.request.body) or {}
                     # Reset both POST and PUT from request, as its
                     # misleading having their presence around.
                     self.request.POST = self.request.PUT = dict()

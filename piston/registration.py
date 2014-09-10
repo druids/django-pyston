@@ -12,7 +12,7 @@ from .mimers import Mimer
 
 
 Emitter.register('xml', XMLEmitter, 'text/xml; charset=utf-8')
-Mimer.register(lambda *a: None, ('text/xml',))
+# Mimer.register(lambda *a: None, ('text/xml',))
 
 Emitter.register('json', JSONEmitter, 'application/json; charset=utf-8')
 Mimer.register(json.loads, ('application/json',))

@@ -31,10 +31,12 @@ def determine_emitter(request, default_emitter=None):
         supported_mime_types = list(supported_mime_types)
         if preferred_content_type:
             supported_mime_types.append(preferred_content_type)
-        preferred_content_type = mimeparse.best_match(
-            supported_mime_types,
-            request.META['HTTP_ACCEPT'])
-        return emitter_map.get(preferred_content_type, None)
+        try:
+            preferred_content_type = mimeparse.best_match(supported_mime_types,
+                                                     request.META['HTTP_ACCEPT'])
+        except ValueError:
+            pass
+        return emitter_map.get(preferred_content_type, default_emitter)
     return default_emitter
 
 

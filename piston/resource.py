@@ -138,6 +138,7 @@ class BaseResource(PermissionsResource):
         http_headers = {}
         try:
             request = self.deserialize(request)
+
             rm = request.method.upper()
             meth = getattr(self, self.callmap.get(rm, ''), None)
             if not meth:
