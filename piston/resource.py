@@ -10,6 +10,8 @@ from .utils import rc, HeadersResult, list_to_dict, dict_to_list, flat_list
 from .serializer import DefaultSerializer
 from .mimers import UnsupportedMediaTypeException, MimerDataException
 
+from functools import update_wrapper
+
 
 typemapper = { }
 resource_tracker = [ ]
@@ -197,6 +199,13 @@ class BaseResource(PermissionsResource):
             self.kwargs = kwargs
             return self.dispatch(request, *args, **kwargs)
         view.csrf_exempt = cls.csrf_exempt
+
+        # take name and docstring from class
+        update_wrapper(view, cls, updated=())
+
+        # and possible attributes set by decorators
+        # like csrf_exempt from dispatch
+        update_wrapper(view, cls.dispatch, assigned=())
         return view
 
 
