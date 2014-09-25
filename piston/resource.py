@@ -29,6 +29,7 @@ class ResourceMetaClass(type):
                 return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
+                print new_cls.model
                 if already_registered(new_cls.model):
                     if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
                         warnings.warn("Resource already registered for model %s, "

@@ -8,6 +8,7 @@ import io
 
 from piston.utils import CsvGenerator, list_to_dict, dict_to_list
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
+from piston.models import RestModel
 
 
 try:
@@ -148,6 +149,8 @@ class Emitter(object):
                 ret = str(thing)
             elif isinstance(thing, Model):
                 ret = _model(thing, fields=fields, exclude_fields=exclude_fields, via=via)
+            elif isinstance(thing, RestModel):
+                ret = _rest_model(thing, fields=fields, exclude_fields=exclude_fields, via=via)
             elif isinstance(thing, HttpResponse):
                 raise HttpStatusCode(thing)
             elif inspect.isfunction(thing):
@@ -205,6 +208,84 @@ class Emitter(object):
             elif isinstance(val, (datetime.date, datetime.time)):
                 return formats.localize(val)
             return val
+
+        def _rest_model(data, fields=None, exclude_fields=None, via=None):
+
+            ret = { }
+
+            via = via or []
+            exclude_fields = exclude_fields or []
+
+            handler = self.in_typemapper(type(data))()
+            if not fields:
+                fields = getattr(handler, 'get_default_obj_fields')(self.request, data)
+                print fields
+                """
+                If user has not read permission only get pid of the object
+                """
+                # TODO: Better permissions and add method for generation fields to core with request
+                if (not handler.has_read_permission(self.request, data, via) and
+                    not handler.has_update_permission(self.request, data, via) and
+                    not handler.has_create_permission(self.request, data, via)):
+                    fields = getattr(handler, 'get_guest_fields')(self.request)
+
+            print fields
+
+            get_fields = list_to_dict(fields)
+            for exclude_field in exclude_fields:
+                get_fields.pop(exclude_field, None)
+            get_fields = set(dict_to_list(get_fields))
+            met_fields = self.method_fields(handler, get_fields)
+            print get_fields
+            print handler
+            print handler.allowed_methods
+
+
+            for maybe_field in get_fields:
+                if isinstance(maybe_field, (list, tuple)):
+                    model, fields = maybe_field
+                    inst = getattr(data, model, None)
+
+                    if inst:
+                        if hasattr(inst, 'all'):
+                            ret[model] = _related(inst, fields, via + [handler])
+                        elif callable(inst):
+                            if len(inspect.getargspec(inst)[0]) == 1:
+                                ret[model] = _any(inst(), fields, via + [handler])
+                        else:
+                            ret[model] = _model(inst, fields, via + [handler])
+                elif maybe_field in met_fields:
+                    # Overriding normal field which has a "resource method"
+                    # so you can alter the contents of certain fields without
+                    # using different names.
+                    ret[maybe_field] = _any(met_fields[maybe_field](data, **self.fun_kwargs), via=via + [handler])
+                else:
+                    try:
+                        maybe = getattr(data, maybe_field, None)
+                    except ObjectDoesNotExist:
+                        maybe = None
+
+                    if maybe is not None:
+                        if callable(maybe):
+                            maybe_kwargs_names = inspect.getargspec(maybe)[0][1:]
+                            maybe_kwargs = {}
+
+                            for arg_name in maybe_kwargs_names:
+                                if arg_name in self.fun_kwargs:
+                                    maybe_kwargs[arg_name] = self.fun_kwargs[arg_name]
+
+                            if len(maybe_kwargs_names) == len(maybe_kwargs):
+                                ret[maybe_field] = _any(maybe(**maybe_kwargs), via=via + [handler])
+                        else:
+                            model = data.__class__
+                            ret[maybe_field] = _any(maybe, exclude_fields=exclude_fields, via=via + [handler])
+                    else:
+                        handler_f = getattr(handler or self.handler, maybe_field, None)
+
+                        if handler_f:
+                            ret[maybe_field] = _any(handler_f(data, **self.fun_kwargs), via=via + [handler])
+
+            return ret
 
         def _model(data, fields=None, exclude_fields=None, via=None):
             """
