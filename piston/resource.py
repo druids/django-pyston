@@ -169,6 +169,7 @@ class BaseResource(PermissionsResource):
                 return response
 
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
+        print 'ddd'
         stream, ct = self.serialize(request, result)
 
         if not isinstance(stream, HttpResponse):

@@ -42,7 +42,6 @@ from django.db.models.fields.files import FileField
 from django.db.models.fields import FieldDoesNotExist
 
 from .utils import HttpStatusCode, Enum
-from .validate_jsonp import is_valid_jsonp_callback_value
 
 try:
     import cStringIO as StringIO
@@ -504,9 +503,6 @@ class JSONEmitter(Emitter):
         cb = request.GET.get('callback', None)
         seria = json.dumps(self.construct(), cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
 
-        # Callback
-        if cb and is_valid_jsonp_callback_value(cb):
-            return '%s(%s)' % (cb, seria)
 
         return seria
 
