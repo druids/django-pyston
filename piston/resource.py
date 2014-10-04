@@ -7,10 +7,12 @@ from django.db.models.query import QuerySet
 from django.utils.decorators import classonlymethod
 
 from .utils import rc, HeadersResult, list_to_dict, dict_to_list, flat_list
-from .serializer import DefaultSerializer
-from .mimers import UnsupportedMediaTypeException, MimerDataException
+from .serializer import ResourceSerializer
+from .exception import UnsupportedMediaTypeException, MimerDataException
+from .serializer import Serializer
 
 from functools import update_wrapper
+from django.utils.encoding import force_text
 
 
 typemapper = { }
@@ -29,7 +31,6 @@ class ResourceMetaClass(type):
                 return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
-                print new_cls.model
                 if already_registered(new_cls.model):
                     if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
                         warnings.warn("Resource already registered for model %s, "
@@ -71,7 +72,6 @@ class PermissionsResource(object):
                                         'POST': cls.has_create_permission,
                                         'DELETE': cls.has_delete_permission,
                                     }
-
         permissions_validators = {}
 
         if restricted_methods:
@@ -99,10 +99,13 @@ class BaseResource(PermissionsResource):
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
     callmap = { 'GET': 'read', 'POST': 'create',
                 'PUT': 'update', 'DELETE': 'delete' }
-    serializer = DefaultSerializer
+    serializer = ResourceSerializer
     register = False
     csrf_exempt = True
     cache = None
+
+    def flatten_dict(self, dct):
+        return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
 
     @classmethod
     def get_allowed_methods(cls, request, obj, restricted_methods=None):
@@ -128,7 +131,7 @@ class BaseResource(PermissionsResource):
         raise NotImplementedError
 
     def get_filtered_fields(self, request, result):
-        return []
+        return self.fields
 
     def serialize(self, request, result):
         return self.serializer(self).serialize(request, result, self.get_filtered_fields(request, result))
@@ -169,7 +172,6 @@ class BaseResource(PermissionsResource):
                 return response
 
         result, http_headers, status_code = self.get_result(request, *args, **kwargs)
-        print 'ddd'
         stream, ct = self.serialize(request, result)
 
         if not isinstance(stream, HttpResponse):
@@ -186,9 +188,7 @@ class BaseResource(PermissionsResource):
         return resp
 
     def get_headers(self, request, result, http_headers):
-        from piston.emitters import Emitter
-
-        http_headers['X-Serialization-Format-Options'] = ','.join(Emitter.SERIALIZATION_TYPES)
+        http_headers['X-Serialization-Format-Options'] = ','.join(Serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'must-revalidate, private'
         return http_headers
 
@@ -211,16 +211,18 @@ class BaseResource(PermissionsResource):
         return view
 
 
-class DefaultRestModelResource(object):
+class DefaultRestModelResource(PermissionsResource):
 
+    allowed_methods = ('GET',)
     fields = ('id', '_obj_name')
     default_obj_fields = ('id', '_obj_name')
     default_list_fields = ('id', '_obj_name')
     guest_fields = ('id', '_obj_name')
+    serializer = ResourceSerializer
 
     @classmethod
     def _obj_name(cls, obj, request):
-        return unicode(obj)
+        return force_text(obj)
 
     def get_fields(self, request, obj=None):
         return self.fields
@@ -238,9 +240,6 @@ class DefaultRestModelResource(object):
 class BaseModelResource(DefaultRestModelResource, BaseResource):
 
     register = True
-
-    def flatten_dict(self, dct):
-        return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
 
     def queryset(self, request):
         return self.model.objects.all()
@@ -311,8 +310,6 @@ class BaseModelResource(DefaultRestModelResource, BaseResource):
             return rc.NOT_HERE
 
     def get_headers(self, request, result, http_headers):
-        from piston.emitters import Emitter
-
         obj = None
         if not isinstance(result, QuerySet):
             obj = result

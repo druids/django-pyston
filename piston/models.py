@@ -1,2 +1,0 @@
-class RestModel(object):
-    pass

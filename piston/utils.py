@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import time
 import csv
 import cStringIO
@@ -286,7 +288,7 @@ class HeadersResult(object):
 
 class CsvGenerator(object):
 
-    def __init__(self, delimiter=';', quotechar='"', encoding='utf-8'):
+    def __init__(self, delimiter=b';', quotechar=b'"', encoding='utf-8'):
         self.encoding = encoding
         self.quotechar = quotechar
         self.delimiter = delimiter
@@ -325,14 +327,13 @@ class UnicodeWriter:
         self.queue = cStringIO.StringIO()
         self.writer = csv.writer(self.queue, dialect=dialect, **kwds)
         self.stream = f
-        self.stream.write(u'\ufeff')  # BOM for Excel
+        self.stream.write(b'\ufeff')  # BOM for Excel
         self.encoder = codecs.getincrementalencoder(encoding)()
 
     def writerow(self, row):
         self.writer.writerow([s.encode('utf-8') for s in row])
         # Fetch UTF-8 output from the queue ...
         data = self.queue.getvalue()
-        data = data.decode('utf-8')
         # ... and reencode it into the target encoding
         # write to the target stream
         self.stream.write(data)
