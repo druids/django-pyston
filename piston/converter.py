@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import json
+import StringIO
 
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
@@ -8,9 +9,11 @@ from django.db import models
 from django.utils.encoding import smart_unicode, force_text
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.core.serializers.json import DateTimeAwareJSONEncoder
-
-from piston.utils import CsvGenerator
 from django.db.models.base import Model
+from django.conf import settings
+
+from .csv_generator import CsvGenerator
+
 
 try:
     # yaml isn't standard with python.  It shouldn't be required if it
@@ -18,11 +21,6 @@ try:
     import yaml
 except ImportError:
     yaml = None
-
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
 
 try:
     import cPickle as pickle
@@ -56,6 +54,45 @@ def get_converter(format):
         return converters.get(format)
 
     raise ValueError('No converter found for type %s' % format)
+
+
+def get_converter_from_request(request, input=False):
+    """
+    Function for determening which converter to use
+    for output. It lives here so you can easily subclass
+    `Resource` in order to change how emission is detected.
+    """
+    try:
+        import mimeparse
+    except ImportError:
+        mimeparse = None
+
+    default_converter_name = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
+
+    header_name = 'HTTP_ACCEPT'
+    if input:
+        header_name = 'CONTENT_TYPE'
+
+    if mimeparse and header_name in request.META:
+        supported_mime_types = set()
+        converter_map = {}
+        preferred_content_type = None
+        for name, (_, content_type) in converters.items():
+            content_type_without_encoding = content_type.split(';')[0]
+            if default_converter_name and name == default_converter_name:
+                preferred_content_type = content_type_without_encoding
+            supported_mime_types.add(content_type_without_encoding)
+            converter_map[content_type_without_encoding] = name
+        supported_mime_types = list(supported_mime_types)
+        if preferred_content_type:
+            supported_mime_types.append(preferred_content_type)
+        try:
+            preferred_content_type = mimeparse.best_match(supported_mime_types,
+                                                            request.META[header_name])
+        except ValueError:
+            pass
+        default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
+    return get_converter(default_converter_name)
 
 
 class Converter(object):
@@ -232,10 +269,10 @@ class CsvConverter(Converter):
             value = self._render_list_value(value)
         return value or ''
 
-    def _render_content(self, resource, field_name_list, converted_dict):
+    def _render_content(self, resource, field_name_list, converted_data):
         result = []
 
-        constructed_data = converted_dict
+        constructed_data = converted_data
         if not isinstance(constructed_data, (list, tuple)):
             constructed_data = [constructed_data]
 
@@ -246,12 +283,13 @@ class CsvConverter(Converter):
             result.append(out_row)
         return result
 
-    def encode(self, request, converted_dict, resource, result, field_name_list):
+    def encode(self, request, converted_data, resource, result, field_name_list):
         output = StringIO.StringIO()
         selected_field_name_list = self._select_fields(field_name_list)
-        CsvGenerator().generate(
-            self._render_headers(resource, selected_field_name_list),
-            self._render_content(resource, field_name_list, converted_dict),
-            output
-        )
+        if isinstance(converted_data, (dict, list, tuple)):
+            CsvGenerator().generate(
+                self._render_headers(resource, selected_field_name_list),
+                self._render_content(resource, selected_field_name_list, converted_data),
+                output
+            )
         return output.getvalue()

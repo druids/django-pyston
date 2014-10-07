@@ -1,11 +1,35 @@
+from __future__ import unicode_literals
+
 from django import forms
+from django.core.exceptions import ValidationError
 
 
-class Form(forms.Form):
-    pass
+class RestFormMixin(object):
 
+    def is_invalid(self):
+        '''
+        Validate input data. It uses django forms
+        '''
+        errors = {}
+        if not self.is_valid():
+            errors = dict([(k, v[0]) for k, v in self.errors.items()])
 
-class ModelForm(forms.ModelForm):
+        if '__all__' in errors:
+            del errors['__all__']
+
+        non_field_errors = self.non_field_errors()
+        if non_field_errors:
+            errors['non-field-errors'] = non_field_errors
+
+        if errors:
+            return errors
+
+        return False
+
+    def is_valid(self):
+        self._merge_from_initial()
+        return super(RestFormMixin, self).is_valid()
+
     """
     Subclass of `forms.ModelForm` which makes sure
     that the initial values are present in the form
@@ -13,8 +37,23 @@ class ModelForm(forms.ModelForm):
     for the form to actually validate. Django does not
     do this on its own, which is really annoying.
     """
-    def merge_from_initial(self):
-        self.data._mutable = True
+    def _merge_from_initial(self):
+        self.data = self.data.copy()
         filt = lambda v: v not in self.data.keys()
-        for field in filter(filt, getattr(self.Meta, 'fields', ())):
-            self.data[field] = self.initial.get(field, None)
+        for field_name in filter(filt, self.fields.keys()):
+            field = self.fields[field_name]
+
+            self.data[field_name] = field.prepare_value(self.initial.get(field_name, field.initial))
+
+
+class AllFieldsUniqueValidationModelForm(forms.ModelForm):
+
+    def validate_unique(self):
+        try:
+            self.instance.validate_unique()
+        except ValidationError as e:
+            self._update_errors(e)
+
+
+class RestModelForm(RestFormMixin, AllFieldsUniqueValidationModelForm):
+    pass

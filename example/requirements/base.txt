@@ -1,0 +1,8 @@
+Django==1.6
+South==0.8.2
+django-extensions==1.2.4
+django-jenkins==0.14.1
+pep8==1.4.6
+pyflakes==0.7.3
+six==1.5.2
+#https://github.com/LukasRychtecky/germanium/tarball/0.1.4#egg=germanium-0.1.4

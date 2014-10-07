@@ -1,18 +1,27 @@
 import warnings
 
-from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.db.models.query import QuerySet
 from django.utils.decorators import classonlymethod
+from django.utils.encoding import force_text
+from django.db.models.base import Model
 
-from .utils import rc, HeadersResult, list_to_dict, dict_to_list, flat_list
+from .utils import rc, list_to_dict, dict_to_list, flat_list
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
-from .serializer import Serializer
 
 from functools import update_wrapper
-from django.utils.encoding import force_text
+from piston.paginator import Paginator
+from piston.response import HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse
+from piston.exception import RestException, ConflictException, NotAllowedException, DataInvalidException, \
+    ResourceNotFoundException
+from django.shortcuts import get_object_or_404
+from django.http.response import Http404
+from django.db import transaction
+from django.forms.models import modelform_factory
+from django.core.exceptions import ObjectDoesNotExist
+from piston.forms import RestModelForm
 
 
 typemapper = { }
@@ -72,6 +81,7 @@ class PermissionsResource(object):
                                         'POST': cls.has_create_permission,
                                         'DELETE': cls.has_delete_permission,
                                     }
+
         permissions_validators = {}
 
         if restricted_methods:
@@ -104,8 +114,8 @@ class BaseResource(PermissionsResource):
     csrf_exempt = True
     cache = None
 
-    def flatten_dict(self, dct):
-        return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
+    def __init__(self, request):
+        self.request = request
 
     @classmethod
     def get_allowed_methods(cls, request, obj, restricted_methods=None):
@@ -115,47 +125,84 @@ class BaseResource(PermissionsResource):
                 allowed_methods.append(method)
         return allowed_methods
 
-    def exists(self, **kwargs):
+    def _get_serialization_format(self):
+        serialization_format = self.request.META.get('HTTP_X_SERIALIZATION_FORMAT',
+                                                     self.serializer.SERIALIZATION_TYPES.RAW)
+        if serialization_format not in self.serializer.SERIALIZATION_TYPES:
+            return self.serializer.SERIALIZATION_TYPES.RAW
+        return serialization_format
+
+    def read(self):
         raise NotImplementedError
 
-    def read(self, request, *args, **kwargs):
+    def create(self):
         raise NotImplementedError
 
-    def create(self, request, *args, **kwargs):
+    def update(self):
         raise NotImplementedError
 
-    def update(self, request, *args, **kwargs):
+    def delete(self):
         raise NotImplementedError
 
-    def delete(self, request, *args, **kwargs):
-        raise NotImplementedError
+    def _is_single_obj_request(self, result):
+        return isinstance(result, dict)
 
-    def get_filtered_fields(self, request, result):
-        return self.fields
+    def _get_filtered_fields(self, result):
+        allowed_fields = list_to_dict(self.get_fields(obj=result))
+        if not allowed_fields:
+            return []
 
-    def serialize(self, request, result):
-        return self.serializer(self).serialize(request, result, self.get_filtered_fields(request, result))
+        fields = {}
+        x_fields = self.request.META.get('HTTP_X_FIELDS', '')
+        for field in x_fields.split(','):
+            if field in allowed_fields:
+                fields[field] = allowed_fields.get(field)
 
-    def deserialize(self, request):
-        return self.serializer(self).deserialize(request)
+        if fields:
+            return dict_to_list(fields)
 
-    def get_result(self, request, *args, **kwargs):
+        if self._is_single_obj_request(result):
+            fields = self.get_default_detailed_fields(result)
+        else:
+            fields = self.get_default_general_fields(result)
+
+        fields = list_to_dict(fields)
+
+        x_extra_fields = self.request.META.get('HTTP_X_EXTRA_FIELDS', '')
+        for field in x_extra_fields.split(','):
+            if field in allowed_fields:
+                fields[field] = allowed_fields.get(field)
+
+        return dict_to_list(fields)
+
+    def _serialize(self, result):
+        return self.serializer(self).serialize(
+            self.request, result, self._get_filtered_fields(result),
+            self._get_serialization_format()
+        )
+
+    def _deserialize(self):
+        return self.serializer(self).deserialize(self.request)
+
+    def _get_response_data(self):
         status_code = 200
         http_headers = {}
         try:
-            request = self.deserialize(request)
+            self.request = self._deserialize()
 
-            rm = request.method.upper()
+            rm = self.request.method.upper()
             meth = getattr(self, self.callmap.get(rm, ''), None)
             if not meth:
-                raise Http404
-
-            result = meth(request, *args, **kwargs)
+                result = rc.NOT_FOUND
+            else:
+                result = meth()
         except MimerDataException:
             result = rc.BAD_REQUEST
         except UnsupportedMediaTypeException:
             result = rc.UNSUPPORTED_MEDIA_TYPE
-        if isinstance(result, HeadersResult):
+        except Http404:
+            result = rc.NOT_FOUND
+        if isinstance(result, HeadersResponse):
             http_headers = result.http_headers
             status_code = result.status_code
             result = result.result
@@ -165,40 +212,61 @@ class BaseResource(PermissionsResource):
             result = result._container
         return result, http_headers, status_code
 
+    def _set_response_headers(self, response, result, http_headers):
+        for header, value in self._get_headers(result, http_headers).items():
+            response[header] = value
+
+    def _get_response(self):
+        result, http_headers, status_code = self._get_response_data()
+        try:
+            content, ct = self._serialize(result)
+        except UnsupportedMediaTypeException:
+            content = ''
+            status_code = 415
+
+        response = content
+        if not isinstance(content, HttpResponse):
+            response = HttpResponse(content, content_type=ct, status=status_code)
+
+        self._set_response_headers(response, result, http_headers)
+        return response
+
+    def _get_from_cache(self):
+        if self.cache:
+            return self.cache.get_response(self.request)
+
+    def _store_to_cache(self, response):
+        if self.cache:
+            self.cache.cache_response(self.request, response)
+
     def dispatch(self, request, *args, **kwargs):
-        if self.cache:
-            response = self.cache.get_response(request)
-            if response:
-                return response
+        response = self._get_from_cache()
+        if response:
+            return response
+        response = self._get_response()
+        self._store_to_cache(response)
+        return response
 
-        result, http_headers, status_code = self.get_result(request, *args, **kwargs)
-        stream, ct = self.serialize(request, result)
-
-        if not isinstance(stream, HttpResponse):
-            resp = HttpResponse(stream, content_type=ct, status=status_code)
-        else:
-            resp = stream
-        # resp.streaming = self.stream
-
-        for header, value in self.get_headers(request, result, http_headers).items():
-            resp[header] = value
-
-        if self.cache:
-            self.cache.cache_response(request, resp)
-        return resp
-
-    def get_headers(self, request, result, http_headers):
-        http_headers['X-Serialization-Format-Options'] = ','.join(Serializer.SERIALIZATION_TYPES)
+    def _get_headers(self, result, http_headers):
+        http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'must-revalidate, private'
+        http_headers['Allowed'] = ','.join(self.allowed_methods)
+        fields = self.get_fields(obj=result)
+        if fields:
+            http_headers['X-Fields-Options'] = ','.join(flat_list(fields))
         return http_headers
 
     @classonlymethod
-    def as_view(cls, **initkwargs):
+    def as_view(cls, allowed_methods=None, **initkwargs):
         def view(request, *args, **kwargs):
-            self = cls(**initkwargs)
+            self = cls(request, **initkwargs)
             self.request = request
             self.args = args
             self.kwargs = kwargs
+            if allowed_methods is not None:
+                self.allowed_methods = set(allowed_methods) & set(cls.allowed_methods)
+            else:
+                self.allowed_methods = set(cls.allowed_methods)
             return self.dispatch(request, *args, **kwargs)
         view.csrf_exempt = cls.csrf_exempt
 
@@ -211,140 +279,256 @@ class BaseResource(PermissionsResource):
         return view
 
 
-class DefaultRestModelResource(PermissionsResource):
+class DefaultRestObjectResource(object):
 
-    allowed_methods = ('GET',)
     fields = ('id', '_obj_name')
-    default_obj_fields = ('id', '_obj_name')
-    default_list_fields = ('id', '_obj_name')
+    default_detailed_fields = ('id', '_obj_name')
+    default_general_fields = ('id', '_obj_name')
     guest_fields = ('id', '_obj_name')
-    serializer = ResourceSerializer
 
-    @classmethod
-    def _obj_name(cls, obj, request):
+    def _obj_name(self, obj):
         return force_text(obj)
 
-    def get_fields(self, request, obj=None):
+    def get_fields(self, obj=None):
         return self.fields
 
-    def get_default_obj_fields(self, request, obj):
-        return self.default_obj_fields
+    def get_default_detailed_fields(self, obj=None):
+        return self.default_detailed_fields
 
-    def get_default_list_fields(self, request):
-        return self.default_list_fields
+    def get_default_general_fields(self, obj=None):
+        return self.default_general_fields
 
     def get_guest_fields(self, request):
         return self.guest_fields
 
 
-class BaseModelResource(DefaultRestModelResource, BaseResource):
+class BaseObjectResource(DefaultRestObjectResource, BaseResource):
+
+    pk_name = 'pk'
+
+    def _flatten_dict(self, dct):
+        return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
+
+    def _get_queryset(self):
+        """
+        Should return list or db queryset
+        """
+        raise NotImplementedError
+
+    def _get_object_or_404(self):
+        """
+        Should return one object
+        """
+        raise NotImplementedError
+
+    def _filter_queryset(self, qs):
+        """
+        Should contain implementation for objects filtering
+        """
+        return qs
+
+    def _order_queryset(self, qs):
+        """
+        Should contain implementation for objects ordering
+        """
+        return qs
+
+    def _exists_obj(self, **kwargs):
+        """
+        Should return true if object exists
+        """
+        raise NotImplementedError
+
+    def create(self):
+        pk = self.kwargs.get(self.pk_name)
+        data = self._flatten_dict(self.request.data)
+        if pk and self._exists_obj(pk=pk):
+            return rc.DUPLICATE_ENTRY
+        try:
+            inst = self._atomic_create_or_update(data)
+        except DataInvalidException as ex:
+            return RestErrorsResponse(ex.errors)
+        except RestException as ex:
+            return RestErrorResponse(ex.message)
+        return RestCreatedResponse(inst)
+
+    def read(self):
+        pk = self.kwargs.get(self.pk_name)
+
+        if pk:
+            return self._get_object_or_404()
+
+        try:
+            qs = self._filter_queryset(self._get_queryset())
+            qs = self._order_queryset(qs)
+            paginator = Paginator(qs, self.request)
+            return HeadersResponse(paginator.page_qs, {'X-Total': paginator.total})
+        except RestException as ex:
+            return RestErrorResponse(ex.message)
+        except Exception as ex:
+            return HeadersResponse([], {'X-Total': 0})
+
+    def update(self):
+        pk = self.kwargs.get(self.pk_name)
+        data = self._flatten_dict(self.request.data)
+        data[self.pk_name] = pk
+        try:
+            return self._atomic_create_or_update(data)
+        except DataInvalidException as ex:
+            return RestErrorsResponse(ex.errors)
+        except ResourceNotFoundException:
+            return rc.NOT_FOUND
+        except ConflictException as ex:
+            return rc.FORBIDDEN
+        except RestException as ex:
+            return RestErrorResponse(ex.message)
+
+    def delete(self):
+        obj = self._get_object_or_404()
+        self._pre_delete_obj(obj)
+        self._delete_obj(obj)
+        self._post_delete_obj(obj)
+        return rc.DELETED
+
+    def _pre_delete_obj(self, obj):
+        pass
+
+    def _delete_obj(self, obj):
+        raise NotImplementedError
+
+    def _post_delete_obj(self, obj):
+        pass
+
+    @transaction.atomic
+    def _atomic_create_or_update(self, data):
+        """
+        Atomic object creation
+        """
+        inst = self._create_or_update(data)
+        return inst
+
+    def _get_instance(self, data):
+        """
+        Should contains implementation for get object according to input data values
+        """
+        raise NotImplementedError
+
+    def _generate_form_class(self, inst, exclude=[]):
+        return self.form_class
+
+    def _get_form(self, fields=None, inst=None, data=None, files=None, initial={}):
+        # When is send PUT (resource instance exists), it is possible send only changed values.
+        exclude = []
+
+        kwargs = {}
+        if inst:
+            kwargs['instance'] = inst
+        if data is not None:
+            kwargs['data'] = data
+            kwargs['files'] = files
+
+        form_class = self._generate_form_class(inst, exclude)
+        return form_class(initial=initial, **kwargs)
+
+    def _get_form_initial(self, obj):
+        return {}
+
+    def _can_save_obj(self, change, inst, form, via):
+        if change and not self.has_update_permission(self.request, inst, via=via) and form.has_changed():
+            raise NotAllowedException
+        elif not change and not self.has_create_permission(self.request, via=via):
+            raise NotAllowedException
+
+        return not change or self.has_update_permission(self.request, inst, via=via)
+
+    def _create_or_update(self, data, via=None):
+        """
+        Helper for creating or updating resource
+        """
+        if via is None:
+            via = []
+
+        inst = self._get_instance(data)
+        change = inst and True or False
+
+        files = self.request.FILES
+        form_fields = self._get_form(inst=inst, data=data, initial=self._get_form_initial(inst)).fields
+        form = self._get_form(fields=form_fields.keys(), inst=inst, data=data, files=files,
+                             initial=self._get_form_initial(inst))
+
+        errors = form.is_invalid()
+        if errors:
+            raise DataInvalidException(errors)
+
+        inst = form.save(commit=False)
+
+        if self._can_save_obj(change, inst, form, via):
+            self._pre_save_obj(inst, form, change)
+            self._save_obj(inst, form, change)
+            if hasattr(form, 'save_m2m'):
+                form.save_m2m()
+            self._post_save_obj(inst, form, change)
+        return inst
+
+    def _pre_save_obj(self, obj, form, change):
+        pass
+
+    def _save_obj(self, obj, form, change):
+        raise NotImplementedError
+
+    def _post_save_obj(self, obj, form, change):
+        pass
+
+
+class BaseModelResource(BaseObjectResource):
 
     register = True
+    form_class = RestModelForm
 
-    def queryset(self, request):
+    def _get_queryset(self):
         return self.model.objects.all()
 
-    def exists(self, **kwargs):
-        try:
-            self.model.objects.get(**kwargs)
-            return True
-        except self.model.DoesNotExist:
-            return False
+    def _get_object_or_404(self):
+        return get_object_or_404(self._get_queryset(), pk=self.kwargs.get(self.pk_name))
 
-    def read(self, request, *args, **kwargs):
-        pkfield = self.model._meta.pk.name
+    def _exists_obj(self, **kwargs):
+        return self.model.objects.filter(**kwargs).exists()
 
-        if pkfield in kwargs:
+    def _is_single_obj_request(self, result):
+        return isinstance(result, Model)
+
+    def _delete_obj(self, obj):
+        obj.delete()
+
+    def _save_obj(self, obj, form, change):
+        obj.save()
+
+    def _get_exclude(self, obj=None):
+        return []
+
+    def _get_form_class(self, inst):
+        return self.form_class
+
+    def _get_instance(self, data):
+        # If data contains id this method is update otherwise create
+        inst = None
+        pk = data.get(self.pk_name)
+        if pk:
             try:
-                return self.queryset(request).get(pk=kwargs.get(pkfield))
+                inst = self._get_queryset().get(pk=pk)
             except ObjectDoesNotExist:
-                return rc.NOT_FOUND
-            except MultipleObjectsReturned:  # should never happen, since we're using a PK
-                return rc.BAD_REQUEST
-        else:
-            return self.queryset(request).filter(*args, **kwargs)
+                if self.model.objects.filter(pk=pk).exists():
+                    raise ConflictException
+        return inst
 
-    def create(self, request, *args, **kwargs):
-        attrs = self.flatten_dict(request.data)
+    def _get_form_fields(self, obj=None):
+        return None
 
-        try:
-            inst = self.queryset(request).get(**attrs)
-            return rc.DUPLICATE_ENTRY
-        except self.model.DoesNotExist:
-            inst = self.model(**attrs)
-            inst.save()
-            return inst
-        except self.model.MultipleObjectsReturned:
-            return rc.DUPLICATE_ENTRY
+    def _generate_form_class(self, inst, exclude=[]):
+        exclude = list(self._get_exclude(inst)) + exclude
+        form_class = self._get_form_class(inst)
+        fields = self._get_form_fields(inst)
 
-    def update(self, request, *args, **kwargs):
-        pkfield = self.model._meta.pk.name
-
-        if pkfield not in kwargs:
-            # No pk was specified
-            return rc.BAD_REQUEST
-
-        try:
-            inst = self.queryset(request).get(pk=kwargs.get(pkfield))
-        except ObjectDoesNotExist:
-            return rc.NOT_FOUND
-        except MultipleObjectsReturned:  # should never happen, since we're using a PK
-            return rc.BAD_REQUEST
-
-        attrs = self.flatten_dict(request.data)
-        for k, v in attrs.iteritems():
-            setattr(inst, k, v)
-
-        inst.save()
-        return rc.ALL_OK
-
-    def delete(self, request, *args, **kwargs):
-        try:
-            inst = self.queryset(request).get(*args, **kwargs)
-
-            inst.delete()
-            return rc.DELETED
-        except self.model.MultipleObjectsReturned:
-            return rc.DUPLICATE_ENTRY
-        except self.model.DoesNotExist:
-            return rc.NOT_HERE
-
-    def get_headers(self, request, result, http_headers):
-        obj = None
-        if not isinstance(result, QuerySet):
-            obj = result
-
-        http_headers = super(BaseModelResource, self).get_headers(request, result, http_headers)
-        http_headers['X-Fields-Options'] = ','.join(flat_list(self.get_fields(request, obj=obj)))
-
-        return http_headers
-
-    def get_filtered_fields(self, request, result):
-        obj = None
-        if not isinstance(result, QuerySet):
-            obj = result
-
-        allowed_fields = list_to_dict(self.get_fields(request, obj=obj))
-
-        fields = {}
-        x_fields = request.META.get('HTTP_X_FIELDS', '')
-        for field in x_fields.split(','):
-            if field in allowed_fields:
-                fields[field] = allowed_fields.get(field)
-
-        if fields:
-            return dict_to_list(fields)
-
-        if isinstance(result, QuerySet):
-            fields = self.get_default_list_fields(request)
-        else:
-            fields = self.get_default_obj_fields(request, result)
-
-        fields = list_to_dict(fields)
-
-        x_extra_fields = request.META.get('HTTP_X_EXTRA_FIELDS', '')
-        for field in x_extra_fields.split(','):
-            if field in allowed_fields:
-                fields[field] = allowed_fields.get(field)
-
-        return dict_to_list(fields)
+        if hasattr(form_class, '_meta') and form_class._meta.exclude:
+            exclude.extend(form_class._meta.exclude)
+        return modelform_factory(self.model, form=form_class, exclude=exclude, fields=fields)

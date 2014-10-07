@@ -6,7 +6,6 @@ class DefaultRestCache(object):
     Cache for improve REST efficiency, works only for GET method
     """
 
-
     def _get_cache(self):
         return cache
 
