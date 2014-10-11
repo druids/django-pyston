@@ -278,8 +278,9 @@ class ModelSerializer(Serializer):
 
     def _get_model_field_raw_value(self, obj, field):
         val = getattr(obj, field.attname)
-        if isinstance(field, FileField) and val:
-            val = val.url
+        if isinstance(field, FileField):
+            # FileField returns blank string if file does not exists, None is better
+            val = val and val.url or None
         return val
 
     def _get_model_field_verbose_value(self, obj, field):
@@ -346,12 +347,12 @@ class ModelSerializer(Serializer):
 
     def _get_field_names_from_resource(self, request, obj, via):
         resource = self._get_model_resource(request, obj)
-        if (not resource.has_read_permission(request, obj, via)
-            and not resource.has_update_permission(request, obj, via)
-            and not resource.has_create_permission(request, obj, via)):
+        if (not resource.has_read_permission(obj, via)
+            and not resource.has_update_permission(obj, via)
+            and not resource.has_create_permission(obj, via)):
             return resource.get_guest_fields(request)
         else:
-            return resource.get_default_general_fields(request, obj)
+            return resource.get_default_general_fields(obj)
 
     def _exclude_field_names(self, fields, exclude_fields):
         field_names = list_to_dict(fields)
@@ -360,9 +361,10 @@ class ModelSerializer(Serializer):
         return set(dict_to_list(field_names))
 
     def _get_field_names(self, request, obj, fields, exclude_fields, via):
-        field_names = list(fields)
         if not fields:
             field_names = self._get_field_names_from_resource(request, obj, via)
+        else:
+            field_names = list(fields)
         return self._exclude_field_names(field_names, exclude_fields)
 
     def _to_python(self, request, obj, serialization_format, fields=None, exclude_fields=None, **kwargs):

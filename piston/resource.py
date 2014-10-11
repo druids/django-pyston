@@ -2,27 +2,24 @@ import warnings
 
 from django.conf import settings
 from django.http import HttpResponse
-from django.db.models.query import QuerySet
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
-
-from .utils import rc, list_to_dict, dict_to_list, flat_list
-from .serializer import ResourceSerializer
-from .exception import UnsupportedMediaTypeException, MimerDataException
-
-from functools import update_wrapper
-from piston.paginator import Paginator
-from piston.response import HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse
-from piston.exception import RestException, ConflictException, NotAllowedException, DataInvalidException, \
-    ResourceNotFoundException
-from django.shortcuts import get_object_or_404
 from django.http.response import Http404
 from django.db import transaction
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
-from piston.forms import RestModelForm
 
+from functools import update_wrapper
+
+from .paginator import Paginator
+from .response import HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse
+from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException, \
+                        ResourceNotFoundException)
+from .forms import RestModelForm
+from .utils import get_object_or_404, rc, list_to_dict, dict_to_list, flat_list
+from .serializer import ResourceSerializer
+from .exception import UnsupportedMediaTypeException, MimerDataException
 
 typemapper = { }
 resource_tracker = [ ]
@@ -57,37 +54,40 @@ class PermissionsResource(object):
 
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
 
-    @classmethod
-    def has_read_permission(cls, request, obj=None, via=None):
-        return 'GET' in cls.allowed_methods
+    def has_read_permission(self, obj=None, via=None):
+        return 'GET' in self.allowed_methods
 
-    @classmethod
-    def has_create_permission(cls, request, obj=None, via=None):
-        return 'POST' in cls.allowed_methods
+    def has_create_permission(self, obj=None, via=None):
+        return 'POST' in self.allowed_methods
 
-    @classmethod
-    def has_update_permission(cls, request, obj=None, via=None):
-        return 'PUT' in cls.allowed_methods
+    def has_update_permission(self, obj=None, via=None):
+        return 'PUT' in self.allowed_methods
 
-    @classmethod
-    def has_delete_permission(cls, request, obj=None, via=None):
-        return 'DELETE' in cls.allowed_methods
+    def has_delete_permission(self, obj=None, via=None):
+        return 'DELETE' in self.allowed_methods
 
-    @classmethod
-    def get_permission_validators(cls, restricted_methods=None):
+    def has_head_permission(self, obj=None, via=None):
+        return 'HEAD' in self.allowed_methods and self.has_read_permission(obj, via)
+
+    def has_options_permission(self, obj=None, via=None):
+        return 'OPTIONS' in self.allowed_methods
+
+    def get_permission_validators(self, restricted_methods=None):
         all_permissions_validators = {
-                                        'GET': cls.has_read_permission,
-                                        'PUT': cls.has_update_permission,
-                                        'POST': cls.has_create_permission,
-                                        'DELETE': cls.has_delete_permission,
+                                        'GET': self.has_read_permission,
+                                        'PUT': self.has_update_permission,
+                                        'POST': self.has_create_permission,
+                                        'DELETE': self.has_delete_permission,
+                                        'HEAD': self.has_head_permission,
+                                        'OPTIONS': self.has_options_permission
                                     }
 
         permissions_validators = {}
 
         if restricted_methods:
-            allowed_methods = set(restricted_methods) & set(cls.allowed_methods)
+            allowed_methods = set(restricted_methods) & set(self.allowed_methods)
         else:
-            allowed_methods = set(cls.allowed_methods)
+            allowed_methods = set(self.allowed_methods)
 
         for allowed_method in allowed_methods:
             permissions_validators[allowed_method] = all_permissions_validators[allowed_method]
@@ -106,9 +106,9 @@ class BaseResource(PermissionsResource):
     """
     __metaclass__ = ResourceMetaClass
 
-    allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
-    callmap = { 'GET': 'read', 'POST': 'create',
-                'PUT': 'update', 'DELETE': 'delete' }
+    allowed_methods = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+    callmap = { 'GET': 'read', 'POST': 'create', 'OPTIONS': 'options',
+                'PUT': 'update', 'DELETE': 'delete', 'HEAD': 'head'}
     serializer = ResourceSerializer
     register = False
     csrf_exempt = True
@@ -116,6 +116,8 @@ class BaseResource(PermissionsResource):
 
     def __init__(self, request):
         self.request = request
+        self.args = []
+        self.kwargs = {}
 
     @classmethod
     def get_allowed_methods(cls, request, obj, restricted_methods=None):
@@ -143,6 +145,16 @@ class BaseResource(PermissionsResource):
 
     def delete(self):
         raise NotImplementedError
+
+    def head(self):
+        return self.read()
+
+    def options(self):
+        allowed_methods = []
+        for method, validator in self.get_permission_validators().items():
+            if validator(self.request):
+                allowed_methods.append(method)
+        return HeadersResponse(None, http_headers={'Allowed':','.join(allowed_methods)})
 
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
@@ -193,7 +205,7 @@ class BaseResource(PermissionsResource):
             rm = self.request.method.upper()
             meth = getattr(self, self.callmap.get(rm, ''), None)
             if not meth:
-                result = rc.NOT_FOUND
+                result = rc.FORBIDDEN
             else:
                 result = meth()
         except MimerDataException:
@@ -224,6 +236,9 @@ class BaseResource(PermissionsResource):
             content = ''
             status_code = 415
 
+        if result is None:
+            content = ''
+
         response = content
         if not isinstance(content, HttpResponse):
             response = HttpResponse(content, content_type=ct, status=status_code)
@@ -250,7 +265,6 @@ class BaseResource(PermissionsResource):
     def _get_headers(self, result, http_headers):
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'must-revalidate, private'
-        http_headers['Allowed'] = ','.join(self.allowed_methods)
         fields = self.get_fields(obj=result)
         if fields:
             http_headers['X-Fields-Options'] = ','.join(flat_list(fields))
@@ -267,6 +281,7 @@ class BaseResource(PermissionsResource):
                 self.allowed_methods = set(allowed_methods) & set(cls.allowed_methods)
             else:
                 self.allowed_methods = set(cls.allowed_methods)
+            self.callmap = dict([(method, cls.callmap.get(method)) for method in self.allowed_methods])
             return self.dispatch(request, *args, **kwargs)
         view.csrf_exempt = cls.csrf_exempt
 
@@ -305,6 +320,7 @@ class DefaultRestObjectResource(object):
 class BaseObjectResource(DefaultRestObjectResource, BaseResource):
 
     pk_name = 'pk'
+    pk_field_name = 'id'
 
     def _flatten_dict(self, dct):
         return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
@@ -315,7 +331,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         """
         raise NotImplementedError
 
-    def _get_object_or_404(self):
+    def _get_object_or_404(self, pk=None):
         """
         Should return one object
         """
@@ -371,7 +387,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
     def update(self):
         pk = self.kwargs.get(self.pk_name)
         data = self._flatten_dict(self.request.data)
-        data[self.pk_name] = pk
+        data[self.pk_field_name] = pk
         try:
             return self._atomic_create_or_update(data)
         except DataInvalidException as ex:
@@ -384,11 +400,18 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             return RestErrorResponse(ex.message)
 
     def delete(self):
-        obj = self._get_object_or_404()
+        pk = self.kwargs.get(self.pk_name)
+        self._delete(pk)
+        return rc.DELETED
+
+    def _delete(self, pk, via=None):
+        via = via or []
+        obj = self._get_object_or_404(pk)
+        if not self.has_delete_permission(obj, via):
+            raise NotAllowedException
         self._pre_delete_obj(obj)
         self._delete_obj(obj)
         self._post_delete_obj(obj)
-        return rc.DELETED
 
     def _pre_delete_obj(self, obj):
         pass
@@ -404,8 +427,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         """
         Atomic object creation
         """
-        inst = self._create_or_update(data)
-        return inst
+        return self._create_or_update(data)
 
     def _get_instance(self, data):
         """
@@ -434,17 +456,21 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         return {}
 
     def _can_save_obj(self, change, inst, form, via):
-        if change and not self.has_update_permission(self.request, inst, via=via) and form.has_changed():
+        if change and not self.has_update_permission(inst, via=via) and form.has_changed():
             raise NotAllowedException
-        elif not change and not self.has_create_permission(self.request, via=via):
+        elif not change and not self.has_create_permission(via=via):
             raise NotAllowedException
 
-        return not change or self.has_update_permission(self.request, inst, via=via)
+        return not change or self.has_update_permission(inst, via=via)
 
     def _create_or_update(self, data, via=None):
         """
         Helper for creating or updating resource
         """
+        from piston.data_processor import data_preprocessors
+        from piston.data_processor import data_postprocessors
+
+
         if via is None:
             via = []
 
@@ -452,8 +478,13 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         change = inst and True or False
 
         files = self.request.FILES
-        form_fields = self._get_form(inst=inst, data=data, initial=self._get_form_initial(inst)).fields
-        form = self._get_form(fields=form_fields.keys(), inst=inst, data=data, files=files,
+
+        form = self._get_form(inst=inst, data=data, initial=self._get_form_initial(inst))
+
+        for preprocessor in data_preprocessors.get_processors(type(self)):
+            data, files = preprocessor(self, form, inst, via).process_data(data, files)
+
+        form = self._get_form(fields=form.fields.keys(), inst=inst, data=data, files=files,
                              initial=self._get_form_initial(inst))
 
         errors = form.is_invalid()
@@ -462,11 +493,18 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
 
         inst = form.save(commit=False)
 
-        if self._can_save_obj(change, inst, form, via):
+        can_save_obj = self._can_save_obj(change, inst, form, via)
+        if can_save_obj:
             self._pre_save_obj(inst, form, change)
             self._save_obj(inst, form, change)
             if hasattr(form, 'save_m2m'):
                 form.save_m2m()
+
+        if inst.pk:
+            for preprocessor in data_postprocessors.get_processors(type(self)):
+                data, files = preprocessor(self, form, inst, via).process_data(data, files)
+
+        if can_save_obj:
             self._post_save_obj(inst, form, change)
         return inst
 
@@ -488,8 +526,8 @@ class BaseModelResource(BaseObjectResource):
     def _get_queryset(self):
         return self.model.objects.all()
 
-    def _get_object_or_404(self):
-        return get_object_or_404(self._get_queryset(), pk=self.kwargs.get(self.pk_name))
+    def _get_object_or_404(self, pk=None):
+        return get_object_or_404(self._get_queryset(), pk=(pk or self.kwargs.get(self.pk_name)))
 
     def _exists_obj(self, **kwargs):
         return self.model.objects.filter(**kwargs).exists()
@@ -512,13 +550,16 @@ class BaseModelResource(BaseObjectResource):
     def _get_instance(self, data):
         # If data contains id this method is update otherwise create
         inst = None
-        pk = data.get(self.pk_name)
+        pk = data.get(self.pk_field_name)
         if pk:
             try:
-                inst = self._get_queryset().get(pk=pk)
-            except ObjectDoesNotExist:
-                if self.model.objects.filter(pk=pk).exists():
-                    raise ConflictException
+                try:
+                    inst = self._get_queryset().get(pk=pk)
+                except (ObjectDoesNotExist, ValueError):
+                    if self.model.objects.filter(pk=pk).exists():
+                        raise ConflictException
+            except ValueError:
+                pass
         return inst
 
     def _get_form_fields(self, obj=None):

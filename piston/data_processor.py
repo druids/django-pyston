@@ -1,33 +1,61 @@
 import sys
 import base64
 import cStringIO
+import inspect
 
 from django.forms.fields import FileField
-
-from piston.exception import DataInvalidException
+from django.utils.translation import ugettext_lazy as _
 from django.core.files.uploadedfile import InMemoryUploadedFile
-from piston.utils import get_resource_of_model
-from piston.resource import typemapper
-from django.forms.models import ModelMultipleChoiceField
-from django.utils.translation import ugettext as _
+from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
+from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
+from django.http.response import Http404
+from django.utils.encoding import force_text
+
+from .exception import DataInvalidException, RestException
+from .resource import BaseObjectResource, typemapper, BaseModelResource
+from .utils import get_object_or_none
+
+
+class DataProcessorCollection(object):
+
+    def __init__(self):
+        self.data_processors_map = {}
+
+    def register(self, resource_class):
+        def _register(processor_class):
+            data_processors = self.data_processors_map.get(resource_class, set())
+            data_processors.add(processor_class)
+            self.data_processors_map[resource_class] = data_processors
+            return processor_class
+        return _register
+
+    def get_processors(self, resource_class):
+        processors = []
+        for obj_class in inspect.getmro(resource_class):
+            processors += list(self.data_processors_map.get(obj_class, set()))
+        return processors
+
+data_preprocessors = DataProcessorCollection()
+data_postprocessors = DataProcessorCollection()
 
 
 class DataProcessor(object):
-    def __init__(self, request, model, form, inst, via):
-        self.model = model
-        self.request = request
+    def __init__(self, resource, form, inst, via):
+        self.resource = resource
+        self.model = resource.model
+        self.request = resource.request
         self.form = form
         self.inst = inst
         self.via = via
 
-    def _process_value(self, data, files, key, data_item):
+    def _process_field(self, data, files, key, data_item):
         raise NotImplementedError
 
     def _clear_data(self, data, files):
         return data, files
 
     def process_data(self, data, files):
-        data, files = self.clear_data(data, files)
+        data, files = self._clear_data(data, files)
 
         self.errors = {}
         for key, data_item in data.items():
@@ -38,9 +66,10 @@ class DataProcessor(object):
         return data, files
 
 
+@data_preprocessors.register(BaseObjectResource)
 class FileDataPreprocessor(DataProcessor):
 
-    def _process_value(self, data, files, key, data_item):
+    def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
         if (field and isinstance(field, FileField) and isinstance(data_item, dict) and
             {'filename', 'content', 'content_type'}.issubset(set(data_item.keys()))):
@@ -52,150 +81,274 @@ class FileDataPreprocessor(DataProcessor):
                 file_content, field_name=key, name=filename, content_type=content_type,
                 size=sys.getsizeof(file_content), charset=charset
             )
+            data[key] = filename
 
 
-class RelatedObjectsPreprocessor(DataProcessor):
+class ResourceProcessorMixin(object):
 
-    def _process_multiple_choice_field(self, data, key, data_item, field):
-        if isinstance(data_item, dict):
-            errors = {}
-            add_errors = []
-            remove_errors = []
+    def _create_or_update_related_object(self, data, model):
+        if not isinstance(data, dict):
+            raise DataInvalidException({'error': _('Data must be object')})
 
-            print self.form.initial.get('key')
-'''     data[key] = list(getattr(self.inst, key).all().values_list('pk', flat=True))
-
-
-
-            self._add_data_items_to_list(resource, data_items.get('add', []), data[key], add_errors)
-            self._remove_data_items_from_list(resource, data_items.get('remove', []), data[key], remove_errors)
-            if add_errors:
-                errors['add'] = add_errors
-            if remove_errors:
-                errors['remove'] = remove_errors
-
-        else:
-            errors = []
-            data[key] = []
-            self._add_data_items_to_list(resource, data_items, data[key], errors)'''
-
-
-
-    def _process_value(self, data, key, data_item):
-        field = self.form.fields.get(key)
-        if isinstance(field, ModelMultipleChoiceField):
-            self._process_multiple_choice_field(field, data_item)
-
-
-'''     if field and isinstance(data_item, (list, tuple, dict)) and hasattr(field.get(key), 'queryset'):
-            rel_model = field.queryset.model
-            resource = self._get_resource(rel_model)
-            if resource:
-                if isinstance(field, ModelMultipleChoiceField):
-                    self._process_list_field(resource, data, key, data_item, rel_model)
-                else:
-                    self._process_dict_field(resource, data, key, data_item, rel_model)
-
-
-class DataPostprocessor(DataProcessor):
-
-    def _add_related_items(self, resource, data, list_items, errors, related_obj):
-        i = 1
-        for rel_obj_data in data:
-            if not isinstance(rel_obj_data, dict):
-                rel_obj_data = {related_obj.model._meta.pk.name: rel_obj_data}
-
-            rel_obj_data[related_obj.field.name] = self.inst.pk
+        resource = self._get_resource(model)
+        if resource:
             try:
-                list_items.append(resource._create_or_update(rel_obj_data, self.via).pk)
+                return resource._create_or_update(data, self.via).pk
             except (DataInvalidException, RestException) as ex:
-                er = ex.errors
-                er.update({'_index': i})
-                errors.append(er)
-            except TypeError:
-                errors.append({'error': _('Field must contains object'), '_index': i})
-            i += 1
+                raise DataInvalidException(ex.errors)
 
-    # TODO: Throw exception if object does not exists or user has not permissions
-    def _remove_related_items(self, resource, data, list_items, errors):
-        i = 1
-        for data_item in data:
-            if isinstance(data_item, dict):
-                if data_item.has_key(self.model._meta.pk.name):
-                    if data_item.get(self.model._meta.pk.name) in list_items:
-                        list_items.remove(data_item.get(self.model._meta.pk.name))
-                else:
-                    errors.append({'_index': i, 'error': _('Removed element must contain pk')})
-            else:
-                if data_item in list_items:
-                    list_items.remove(data_item)
-            i += 1
-
-    def _remove_other_related_objects(self, resource, related_obj, existing_related):
-        for reverse_related_obj in resource.model.objects.filter(**{related_obj.field.name: self.inst})\
-                                    .exclude(pk__in=existing_related):
-            if resource.has_delete_permission(self.request, reverse_related_obj, self.via):
-                resource._delete(reverse_related_obj)
-
-
-    def _process_dict_field(self, resource, data, key, data_item, related_obj):
-        related_model_obj = get_object_or_none(related_obj.model, **{related_obj.field.name:self.inst.pk})
-
-        if data_item is None and related_model_obj:
-            if resource.has_delete_permission(self.request, related_model_obj, self.via):
-                resource._delete(related_model_obj)
-            else:
-                self.errors[key] = {'error': _('You don not have permisson to delete object')}
-        else:
+    def _create_and_return_new_object_pk_list(self, data, model, created_via_inst, created_via_field_name=None):
+        errors = []
+        result = []
+        i = 0
+        for obj_data in data:
             try:
-                data_item[related_obj.field.name] = self.inst.pk
-
-                # Update OneToOne field without pk
-                if related_model_obj:
-                    data_item[related_obj.model._meta.pk.name] = related_model_obj.pk
-
-                data[key] = resource._create_or_update(data_item, self.via).pk
-            except (DataInvalidException, ResourceNotFoundException) as ex:
-                self.errors[key] = ex.errors
+                if created_via_field_name:
+                    obj_data[created_via_field_name] = created_via_inst.pk
+                result.append(self._create_or_update_related_object(obj_data, model))
+            except DataInvalidException as ex:
+                rel_obj_errors = ex.errors
+                rel_obj_errors['_index'] = i
+                errors.append(rel_obj_errors)
             except TypeError:
-                self.errors[key] = {'error': _('Field must contains object')}
-
-    def _process_list_field(self, resource, data, key, data_items, related_obj):
-        """
-        Create or update reverse ForeignKey field
-        """
-
-        if isinstance(data_items, dict):
-            existing_related = list(resource.model.objects.filter(**{related_obj.field.name: self.inst}).values_list('pk', flat=True))
-            errors = {}
-            add_errors = []
-            remove_errors = []
-
-            self._add_related_items(resource, data_items.get('add', []), existing_related, add_errors, related_obj)
-            self._remove_related_items(resource, data_items.get('remove', []), existing_related, remove_errors)
-            if add_errors:
-                errors['add'] = add_errors
-            if remove_errors:
-                errors['remove'] = remove_errors
-        else:
-            errors = []
-            existing_related = []
-            self._add_related_items(resource, data_items, existing_related, errors, related_obj)
-
-        self._remove_other_related_objects(resource, related_obj, existing_related)
+                errors.append({'error': _('Data must be object'), '_index':i})
+            i += 1
 
         if errors:
-            self.errors[key] = errors
+            raise DataInvalidException(errors)
+        return result
 
-    def _process_field(self, data, key, data_item):
-        if key not in self.form_fields.keys() and hasattr(self.model, key):
-            if isinstance(getattr(self.model, key), ForeignRelatedObjectsDescriptor):
-                related_obj = getattr(self.model, key).related
-                resource_class = get_resource_of_model(related_obj.model)
-                if resource_class:
-                    self._process_list_field(resource_class(self.request), data, key, data_item, related_obj)
-            elif isinstance(getattr(self.model, key), SingleRelatedObjectDescriptor):
-                related_obj = getattr(self.model, key).related
-                resource_class = get_resource_of_model(related_obj.model)
-                if resource_class:
-                    self._process_dict_field(resource_class(), data, key, data_item, related_obj)'''
+    def _delete_reverse_object(self, obj_data, model):
+        resource = self._get_resource(model)
+        if resource:
+            try:
+                resource._delete(self._flat_object_to_pk(resource.pk_field_name, obj_data), self.via)
+            except (DataInvalidException, RestException) as ex:
+                raise DataInvalidException(ex.errors)
+            except Http404:
+                raise DataInvalidException({'error': _('Object does not exist')})
+
+    def _delete_reverse_objects(self, data, model):
+        errors = []
+        resource = self._get_resource(model)
+        if resource:
+            i = 0
+            for obj_data in data:
+                try:
+                    self._delete_reverse_object(obj_data, model)
+                except DataInvalidException as ex:
+                    rel_obj_errors = ex.errors
+                    rel_obj_errors['_index'] = i
+                    errors.append(rel_obj_errors)
+                i += 1
+        if errors:
+            raise DataInvalidException(errors)
+
+    def _flat_object_to_pk(self, pk_field_name, data):
+        i = 0
+        if isinstance(data, dict):
+            try:
+                return data[pk_field_name]
+            except KeyError:
+                raise DataInvalidException({'error': _('Data must contain primary key: %s') % pk_field_name,
+                                            '_index': i})
+        else:
+            return data
+
+    def _get_resource(self, model):
+        resource_class = typemapper.get(model)
+        if resource_class:
+            return resource_class(self.request)
+
+
+class MultipleDataProcessorMixin(object):
+
+    INVALID_COLLECTION_EXCEPTION = {'error': _('Data must be a collection')}
+
+    def _append_errors(self, key, operation, errors):
+        self.errors[key] = self.errors.get(key, {})
+        self.errors[key].update({operation: errors})
+
+
+@data_preprocessors.register(BaseObjectResource)
+class ModelDataPreprocessor(ResourceProcessorMixin, DataProcessor):
+
+    def _process_field(self, data, files, key, data_item):
+        field = self.form.fields.get(key)
+        if (field and isinstance(field, ModelChoiceField) and not isinstance(field, ModelMultipleChoiceField)
+            and data_item and isinstance(data_item, dict)):
+            try:
+                pk = self._create_or_update_related_object(data_item, self.form.fields.get(key).queryset.model)
+                if pk:
+                    data[key] = pk
+            except DataInvalidException as ex:
+                self.errors[key] = ex.errors
+
+
+@data_preprocessors.register(BaseObjectResource)
+class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, DataProcessor):
+
+    def _create_or_update_related_objects_set(self, data, key, data_item, model):
+        if isinstance(data, (tuple, list)):
+            try:
+                return self._create_and_return_new_object_pk_list(data, model, self.inst)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'set', ex.errors)
+        else:
+            self._append_errors(key, 'set', self.INVALID_COLLECTION_EXCEPTION)
+
+    def _create_or_update_related_objects_add(self, data, key, data_item, model, current_values_list):
+        if isinstance(data, (tuple, list)):
+            try:
+                return current_values_list + self._create_and_return_new_object_pk_list(data, model, self.inst)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'add', ex.errors)
+        else:
+            self._append_errors(key, 'add', self.INVALID_COLLECTION_EXCEPTION)
+        return current_values_list
+
+    def _delete_objects_from_list(self, data, current_values_list, model):
+        errors = []
+        resource = self._get_resource(model)
+
+        result = [force_text(val) for val in current_values_list]
+        i = 0
+        for obj in data:
+            try:
+                pk = force_text(self._flat_object_to_pk(resource.pk_field_name, obj))
+                if pk in result:
+                    result.remove(pk)
+                else:
+                    errors.append({'error': _('Object does not exist in selected data'), '_index':i})
+            except (DataInvalidException, RestException) as ex:
+                rel_obj_errors = ex.errors
+                rel_obj_errors['_index'] = i
+                errors.append(rel_obj_errors)
+            i += 1
+        if errors:
+            raise DataInvalidException(errors)
+        return result
+
+    def _create_or_update_objects_remove(self, data, key, data_item, model, current_values_list):
+        if isinstance(data, (tuple, list)):
+            try:
+                return self._delete_objects_from_list(data, current_values_list, model)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'remove', ex.errors)
+        else:
+            self._append_errors(key, 'remove', self.INVALID_COLLECTION_EXCEPTION)
+        return current_values_list
+
+    def _create_or_update_related_objects(self, data, key, data_item, model):
+        resource = self._get_resource(model)
+        if resource:
+            if isinstance(data_item, (tuple, list)) or 'set' in data_item:
+                set_data = isinstance(data_item, list) and data_item or data_item.get('set')
+                data[key] = self._create_or_update_related_objects_set(set_data, key, data_item, model)
+
+            else:
+                field = self.form.fields.get(key)
+                values = field.prepare_value(self.form.initial.get(key, field.initial)) or []
+
+                if 'remove' in data_item:
+                    values = self._create_or_update_objects_remove(data_item.get('remove'), key, data_item, model,
+                                                                   values)
+                if 'add' in data_item:
+                    values = self._create_or_update_related_objects_add(data_item.get('add'), key,
+                                                                         data_item, model, values)
+                data[key] = values
+
+
+    def _process_field(self, data, files, key, data_item):
+        field = self.form.fields.get(key)
+        if (field and isinstance(field, ModelMultipleChoiceField)
+            and data_item and isinstance(data_item, (list, dict))):
+            self._create_or_update_related_objects(data, key, data_item, field.queryset.model)
+
+
+@data_postprocessors.register(BaseModelResource)
+class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, DataProcessor):
+
+    def _create_or_update_reverse_related_objects_set(self, data, key, data_item, rel_object):
+        resource = self._get_resource(rel_object.model)
+
+        if isinstance(data, (tuple, list)):
+            try:
+                new_object_pks = self._create_and_return_new_object_pk_list(data, rel_object.model, self.inst,
+                                                                                 rel_object.field.name)
+                # This is not optimal solution but is the most universal
+                self._delete_reverse_objects(
+                    resource._get_queryset().filter(**{rel_object.field.name: self.inst})
+                     .exclude(pk__in=new_object_pks).values_list('pk', flat=True),
+                     rel_object.model)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'set', ex.errors)
+        else:
+            self._append_errors(key, 'set', self.INVALID_COLLECTION_EXCEPTION)
+
+    def _create_or_update_reverse_related_objects_remove(self, data, key, data_item, rel_object):
+        if isinstance(data, (tuple, list)):
+            try:
+                self._delete_reverse_objects(data, rel_object.model)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'remove', ex.errors)
+        else:
+            self._append_errors(key, 'remove', self.INVALID_COLLECTION_EXCEPTION)
+
+    def _create_or_update_reverse_related_objects_add(self, data, key, data_item, rel_object):
+        if isinstance(data, (tuple, list)):
+            try:
+                self._create_and_return_new_object_pk_list(data, rel_object.model, self.inst,
+                                                    rel_object.field.name)
+            except DataInvalidException as ex:
+                self._append_errors(key, 'add', ex.errors)
+        else:
+            self._append_errors(key, 'add', self.INVALID_COLLECTION_EXCEPTION)
+
+    def _create_or_update_reverse_related_objects(self, data, key, data_item, rel_object):
+        resource = self._get_resource(rel_object.model)
+        if resource:
+            if 'set' in data_item:
+                self._create_or_update_reverse_related_objects_set(data_item.get('set'), key, data_item, rel_object)
+            else:
+                if 'remove' in data_item:
+                    self._create_or_update_reverse_related_objects_remove(data_item.get('remove'), key,
+                                                                          data_item, rel_object)
+                if 'add' in data_item:
+                    self._create_or_update_reverse_related_objects_add(data_item.get('add'), key,
+                                                                       data_item, rel_object)
+
+    def _process_field(self, data, files, key, data_item):
+        model_description = getattr(self.model, key, None)
+        if (isinstance(model_description, ForeignRelatedObjectsDescriptor) and isinstance(data_item, dict)
+            and set(data_item.keys()).union({'set', 'add', 'remove'})):
+            self._create_or_update_reverse_related_objects(data, key, data_item, model_description.related)
+
+
+@data_postprocessors.register(BaseModelResource)
+class ReverseDataPostprocessor(ResourceProcessorMixin, DataProcessor):
+
+    def _create_or_update_single_reverse_related_objects(self, data, key, data_item, rel_object):
+        resource = self._get_resource(rel_object.model)
+        related_obj = get_object_or_none(rel_object.model, **{rel_object.field.name:self.inst.pk})
+        try:
+            if data_item is None:
+                if related_obj:
+                    self._delete_reverse_object({resource.pk_field_name: related_obj.pk}, rel_object.model)
+            else:
+                if not isinstance(data_item, dict):
+                    obj_data = {resource.pk_field_name: force_text(data_item)}
+                else:
+                    obj_data = data_item.copy()
+
+                if not resource.pk_field_name in obj_data and related_obj:
+                    obj_data[resource.pk_field_name] = related_obj.pk
+                obj_data[rel_object.field.name] = self.inst.pk
+                self._create_or_update_related_object(obj_data, rel_object.model)
+        except DataInvalidException as ex:
+            self.errors[key] = ex.errors
+
+    def _process_field(self, data, files, key, data_item):
+        model_description = getattr(self.model, key, None)
+        if isinstance(model_description, SingleRelatedObjectDescriptor):
+            self._create_or_update_single_reverse_related_objects(data, key, data_item, model_description.related)

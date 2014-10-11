@@ -4,8 +4,10 @@ from django.http import HttpResponse
 from django import get_version as django_version
 from django.utils.translation import ugettext as _
 from django.db.models.fields.related import RelatedField
+from django.shortcuts import _get_queryset
 
 from .version import get_version
+from django.http.response import Http404
 
 
 def format_error(error):
@@ -170,3 +172,19 @@ class Enum(set):
         if name in self:
             return name
         raise AttributeError
+
+
+def get_object_or_none(klass, *args, **kwargs):
+    queryset = _get_queryset(klass)
+    try:
+        return queryset.get(*args, **kwargs)
+    except (queryset.model.DoesNotExist, ValueError):
+        return None
+
+
+def get_object_or_404(klass, *args, **kwargs):
+    queryset = _get_queryset(klass)
+    try:
+        return queryset.get(*args, **kwargs)
+    except (queryset.model.DoesNotExist, ValueError):
+        raise Http404
