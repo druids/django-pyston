@@ -4,9 +4,12 @@ from germanium.rest import RESTTestCase
 class PistonTestCase(RESTTestCase):
     USER_API_URL = '/api/user/'
     ISSUE_API_URL = '/api/issue/'
+    EXTRA_API_URL = '/api/extra/'
 
     user_id = 0
     issue_id = 0
+
+    DATA_AMOUNT = 10
 
     def get_pk(self, resp):
         return self.deserialize(resp).get('id')
@@ -24,7 +27,7 @@ class PistonTestCase(RESTTestCase):
 
     def get_users_data(self, prefix='', flat=False):
         result = []
-        for i in range(10):
+        for i in range(self.DATA_AMOUNT):
             if flat:
                 result.append(self.get_user_data(prefix))
             else:
@@ -33,13 +36,13 @@ class PistonTestCase(RESTTestCase):
 
     def get_issues_data(self, prefix='', flat=False):
         result = []
-        for i in range(10):
+        for i in range(self.DATA_AMOUNT):
             result.append((i, self.get_issue_data(prefix)))
         return result
 
     def get_issues_and_users_data(self, prefix=''):
         result = []
-        for i in range(10):
+        for i in range(self.DATA_AMOUNT):
             issue_data = self.get_issue_data(prefix)
             user_data = issue_data['created_by']
             del issue_data['created_by']

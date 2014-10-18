@@ -173,11 +173,11 @@ class StandardOperationsTestCase(PistonTestCase):
         pk = self.get_pk(resp)
 
         resp = self.post('%s%s/' % (self.USER_API_URL, pk), data=self.serialize(data))
-        self.assert_http_unauthorized(resp)
+        self.assert_http_method_not_allowed(resp)
 
         resp = self.delete(self.USER_API_URL)
-        self.assert_http_unauthorized(resp)
+        self.assert_http_method_not_allowed(resp)
 
         resp = self.put(self.USER_API_URL, data=self.serialize(data))
-        self.assert_http_unauthorized(resp)
+        self.assert_http_method_not_allowed(resp)
 

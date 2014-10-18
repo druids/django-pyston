@@ -6,8 +6,8 @@ from django.db.models import Model
 from django.db.models.query import QuerySet
 from django.db.models.fields.files import FileField
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
-from django.utils import formats, timezone
-from django.utils.encoding import force_text
+from django.utils import formats, timezone, six
+from django.utils.encoding import force_text, smart_unicode
 from django.utils.translation import ugettext as _
 
 from .exception import MimerDataException, UnsupportedMediaTypeException
@@ -84,7 +84,7 @@ class Serializer(object):
         serializer = self._find_to_serializer(thing)
         if serializer:
             return serializer._to_python(request, thing, serialization_format, **kwargs)
-        raise ValueError('Not found serializer for %s' % thing)
+        raise NotImplementedError('Serializer not found for %s' % thing)
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
         return self._to_python_chain(request, thing, serialization_format, **kwargs)
@@ -127,8 +127,6 @@ class ResourceSerializer(Serializer):
         return request
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
-        via = kwargs.get('via', [])
-        via.append(self.resource)
         return super(ResourceSerializer, self)._to_python(request, thing, serialization_format, **kwargs)
 
 
@@ -259,9 +257,10 @@ class ModelSerializer(Serializer):
             exclude_fields.append(getattr(model, field).related.field.name)
         return self._to_python_chain(request, val, serialization_format, exclude_fields=exclude_fields, **kwargs)
 
-    def _copy_kwargs(self, kwargs):
+    def _copy_kwargs(self, resource, kwargs):
         subkwargs = kwargs.copy()
         subkwargs['exclude_fields'] = None
+        subkwargs['via'] = resource._get_via(kwargs.get('via'))
         return subkwargs
 
     def _get_field_name(self, field, subkwargs):
@@ -328,7 +327,7 @@ class ModelSerializer(Serializer):
 
         out = dict()
         for field in fields:
-            subkwargs = self._copy_kwargs(kwargs)
+            subkwargs = self._copy_kwargs(self._get_model_resource(request, obj), kwargs)
             field_name = self._get_field_name(field, subkwargs)
             out[field_name] = self._field_to_python(
                 field_name, resource_method_fields, model_fields, m2m_fields, request, obj, serialization_format,
@@ -343,13 +342,13 @@ class ModelSerializer(Serializer):
         if hasattr(obj, '_resource'):
             return obj._resource
         else:
-            return DefaultRestObjectResource(request)
+            return DefaultRestObjectResource()
 
     def _get_field_names_from_resource(self, request, obj, via):
         resource = self._get_model_resource(request, obj)
-        if (not resource.has_read_permission(obj, via)
-            and not resource.has_update_permission(obj, via)
-            and not resource.has_create_permission(obj, via)):
+        if (not resource.has_get_permission(obj, via)
+            and not resource.has_put_permission(obj, via)
+            and not resource.has_post_permission(obj, via)):
             return resource.get_guest_fields(request)
         else:
             return resource.get_default_general_fields(obj)
@@ -369,7 +368,7 @@ class ModelSerializer(Serializer):
 
     def _to_python(self, request, obj, serialization_format, fields=None, exclude_fields=None, **kwargs):
         exclude_fields = exclude_fields or []
-        fields = self._get_field_names(request, obj, fields, exclude_fields, kwargs.get('via', []))
+        fields = self._get_field_names(request, obj, fields, exclude_fields, kwargs.get('via'))
         return self._fields_to_python(request, obj, serialization_format, fields, **kwargs)
 
     def _can_transform_to_python(self, thing):

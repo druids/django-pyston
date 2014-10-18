@@ -23,8 +23,9 @@ class rc_factory(object):
                  CREATED=({'success': _('The record was created')}, 201),
                  DELETED=('', 204),  # 204 says "Don't send a body!"
                  BAD_REQUEST=({'error': _('Bad Request')}, 400),
-                 FORBIDDEN=({'error':_('Forbidden')}, 401),
+                 FORBIDDEN=({'error':_('Forbidden')}, 403),
                  NOT_FOUND=({'error':_('Not Found')}, 404),
+                 METHOD_NOT_ALLOWED=({'error': _('Method Not Allowed')}, 405),
                  DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
                  NOT_HERE=({'error': _('Gone')}, 410),
                  UNSUPPORTED_MEDIA_TYPE=({'error': _('Unsupported Media Type')}, 415),

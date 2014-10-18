@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.utils.translation import ugettext_lazy as _
+from django.db.models.query import QuerySet
 
 from .exception import RestException
 
@@ -17,7 +18,10 @@ class Paginator(object):
         self.total = self._get_total()
 
     def _get_total(self):
-        return self.qs.count()
+        if isinstance(self.qs, QuerySet):
+            return self.qs.count()
+        else:
+            return len(self.qs)
 
     def _get_offset(self, request):
         offset = request.META.get('HTTP_X_OFFSET', '0')

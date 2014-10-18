@@ -32,7 +32,7 @@ class ResourceNotFoundException(RestException):
 
 
 class NotAllowedException(RestException):
-    message = _('Create or update this resource is not allowed.')
+    message = _('Not allowed.')
 
 
 class ConflictException(RestException):

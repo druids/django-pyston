@@ -1,4 +1,4 @@
-from piston.resource import BaseModelResource
+from piston.resource import BaseModelResource, BaseResource
 
 from .models import Issue, User
 
@@ -13,3 +13,9 @@ class UserResource(BaseModelResource):
     model = User
     default_detailed_fields = ('id', '_obj_name', 'email', 'contract')
     fields = ('id', '_obj_name', 'email')
+
+
+class ExtraResource(BaseResource):
+
+    def get(self):
+        return {'extra': 1}

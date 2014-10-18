@@ -46,7 +46,7 @@ class DataProcessor(object):
         self.request = resource.request
         self.form = form
         self.inst = inst
-        self.via = via
+        self.via = resource._get_via(via)
 
     def _process_field(self, data, files, key, data_item):
         raise NotImplementedError
