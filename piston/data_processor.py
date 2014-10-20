@@ -98,10 +98,14 @@ class ResourceProcessorMixin(object):
                 raise DataInvalidException(ex.errors)
 
     def _create_and_return_new_object_pk_list(self, data, model, created_via_inst, created_via_field_name=None):
+        resource = self._get_resource(model)
         errors = []
         result = []
         i = 0
         for obj_data in data:
+            if not isinstance(obj_data, (dict, list)):
+                obj_data = {resource.pk_field_name: obj_data}
+
             try:
                 if created_via_field_name:
                     obj_data[created_via_field_name] = created_via_inst.pk

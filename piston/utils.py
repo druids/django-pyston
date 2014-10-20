@@ -1,18 +1,12 @@
 from __future__ import unicode_literals
 
 from django.http import HttpResponse
-from django import get_version as django_version
 from django.utils.translation import ugettext as _
 from django.db.models.fields.related import RelatedField
 from django.shortcuts import _get_queryset
-
-from .version import get_version
 from django.http.response import Http404
-
-
-def format_error(error):
-    return u"Piston/%s (Django %s) crash report:\n\n%s" % \
-        (get_version(), django_version(), error)
+from django.template.defaultfilters import lower
+from django.db import models
 
 
 class rc_factory(object):
@@ -189,3 +183,15 @@ def get_object_or_404(klass, *args, **kwargs):
         return queryset.get(*args, **kwargs)
     except (queryset.model.DoesNotExist, ValueError):
         raise Http404
+
+
+def model_resources_to_dict():
+    from resource import resource_tracker
+
+    model_resources = {}
+    for resource in resource_tracker:
+        if hasattr(resource, 'model') and issubclass(resource.model, models.Model):
+            model = resource.model
+            model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
+            model_resources[model_label] = resource
+    return model_resources

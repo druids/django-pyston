@@ -1,6 +1,5 @@
 import re
 import warnings
-import time
 
 from django.conf import settings
 from django.http import HttpResponse
@@ -64,8 +63,12 @@ class PermissionsResourceMixin(object):
 
     def get_allowed_methods(self, obj=None, restricted_methods=None):
         allowed_methods = []
-        restricted_methods = restricted_methods or ()
-        for method in set(self.allowed_methods).intersection(restricted_methods):
+
+        tested_methods = set(self.allowed_methods)
+        if restricted_methods is not None:
+            tested_methods = tested_methods.intersection(restricted_methods)
+
+        for method in tested_methods:
             try:
                 self._check_permission(method, obj=obj)
                 allowed_methods.append(method)
@@ -265,7 +268,7 @@ class BaseResource(PermissionsResourceMixin):
             return self.cache.get_response(self.request)
 
     def _store_to_cache(self, response):
-        if self.cache:
+        if self.cache and response.status_code < 400:
             self.cache.cache_response(self.request, response)
 
     def dispatch(self, request, *args, **kwargs):
