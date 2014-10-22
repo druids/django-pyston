@@ -14,11 +14,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from functools import update_wrapper
 
 from .paginator import Paginator
-from .response import HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse
-from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException, \
-                        ResourceNotFoundException)
+from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse,
+                       RestNoConetentResponse)
+from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
+                        ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException)
 from .forms import RestModelForm
-from .utils import get_object_or_none, rc, list_to_dict, dict_to_list, flat_list
+from .utils import get_object_or_none, list_to_dict, dict_to_list, flat_list, rc
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
 
@@ -210,6 +211,20 @@ class BaseResource(PermissionsResourceMixin):
     def _deserialize(self):
         return self.serializer(self).deserialize(self.request)
 
+    def _get_error_response(self, exception):
+
+        responses = {
+            MimerDataException: rc.BAD_REQUEST,
+            NotAllowedException: rc.FORBIDDEN,
+            UnsupportedMediaTypeException: rc.UNSUPPORTED_MEDIA_TYPE,
+            Http404: rc.NOT_FOUND,
+            ResourceNotFoundException: rc.NOT_FOUND,
+            NotAllowedMethodException: rc.METHOD_NOT_ALLOWED,
+            DuplicateEntryException: rc.DUPLICATE_ENTRY,
+            ConflictException: rc.DUPLICATE_ENTRY,
+        }
+        return responses.get(type(exception))
+
     def _get_response_data(self):
         status_code = 200
         http_headers = {}
@@ -219,18 +234,12 @@ class BaseResource(PermissionsResourceMixin):
             rm = self.request.method.lower()
             meth = getattr(self, rm, None)
             if not meth or rm not in self.allowed_methods:
-                result = rc.METHOD_NOT_ALLOWED
+                result = self._get_error_response(NotAllowedMethodException())
             else:
                 self._check_permission(rm)
                 result = meth()
-        except MimerDataException:
-            result = rc.BAD_REQUEST
-        except NotAllowedException:
-            result = rc.FORBIDDEN
-        except UnsupportedMediaTypeException:
-            result = rc.UNSUPPORTED_MEDIA_TYPE
-        except Http404:
-            result = rc.NOT_FOUND
+        except (MimerDataException, NotAllowedException, UnsupportedMediaTypeException, Http404) as ex:
+            result = self._get_error_response(ex)
         if isinstance(result, HeadersResponse):
             http_headers = result.http_headers
             status_code = result.status_code
@@ -377,13 +386,13 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         pk = self.kwargs.get(self.pk_name)
         data = self._flatten_dict(self.request.data)
         if pk and self._exists_obj(pk=pk):
-            return rc.DUPLICATE_ENTRY
+            raise DuplicateEntryException
         try:
             inst = self._atomic_create_or_update(data)
         except DataInvalidException as ex:
             return RestErrorsResponse(ex.errors)
         except NotAllowedException:
-            return rc.FORBIDDEN
+            raise
         except RestException as ex:
             return RestErrorResponse(ex.message)
         return RestCreatedResponse(inst)
@@ -412,20 +421,15 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             return self._atomic_create_or_update(data)
         except DataInvalidException as ex:
             return RestErrorsResponse(ex.errors)
-        except ResourceNotFoundException:
-            return rc.NOT_FOUND
         except (ConflictException, NotAllowedException):
-            return rc.FORBIDDEN
+            raise
         except RestException as ex:
             return RestErrorResponse(ex.message)
 
     def delete(self):
         pk = self.kwargs.get(self.pk_name)
-        try:
-            self._delete(pk)
-            return rc.DELETED
-        except NotAllowedException:
-            return rc.FORBIDDEN
+        self._delete(pk)
+        return RestNoConetentResponse()
 
     def _delete(self, pk, via=None):
         via = via or []

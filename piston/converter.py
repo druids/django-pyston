@@ -95,6 +95,10 @@ def get_converter_from_request(request, input=False):
     return get_converter(default_converter_name)
 
 
+def get_supported_mime_types():
+    return [content_type for _, (_, content_type) in converters.items()]
+
+
 class Converter(object):
     """
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects

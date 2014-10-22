@@ -35,6 +35,14 @@ class NotAllowedException(RestException):
     message = _('Not allowed.')
 
 
+class NotAllowedMethodException(RestException):
+    message = _('Not allowed method.')
+
+
+class DuplicateEntryException(RestException):
+    message = _('Conflict/Duplicate.')
+
+
 class ConflictException(RestException):
     message = _('Object already exists but you do not allowed to change it.')
 

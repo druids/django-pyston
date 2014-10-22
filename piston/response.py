@@ -24,6 +24,12 @@ class RestCreatedResponse(HeadersResponse):
         super(RestCreatedResponse, self).__init__(result=result, http_headers=http_headers, code=code)
 
 
+class RestNoConetentResponse(HeadersResponse):
+
+    def __init__(self, http_headers={}, code=204):
+        super(RestNoConetentResponse, self).__init__(result='', http_headers=http_headers, code=code)
+
+
 class RestErrorsResponse(HeadersResponse):
 
     def __init__(self, msg, http_headers={}, code=400):

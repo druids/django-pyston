@@ -13,19 +13,21 @@ class rc_factory(object):
     """
     Status codes.
     """
-    CODES = dict(ALL_OK=({'success': _('OK')}, 200),
-                 CREATED=({'success': _('The record was created')}, 201),
-                 DELETED=('', 204),  # 204 says "Don't send a body!"
-                 BAD_REQUEST=({'error': _('Bad Request')}, 400),
-                 FORBIDDEN=({'error':_('Forbidden')}, 403),
-                 NOT_FOUND=({'error':_('Not Found')}, 404),
-                 METHOD_NOT_ALLOWED=({'error': _('Method Not Allowed')}, 405),
-                 DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
-                 NOT_HERE=({'error': _('Gone')}, 410),
-                 UNSUPPORTED_MEDIA_TYPE=({'error': _('Unsupported Media Type')}, 415),
-                 INTERNAL_ERROR=({'error': _('Internal server error')}, 500),
-                 NOT_IMPLEMENTED=({'error': _('Not implemented')}, 501),
-                 THROTTLED=({'error': _('The resource was throttled')}, 503))
+    CODES = dict(
+        ALL_OK=({'success': _('OK')}, 200),
+        CREATED=({'success': _('The record was created')}, 201),
+        DELETED=('', 204),  # 204 says "Don't send a body!"
+        BAD_REQUEST=({'error': _('Bad Request')}, 400),
+        FORBIDDEN=({'error':_('Forbidden')}, 403),
+        NOT_FOUND=({'error':_('Not Found')}, 404),
+        METHOD_NOT_ALLOWED=({'error': _('Method Not Allowed')}, 405),
+        DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
+        NOT_HERE=({'error': _('Gone')}, 410),
+        UNSUPPORTED_MEDIA_TYPE=({'error': _('Unsupported Media Type')}, 415),
+        INTERNAL_ERROR=({'error': _('Internal server error')}, 500),
+        NOT_IMPLEMENTED=({'error': _('Not implemented')}, 501),
+        THROTTLED=({'error': _('The resource was throttled')}, 503)
+    )
 
     def __getattr__(self, attr):
         """
