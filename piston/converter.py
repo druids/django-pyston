@@ -42,7 +42,9 @@ def register(name, content_type):
     """
 
     def _register(converter_class):
-        converters[name] = (converter_class, content_type)
+        if name not in converters:
+            converters[name] = (converter_class, content_type)
+        return converter_class
     return _register
 
 
@@ -92,6 +94,7 @@ def get_converter_from_request(request, input=False):
         except ValueError:
             pass
         default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
+
     return get_converter(default_converter_name)
 
 
@@ -191,7 +194,6 @@ class PickleConverter(Converter):
         return pickle.dumps(converted_data)
 
 
-# TODO: FIX
 @register('csv', 'text/csv; charset=utf-8')
 class CsvConverter(Converter):
     """

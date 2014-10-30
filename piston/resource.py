@@ -263,6 +263,7 @@ class BaseResource(PermissionsResourceMixin):
         except UnsupportedMediaTypeException:
             content = ''
             status_code = 415
+            ct = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
 
         if result is None:
             content = ''
@@ -352,7 +353,9 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
     pk_field_name = 'id'
 
     def _flatten_dict(self, dct):
-        return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
+        if isinstance(dct, dict):
+            return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
+        return {}
 
     def _get_queryset(self):
         """

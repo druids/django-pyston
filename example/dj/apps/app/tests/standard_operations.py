@@ -181,3 +181,11 @@ class StandardOperationsTestCase(PistonTestCase):
         resp = self.put(self.USER_API_URL, data=self.serialize(data))
         self.assert_http_method_not_allowed(resp)
 
+    def test_not_valid_string_input_data(self):
+        resp = self.post(self.USER_API_URL, data=self.serialize('string_data'))
+        self.assert_http_bad_request(resp)
+
+    def test_not_valid_input_media_type(self):
+        resp = self.post(self.USER_API_URL, data=self.serialize('string_data'), content_type='text/xml')
+        return self.assertEqual(resp.status_code, 415)
+

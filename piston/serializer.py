@@ -6,8 +6,8 @@ from django.db.models import Model
 from django.db.models.query import QuerySet
 from django.db.models.fields.files import FileField
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
-from django.utils import formats, timezone, six
-from django.utils.encoding import force_text, smart_unicode
+from django.utils import formats, timezone
+from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
 
 from .exception import MimerDataException, UnsupportedMediaTypeException
@@ -118,7 +118,7 @@ class ResourceSerializer(Serializer):
 
         if rm in ('POST', 'PUT'):
             try:
-                converter, _ = get_converter_from_request(request)
+                converter, ct = get_converter_from_request(request, True)
                 request.data = converter().decode(request, request.body)
             except (TypeError, ValueError):
                 raise MimerDataException
