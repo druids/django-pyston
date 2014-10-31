@@ -6,6 +6,6 @@ pep8==1.4.6
 pyflakes==0.7.3
 six==1.5.2
 https://github.com/LukasRychtecky/germanium/tarball/0.1.5#egg=germanium-0.1.5
-https://github.com/matllubos/django-piston/tarball/0.5.3#egg=django-piston-0.5.3
+https://github.com/matllubos/django-piston/tarball/0.5.4#egg=django-piston-0.5.4
 pyaml==14.05.7
 mimeparse==0.1.3

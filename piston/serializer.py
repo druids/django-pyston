@@ -298,7 +298,7 @@ class ModelSerializer(Serializer):
         return val
 
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
-                         request, obj, serialization_format, fields, **kwargs):
+                         request, obj, serialization_format, **kwargs):
         if field_name in resource_method_fields:
             return self._method_to_python(resource_method_fields[field_name], request, obj, serialization_format,
                                           **kwargs)
