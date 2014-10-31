@@ -103,8 +103,9 @@ class ResourceSerializer(Serializer):
 
     def serialize(self, request, result, fields, serialization_format):
         converted_dict = self._to_python(request, result, serialization_format, fields=fields)
+        url_converter = request.GET.get('_format')
         try:
-            converter, ct = get_converter_from_request(request)
+            converter, ct = get_converter_from_request(request, get_converter=url_converter)
         except ValueError as ex:
             raise UnsupportedMediaTypeException
         return converter().encode(request, converted_dict, self.resource, result, fields), ct

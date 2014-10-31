@@ -3,8 +3,17 @@ from __future__ import unicode_literals
 import csv
 import cStringIO
 import codecs
+from datetime import datetime, date
 
 from django.utils.encoding import force_text
+
+try:
+    # xlsxwriter isn't standard with python.  It shouldn't be required if it
+    # isn't used.
+    import xlsxwriter
+except ImportError:
+    xlsxwriter = None
+    XlsxGenerator = None
 
 
 class CsvGenerator(object):
@@ -64,3 +73,35 @@ class UnicodeWriter:
     def writerows(self, rows):
         for row in rows:
             self.writerow(row)
+
+
+if xlsxwriter:
+    class XlsxGenerator(object):
+
+        def generate(self, header, data, output_stream):
+            wb = xlsxwriter.Workbook(output_stream)
+            ws = wb.add_worksheet()
+
+            date_format = wb.add_format({'num_format': 'd. mmmm yyyy'})
+            datetime_format = wb.add_format({'num_format': 'd. mmmm yyyy hh:mm:ss'})
+
+            row = 0
+
+            if header:
+                for i, head in enumerate(header):
+                    ws.write(row, i, unicode(head))
+                row += 1
+
+            cols = len(data[0])
+            for data_row in data:
+                for j in range(cols):
+                    if isinstance(data_row[j], datetime):
+                        data_row[j] = data_row[j].replace(tzinfo=None)
+                        ws.write(row, j, data_row[j], datetime_format)
+                    elif isinstance(data_row[j], date):
+                        ws.write(row, j, data_row[j], date_format)
+                    else:
+                        ws.write(row, j, data_row[j])
+                row += 1
+
+            wb.close()

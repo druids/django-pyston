@@ -12,7 +12,7 @@ from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.db.models.base import Model
 from django.conf import settings
 
-from .csv_generator import CsvGenerator
+from .file_generator import CsvGenerator, XlsxGenerator
 
 
 try:
@@ -58,7 +58,7 @@ def get_converter(format):
     raise ValueError('No converter found for type %s' % format)
 
 
-def get_converter_from_request(request, input=False):
+def get_converter_from_request(request, get_converter=None, input=False):
     """
     Function for determening which converter to use
     for output. It lives here so you can easily subclass
@@ -69,13 +69,14 @@ def get_converter_from_request(request, input=False):
     except ImportError:
         mimeparse = None
 
-    default_converter_name = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
+    fallback_converter = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
+    default_converter_name = get_converter or fallback_converter
 
     header_name = 'HTTP_ACCEPT'
     if input:
         header_name = 'CONTENT_TYPE'
 
-    if mimeparse and header_name in request.META:
+    if mimeparse and header_name in request.META and default_converter_name == fallback_converter:
         supported_mime_types = set()
         converter_map = {}
         preferred_content_type = None
@@ -187,7 +188,7 @@ if yaml:
 @register('pickle', 'application/python-pickle')
 class PickleConverter(Converter):
     """
-    Emitter that returns Python pickled. 
+    Emitter that returns Python pickled.
     Support only output conversion
     """
     def encode(self, request, converted_data, resource, result, field_name_list):
@@ -299,3 +300,19 @@ class CsvConverter(Converter):
                 output
             )
         return output.getvalue()
+
+
+if XlsxGenerator:
+    @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    class XLSXConverter(CsvConverter):
+
+        def encode(self, request, converted_data, resource, result, field_name_list):
+            output = StringIO.StringIO()
+            selected_field_name_list = self._select_fields(field_name_list)
+            if isinstance(converted_data, (dict, list, tuple)):
+                XlsxGenerator().generate(
+                    self._render_headers(resource, selected_field_name_list),
+                    self._render_content(resource, selected_field_name_list, converted_data),
+                    output
+                )
+            return output.getvalue()
