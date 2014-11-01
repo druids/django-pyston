@@ -58,7 +58,7 @@ def get_converter(format):
     raise ValueError('No converter found for type %s' % format)
 
 
-def get_converter_from_request(request, get_converter=None, input=False):
+def get_converter_from_request(request, input=False):
     """
     Function for determening which converter to use
     for output. It lives here so you can easily subclass
@@ -69,14 +69,13 @@ def get_converter_from_request(request, get_converter=None, input=False):
     except ImportError:
         mimeparse = None
 
-    fallback_converter = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
-    default_converter_name = get_converter or fallback_converter
+    default_converter_name = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
 
     header_name = 'HTTP_ACCEPT'
     if input:
         header_name = 'CONTENT_TYPE'
 
-    if mimeparse and header_name in request.META and default_converter_name == fallback_converter:
+    if mimeparse and header_name in request.META:
         supported_mime_types = set()
         converter_map = {}
         preferred_content_type = None
