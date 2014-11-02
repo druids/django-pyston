@@ -283,7 +283,18 @@ class BaseResource(PermissionsResourceMixin):
         if self.cache and response.status_code < 400:
             self.cache.cache_response(self.request, response)
 
+    def _expand_headers(self):
+        if self.request.method.lower() in ('get', 'head'):
+            for param in self.request.GET:
+                if param.startswith('_header_'):
+                    meta_key = param.replace('_header_', 'HTTP_').replace('-', '_').upper()
+                    if meta_key in getattr(settings, 'PISTON_GET_HEADERS_BLACKLIST',
+                                           ['HTTP_AUTHORIZE']):
+                        continue
+                    self.request.META[meta_key] = self.request.GET[param]
+
     def dispatch(self, request, *args, **kwargs):
+        self._expand_headers()
         response = self._get_from_cache()
         if response:
             return response

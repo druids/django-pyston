@@ -12,7 +12,7 @@ from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.db.models.base import Model
 from django.conf import settings
 
-from .csv_generator import CsvGenerator
+from .file_generator import CsvGenerator, XlsxGenerator
 
 
 try:
@@ -187,7 +187,7 @@ if yaml:
 @register('pickle', 'application/python-pickle')
 class PickleConverter(Converter):
     """
-    Emitter that returns Python pickled. 
+    Emitter that returns Python pickled.
     Support only output conversion
     """
     def encode(self, request, converted_data, resource, result, field_name_list):
@@ -299,3 +299,19 @@ class CsvConverter(Converter):
                 output
             )
         return output.getvalue()
+
+
+if XlsxGenerator:
+    @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    class XLSXConverter(CsvConverter):
+
+        def encode(self, request, converted_data, resource, result, field_name_list):
+            output = StringIO.StringIO()
+            selected_field_name_list = self._select_fields(field_name_list)
+            if isinstance(converted_data, (dict, list, tuple)):
+                XlsxGenerator().generate(
+                    self._render_headers(resource, selected_field_name_list),
+                    self._render_content(resource, selected_field_name_list, converted_data),
+                    output
+                )
+            return output.getvalue()
