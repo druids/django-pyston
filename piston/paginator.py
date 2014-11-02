@@ -24,20 +24,20 @@ class Paginator(object):
             return len(self.qs)
 
     def _get_offset(self, request):
-        offset = request.META.get('HTTP_X_OFFSET', '0')
+        offset = request._rest_context.get('offset', '0')
         if offset.isdigit():
             return int(offset)
         else:
-            raise RestException(_('X-Offset must be natural number'))
+            raise RestException(_('Offset must be natural number'))
 
     def _get_base(self, request):
-        base = request.META.get('HTTP_X_BASE')
+        base = request._rest_context.get('base')
         if not base:
             return None
         elif base.isdigit():
             return int(base)
         else:
-            raise RestException(_('X-Base must be natural number or empty'))
+            raise RestException(_('Base must be natural number or empty'))
 
     @property
     def page_qs(self):

@@ -71,11 +71,11 @@ def get_converter_from_request(request, input=False):
 
     default_converter_name = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
 
-    header_name = 'HTTP_ACCEPT'
+    context_key = 'accept'
     if input:
-        header_name = 'CONTENT_TYPE'
+        context_key = 'content_type'
 
-    if mimeparse and header_name in request.META:
+    if mimeparse and context_key in request._rest_context:
         supported_mime_types = set()
         converter_map = {}
         preferred_content_type = None
@@ -90,7 +90,7 @@ def get_converter_from_request(request, input=False):
             supported_mime_types.append(preferred_content_type)
         try:
             preferred_content_type = mimeparse.best_match(supported_mime_types,
-                                                            request.META[header_name])
+                                                            request._rest_context[context_key])
         except ValueError:
             pass
         default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
@@ -194,14 +194,17 @@ class PickleConverter(Converter):
         return pickle.dumps(converted_data)
 
 
-@register('csv', 'text/csv; charset=utf-8')
-class CsvConverter(Converter):
+class GeneratorConverter(Converter):
     """
-    CSV converter is more complicated.
+    Generator converter is more complicated.
     Contains user readable informations (headers).
     Supports only output.
     Output is flat.
+    
+    It is necessary set generator_class as class attribute
     """
+
+    generator_class = None
 
     def _get_field_label_from_model_related_objects(self, resource, field_name):
         for rel in resource.model._meta.get_all_related_objects():
@@ -293,7 +296,7 @@ class CsvConverter(Converter):
         output = StringIO.StringIO()
         selected_field_name_list = self._select_fields(field_name_list)
         if isinstance(converted_data, (dict, list, tuple)):
-            CsvGenerator().generate(
+            self.generator_class().generate(
                 self._render_headers(resource, selected_field_name_list),
                 self._render_content(resource, selected_field_name_list, converted_data),
                 output
@@ -301,17 +304,12 @@ class CsvConverter(Converter):
         return output.getvalue()
 
 
+@register('csv', 'text/csv; charset=utf-8')
+class CsvConverter(GeneratorConverter):
+    generator_class = CsvGenerator
+
+
 if XlsxGenerator:
     @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    class XLSXConverter(CsvConverter):
-
-        def encode(self, request, converted_data, resource, result, field_name_list):
-            output = StringIO.StringIO()
-            selected_field_name_list = self._select_fields(field_name_list)
-            if isinstance(converted_data, (dict, list, tuple)):
-                XlsxGenerator().generate(
-                    self._render_headers(resource, selected_field_name_list),
-                    self._render_content(resource, selected_field_name_list, converted_data),
-                    output
-                )
-            return output.getvalue()
+    class XLSXConverter(GeneratorConverter):
+        generator_class = XlsxGenerator

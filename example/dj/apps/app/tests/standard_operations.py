@@ -1,3 +1,5 @@
+import urllib
+
 from germanium.rest import RESTTestCase
 from germanium.anotations import data_provider
 
@@ -5,6 +7,10 @@ from .test_case import PistonTestCase
 
 
 class StandardOperationsTestCase(PistonTestCase):
+
+    ACCEPT_TYPES = ('application/json', 'text/xml', 'application/x-yaml',
+                    'application/python-pickle', 'text/csv',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
     @data_provider('get_users_data')
     def test_create_user(self, number, data):
@@ -102,7 +108,7 @@ class StandardOperationsTestCase(PistonTestCase):
             self.assert_equal(set(item_data.keys()), {'email', 'id', '_obj_name'})
 
     @data_provider('get_users_data')
-    def test_read_paginator_user(self, number, data):
+    def test_read_headers_paginator_user(self, number, data):
         resp = self.post(self.USER_API_URL, data=self.serialize(data))
         self.assert_valid_JSON_created_response(resp)
 
@@ -127,18 +133,57 @@ class StandardOperationsTestCase(PistonTestCase):
         self.assert_http_bad_request(resp)
 
     @data_provider('get_users_data')
-    def test_read_user_with_more_accept_types(self, number, data):
+    def test_read_querystring_paginator_user(self, number, data):
+        resp = self.post(self.USER_API_URL, data=self.serialize(data))
+        self.assert_valid_JSON_created_response(resp)
+
+        querystring = {'_offset': '0', '_base': '5'}
+        resp = self.get('%s?%s' % (self.USER_API_URL, urllib.urlencode(querystring)))
+        self.assert_equal(len(self.deserialize(resp)), min(int(resp['x-total']), 5))
+
+        querystring = {'_offset': '2', '_base': '5'}
+        resp = self.get('%s?%s' % (self.USER_API_URL, urllib.urlencode(querystring)))
+        self.assert_equal(len(self.deserialize(resp)), min(max(int(resp['x-total']) - 2, 0), 5))
+
+        querystring = {'_offset': '2', '_base': '-5'}
+        resp = self.get('%s?%s' % (self.USER_API_URL, urllib.urlencode(querystring)))
+        self.assert_http_bad_request(resp)
+
+        querystring = {'_offset': '-2', '_base': '5'}
+        resp = self.get('%s?%s' % (self.USER_API_URL, urllib.urlencode(querystring)))
+        self.assert_http_bad_request(resp)
+
+        querystring = {'_offset': 'error', '_base': 'error'}
+        resp = self.get('%s?%s' % (self.USER_API_URL, urllib.urlencode(querystring)))
+        self.assert_http_bad_request(resp)
+
+    @data_provider('get_users_data')
+    def test_read_user_with_more_headers_accept_types(self, number, data):
         resp = self.post(self.USER_API_URL, data=self.serialize(data))
         self.assert_valid_JSON_created_response(resp)
         pk = self.get_pk(resp)
-        for accept_type in ('application/json', 'text/xml', 'application/x-yaml',
-                            'application/python-pickle', 'text/csv'):
-
+        for accept_type in self.ACCEPT_TYPES:
             resp = self.get(self.USER_API_URL, headers={'HTTP_ACCEPT': accept_type})
             self.assert_in(accept_type, resp['Content-Type'])
             resp = self.get('%s%s/' % (self.USER_API_URL, pk), headers={'HTTP_ACCEPT': accept_type})
             self.assert_true(accept_type in resp['Content-Type'])
             resp = self.get('%s1050/' % self.USER_API_URL, headers={'HTTP_ACCEPT': accept_type})
+            self.assert_true(accept_type in resp['Content-Type'])
+            self.assert_http_not_found(resp)
+
+    @data_provider('get_users_data')
+    def test_read_user_with_more_querystring_accept_types(self, number, data):
+        resp = self.post(self.USER_API_URL, data=self.serialize(data))
+        self.assert_valid_JSON_created_response(resp)
+        pk = self.get_pk(resp)
+        for accept_type in self.ACCEPT_TYPES:
+            resp = self.get('%s?_accept=%s' % (self.USER_API_URL, accept_type))
+            self.assert_in(accept_type, resp['Content-Type'])
+            resp = self.get('%s%s/?_accept=%s' % (self.USER_API_URL, pk, accept_type),
+                            headers={'HTTP_ACCEPT': accept_type})
+            self.assert_true(accept_type in resp['Content-Type'])
+            resp = self.get('%s1050/?_accept=%s' % (self.USER_API_URL, accept_type),
+                            headers={'HTTP_ACCEPT': accept_type})
             self.assert_true(accept_type in resp['Content-Type'])
             self.assert_http_not_found(resp)
 

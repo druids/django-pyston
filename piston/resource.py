@@ -21,7 +21,7 @@ from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, R
 from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException)
 from .forms import RestModelForm
-from .utils import get_object_or_none, list_to_dict, dict_to_list, flat_list, rc
+from .utils import get_object_or_none, list_to_dict, dict_to_list, flat_list, rc, set_rest_context_to_request
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
 
@@ -132,14 +132,24 @@ class BaseResource(PermissionsResourceMixin):
     csrf_exempt = True
     cache = None
 
+    DEFAULT_REST_CONTEXT_MAPPING = {
+        'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
+        'fields': ('HTTP_X_FIELDS', '_fields'),
+        'extra_fields': ('HTTP_X_EXTRA_FIELDS', '_extra_fields'),
+        'offset': ('HTTP_X_OFFSET', '_offset'),
+        'base': ('HTTP_X_BASE', '_base'),
+        'accept': ('HTTP_ACCEPT', '_accept'),
+        'content_type': ('CONTENT_TYPE', '_content_type'),
+    }
+
     def __init__(self, request):
         self.request = request
         self.args = []
         self.kwargs = {}
 
     def _get_serialization_format(self):
-        serialization_format = self.request.META.get('HTTP_X_SERIALIZATION_FORMAT',
-                                                     self.serializer.SERIALIZATION_TYPES.RAW)
+        serialization_format = self.request._rest_context.get('serialization_format',
+                                                              self.serializer.SERIALIZATION_TYPES.RAW)
         if serialization_format not in self.serializer.SERIALIZATION_TYPES:
             return self.serializer.SERIALIZATION_TYPES.RAW
         return serialization_format
@@ -181,7 +191,7 @@ class BaseResource(PermissionsResourceMixin):
                 return []
 
             fields = {}
-            x_fields = self.request.META.get('HTTP_X_FIELDS', '')
+            x_fields = self.request._rest_context.get('fields', '')
             for field in x_fields.split(','):
                 if field in allowed_fields:
                     fields[field] = allowed_fields.get(field)
@@ -196,7 +206,7 @@ class BaseResource(PermissionsResourceMixin):
 
             fields = list_to_dict(fields)
 
-            x_extra_fields = self.request.META.get('HTTP_X_EXTRA_FIELDS', '')
+            x_extra_fields = self.request._rest_context.get('extra_fields', '')
             for field in x_extra_fields.split(','):
                 if field in allowed_fields:
                     fields[field] = allowed_fields.get(field)
@@ -283,18 +293,19 @@ class BaseResource(PermissionsResourceMixin):
         if self.cache and response.status_code < 400:
             self.cache.cache_response(self.request, response)
 
-    def _expand_headers(self):
-        if self.request.method.lower() in ('get', 'head'):
-            for param in self.request.GET:
-                if param.startswith('_header_'):
-                    meta_key = param.replace('_header_', 'HTTP_').replace('-', '_').upper()
-                    if meta_key in getattr(settings, 'PISTON_GET_HEADERS_BLACKLIST',
-                                           ['HTTP_AUTHORIZE']):
-                        continue
-                    self.request.META[meta_key] = self.request.GET[param]
+    def _get_headers_queryset_context_mapping(self):
+        return self.DEFAULT_REST_CONTEXT_MAPPING.copy()
+
+    def _get_context(self):
+        context = {}
+        for key, (header_key, queryset_key) in self._get_headers_queryset_context_mapping().items():
+            val = self.request.GET.get(queryset_key, self.request.META.get(header_key))
+            if val:
+                context[key] = val
+        return context
 
     def dispatch(self, request, *args, **kwargs):
-        self._expand_headers()
+        set_rest_context_to_request(request, self._get_headers_queryset_context_mapping())
         response = self._get_from_cache()
         if response:
             return response

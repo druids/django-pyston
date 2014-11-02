@@ -197,3 +197,12 @@ def model_resources_to_dict():
             model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
             model_resources[model_label] = resource
     return model_resources
+
+
+def set_rest_context_to_request(request, mapping):
+    context = {}
+    for key, (header_key, queryset_key) in mapping.items():
+        val = request.GET.get(queryset_key, request.META.get(header_key))
+        if val:
+            context[key] = val
+    request._rest_context = context

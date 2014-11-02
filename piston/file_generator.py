@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import csv
 import cStringIO
 import codecs
+
 from datetime import datetime, date
 
 from django.utils.encoding import force_text
@@ -86,22 +87,19 @@ if xlsxwriter:
             datetime_format = wb.add_format({'num_format': 'd. mmmm yyyy hh:mm:ss'})
 
             row = 0
-
             if header:
-                for i, head in enumerate(header):
-                    ws.write(row, i, unicode(head))
+                for col, head in enumerate(header):
+                    ws.write(row, col, unicode(head))
                 row += 1
 
-            cols = len(data[0])
             for data_row in data:
-                for j in range(cols):
-                    if isinstance(data_row[j], datetime):
-                        data_row[j] = data_row[j].replace(tzinfo=None)
-                        ws.write(row, j, data_row[j], datetime_format)
-                    elif isinstance(data_row[j], date):
-                        ws.write(row, j, data_row[j], date_format)
+                for col, val in enumerate(data_row):
+                    if isinstance(data_row[col], datetime):
+                        ws.write(row, col, val.replace(tzinfo=None), datetime_format)
+                    elif isinstance(val, date):
+                        ws.write(row, col, val, date_format)
                     else:
-                        ws.write(row, j, data_row[j])
+                        ws.write(row, col, val)
                 row += 1
 
             wb.close()

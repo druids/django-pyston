@@ -55,3 +55,7 @@ dj/static/js/app.js
 # Makefile config #
 ###################
 build/config
+
+# Test generated files #
+########################
+media/
