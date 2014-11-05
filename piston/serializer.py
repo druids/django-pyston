@@ -101,13 +101,23 @@ class ResourceSerializer(Serializer):
     def __init__(self, resource):
         self.resource = resource
 
-    def serialize(self, request, result, fields, serialization_format):
-        converted_dict = self._to_python(request, result, serialization_format, fields=fields)
+    def serialize(self, request, result, requested_fieldset, serialization_format):
+        if self.resource._is_single_obj_request(result):
+            extended_fieldset = self.resource.get_default_detailed_fields(result)
+        else:
+            extended_fieldset = self.resource.get_default_general_fields(result)
+        converted_dict = self._to_python(request, result, serialization_format,
+                                         requested_fieldset=requested_fieldset,
+                                         extended_fieldset=extended_fieldset)
         try:
             converter, ct = get_converter_from_request(request)
-        except ValueError as ex:
+        except ValueError:
             raise UnsupportedMediaTypeException
-        return converter().encode(request, converted_dict, self.resource, result, fields), ct
+
+
+        # TODO: solve fieldset
+        fieldset = []
+        return converter().encode(request, converted_dict, self.resource, result, fieldset), ct
 
     def deserialize(self, request):
         rm = request.method.upper()
@@ -118,7 +128,7 @@ class ResourceSerializer(Serializer):
 
         if rm in ('POST', 'PUT'):
             try:
-                converter, ct = get_converter_from_request(request, True)
+                converter, _ = get_converter_from_request(request, True)
                 request.data = converter().decode(request, request.body)
             except (TypeError, ValueError):
                 raise MimerDataException
@@ -143,7 +153,8 @@ class StringSerializer(Serializer):
 @register
 class DictSerializer(Serializer):
 
-    def _to_python(self, request, thing, serialization_format, fields=None, exclude_fields=None, **kwargs):
+    def _to_python(self, request, thing, serialization_format, requested_fieldset=None,
+                   extended_fieldset=None, exclude_fields=None, **kwargs):
         return dict([(k, self._to_python_chain(request, v, serialization_format, **kwargs))
                      for k, v in thing.iteritems()])
 
@@ -154,7 +165,8 @@ class DictSerializer(Serializer):
 @register
 class ListSerializer(Serializer):
 
-    def _to_python(self, request, thing, serialization_format, fields=None, exclude_fields=None, **kwargs):
+    def _to_python(self, request, thing, serialization_format, requested_fieldset=None,
+                   extended_fieldset=None, exclude_fields=None, **kwargs):
         return [self._to_python_chain(request, v, serialization_format, **kwargs) for v in thing]
 
     def _can_transform_to_python(self, thing):
@@ -199,7 +211,7 @@ class ModelSerializer(Serializer):
     def _get_resource_method_fields(self, resource, fields):
         out = dict()
         # TODO
-        for field in fields - self.RESERVED_FIELDS:
+        for field in fields.flat() - self.RESERVED_FIELDS:
             t = getattr(resource, str(field), None)
             if t and callable(t):
                 out[field] = t
@@ -268,12 +280,15 @@ class ModelSerializer(Serializer):
         subkwargs['via'] = resource._get_via(kwargs.get('via'))
         return subkwargs
 
-    def _get_field_name(self, field, subkwargs):
-        if isinstance(field, (list, tuple)):
-            field, subkwargs['fields'] = field
+    def _get_field_name(self, field, requested_field, subkwargs):
+        if field.subfieldset:
+            field_name, subkwargs['extended_fieldset'] = field.name, field.subfieldset
         else:
-            field, subkwargs['fields'] = field, None
-        return field
+            field_name, subkwargs['extended_fieldset'] = field.name, None
+
+        if requested_field and requested_field.subfieldset:
+            subkwargs['requested_fieldset'] = requested_field.subfieldset
+        return field_name
 
     def _get_model_value(self, obj, field):
         raw = self._get_model_field_raw_value(obj, field)
@@ -325,15 +340,18 @@ class ModelSerializer(Serializer):
             except:
                 return None
 
-    def _fields_to_python(self, request, obj, serialization_format, fields, **kwargs):
-        resource_method_fields = self._get_resource_method_fields(self._get_model_resource(request, obj), fields)
+    def _fields_to_python(self, request, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
+        resource_method_fields = self._get_resource_method_fields(self._get_model_resource(request, obj), fieldset)
         model_fields = self._get_model_fields(obj)
         m2m_fields = self._get_m2m_fields(obj)
 
         out = dict()
-        for field in fields:
+        for field in fieldset.fields:
             subkwargs = self._copy_kwargs(self._get_model_resource(request, obj), kwargs)
-            field_name = self._get_field_name(field, subkwargs)
+            requested_field = None
+            if requested_fieldset:
+                requested_field = requested_fieldset.get(field.name)
+            field_name = self._get_field_name(field, requested_field, subkwargs)
             out[field_name] = self._field_to_python(
                 field_name, resource_method_fields, model_fields, m2m_fields, request, obj, serialization_format,
                 **subkwargs
@@ -349,7 +367,7 @@ class ModelSerializer(Serializer):
         else:
             return DefaultRestObjectResource()
 
-    def _get_field_names_from_resource(self, request, obj, via):
+    def _get_fieldset_from_resource(self, request, obj, via):
         resource = self._get_model_resource(request, obj)
         if (not resource.has_get_permission(obj, via)
             and not resource.has_put_permission(obj, via)
@@ -358,23 +376,47 @@ class ModelSerializer(Serializer):
         else:
             return resource.get_default_general_fields(obj)
 
+    def _get_allowed_fieldset_from_resource(self, request, obj, via):
+        resource = self._get_model_resource(request, obj)
+        if (not resource.has_get_permission(obj, via)
+            and not resource.has_put_permission(obj, via)
+            and not resource.has_post_permission(obj, via)):
+            return resource.get_guest_fields(request)
+        else:
+            return resource.get_fields(obj)
+
     def _exclude_field_names(self, fields, exclude_fields):
         field_names = list_to_dict(fields)
         for exclude_field in exclude_fields:
             field_names.pop(exclude_field, None)
         return set(dict_to_list(field_names))
 
-    def _get_field_names(self, request, obj, fields, exclude_fields, via):
-        if not fields:
-            field_names = self._get_field_names_from_resource(request, obj, via)
-        else:
-            field_names = list(fields)
-        return self._exclude_field_names(field_names, exclude_fields)
+    def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via):
+        default_fieldset = self._get_fieldset_from_resource(request, obj, via)
+        if extended_fieldset:
+            default_fieldset = default_fieldset.join(extended_fieldset)
 
-    def _to_python(self, request, obj, serialization_format, fields=None, exclude_fields=None, **kwargs):
+        if requested_fieldset:
+            allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
+            if extended_fieldset:
+                allowed_fieldset = allowed_fieldset.join(extended_fieldset)
+            filtered_requested_fieldset = requested_fieldset.intersection(
+                allowed_fieldset
+            )
+            fieldset = filtered_requested_fieldset.extend_fields_fieldsets(default_fieldset)
+        else:
+            fieldset = default_fieldset
+
+        if exclude_fields:
+            fieldset -= exclude_fields
+        return fieldset
+
+    def _to_python(self, request, obj, serialization_format, requested_fieldset=None,
+                   extended_fieldset=None, exclude_fields=None, **kwargs):
         exclude_fields = exclude_fields or []
-        fields = self._get_field_names(request, obj, fields, exclude_fields, kwargs.get('via'))
-        return self._fields_to_python(request, obj, serialization_format, fields, **kwargs)
+        fieldset = self._get_fieldset(request, obj, extended_fieldset, requested_fieldset, exclude_fields,
+                                      kwargs.get('via'))
+        return self._fields_to_python(request, obj, serialization_format, fieldset, requested_fieldset, **kwargs)
 
     def _can_transform_to_python(self, thing):
         return isinstance(thing, Model)

@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import re
+
 from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 from django.db.models.fields.related import RelatedField
@@ -7,6 +9,10 @@ from django.shortcuts import _get_queryset
 from django.http.response import Http404
 from django.template.defaultfilters import lower
 from django.db import models
+from django.utils import six
+from django.utils.encoding import force_text
+from django.utils.datastructures import SortedDict
+from copy import deepcopy
 
 
 class rc_factory(object):
@@ -206,3 +212,224 @@ def set_rest_context_to_request(request, mapping):
         if val:
             context[key] = val
     request._rest_context = context
+
+
+class RestField(object):
+
+    @classmethod
+    def create_from_string(cls, full_field_name):
+        if '__' in full_field_name:
+            full_field_name, subfield_name = full_field_name.split('__', 1)
+            return RF(full_field_name, RFS(cls.create_from_string(subfield_name)))
+        else:
+            return RF(full_field_name)
+
+    def __init__(self, name, subfieldset=None):
+        assert isinstance(name, six.string_types)
+        assert subfieldset is None or isinstance(subfieldset, RestFieldset)
+
+        self.name = name
+        self.subfieldset = subfieldset or RestFieldset()
+
+    def __deepcopy__(self, memo):
+        return self.__class__(self.name, deepcopy(self.subfieldset))
+
+    def join(self, rest_field):
+        a_rf = deepcopy(self)
+        b_rf = deepcopy(rest_field)
+
+        a_rf.subfieldset = a_rf.subfieldset.join(b_rf.subfieldset)
+        return a_rf
+
+    def intersection(self, rest_field):
+        a_rf = deepcopy(self)
+        b_rf = deepcopy(rest_field)
+
+        a_rf.subfieldset = a_rf.subfieldset.intersection(b_rf.subfieldset)
+        return a_rf
+
+    def __str__(self):
+        if self.subfieldset:
+            return '%s(%s)' % (self.name, self.subfieldset)
+        return '%s' % self.name
+
+
+def is_match(regex, text):
+    pattern = re.compile(regex)
+    return pattern.search(text) is not None
+
+
+def split_fields(fields_string):
+
+    brackets = 0
+
+    field = ''
+    for char in fields_string:
+        if char == ',' and not brackets:
+            field = field.strip()
+            if field:
+                yield field
+            field = ''
+            continue
+
+        if char == '(':
+            brackets += 1
+
+        if char == ')':
+            brackets -= 1
+
+        field += char
+
+    field = field.strip()
+    if field:
+        yield field
+
+
+class RestFieldset(object):
+
+    @classmethod
+    def create_from_string(cls, fields_string):
+        fields = []
+
+        for field in split_fields(fields_string):
+            if is_match('^[^\(\)]+\([^\(\)]+\)$', field):
+                field_name, subfields_string = field[:len(field) - 1].split('(')
+                subfieldset = RFS.create_from_string(subfields_string)
+            else:
+                field_name = field
+                subfieldset = None
+
+            fields.append(RestField(field_name, subfieldset))
+
+        return RestFieldset(*fields)
+
+    @classmethod
+    def create_from_list(cls, fields_list):
+        if isinstance(fields_list, RestFieldset):
+            fields_list = fields_list.fields
+
+        fields = []
+        for field in fields_list:
+            if isinstance(field, (list, tuple)):
+                field_name, subfield_list = field
+
+                fields.append(RestField(field_name, cls.create_from_list(subfield_list)))
+            else:
+                fields.append(field)
+
+        return RestFieldset(*fields)
+
+    @classmethod
+    def create_from_flat_list(cls, fields_list):
+        return RestFieldset(*map(RestField.create_from_string, fields_list))
+
+    def __init__(self, *fields):
+        self.fields_map = SortedDict()
+        for field in fields:
+            if not isinstance(field, RestField):
+                field = RestField(field)
+            self.append(field)
+
+    @property
+    def fields(self):
+        return self.fields_map.values()
+
+    def join(self, rest_fieldset):
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        a_rfs = deepcopy(self)
+        b_rfs = deepcopy(rest_fieldset)
+
+        for rf in b_rfs.fields:
+            if rf.name not in a_rfs.fields_map:
+                a_rfs.fields_map[rf.name] = rf
+            else:
+                a_rfs.fields_map[rf.name] = a_rfs.fields_map[rf.name].join(rf)
+
+        return a_rfs
+
+    def intersection(self, rest_fieldset):
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        a_rfs = deepcopy(self)
+        b_rfs = deepcopy(rest_fieldset)
+
+        values = []
+        for rf in b_rfs.fields:
+            if rf.name in a_rfs.fields_map:
+                values.append(a_rfs.fields_map[rf.name].intersection(rf))
+
+        return self.__class__(*values)
+
+    def extend_fields_fieldsets(self, rest_fieldset):
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        a_rfs = deepcopy(self)
+        b_rfs = deepcopy(rest_fieldset)
+
+        for rf in b_rfs.fields:
+            if rf.subfieldset and rf.name in a_rfs.fields_map and not a_rfs.fields_map[rf.name].subfieldset:
+                a_rfs.fields_map[rf.name].subfieldset = rf.subfieldset
+
+        return a_rfs
+
+    def flat_intersection(self, rest_fieldset):
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        a_rfs = deepcopy(self)
+        b_rfs = deepcopy(rest_fieldset)
+
+        values = []
+        for rf in b_rfs.fields:
+            if rf.name in a_rfs.fields_map:
+                values.append(a_rfs.fields_map[rf.name])
+
+        return self.__class__(*values)
+
+    def __deepcopy__(self, memo):
+        return self.__class__(*map(deepcopy, self.fields))
+
+    def __str__(self):
+        return ','.join(map(force_text, self.fields))
+
+    def __sub__(self, rest_fieldset):
+        if isinstance(rest_fieldset, (list, tuple, set)):
+            rest_fieldset = RFS(*rest_fieldset)
+
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        a_rfs = deepcopy(self)
+        b_rfs = deepcopy(rest_fieldset)
+
+        values = []
+        for rf in a_rfs.fields:
+            if rf.name not in b_rfs.fields_map:
+                values.append(rf)
+
+        return self.__class__(*values)
+
+    def __bool__(self):
+        return bool(self.fields_map)
+    __nonzero__ = __bool__
+
+    def get(self, key):
+        return self.fields_map.get(key)
+
+    def append(self, field):
+        if isinstance(field, RestField):
+            rest_field = field
+        else:
+            rest_field = RestField(field)
+
+        if rest_field.name in self.fields_map:
+            rest_field = rest_field.join(self.fields_map[rest_field.name])
+
+        self.fields_map[rest_field.name] = rest_field
+
+    def flat(self):
+        return set(self.fields_map.keys())
+
+
+RF = RestField
+RFS = RestFieldset
+rfs = RFS.create_from_list

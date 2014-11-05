@@ -1,18 +1,20 @@
 from piston.resource import BaseModelResource, BaseResource
 
 from .models import Issue, User
+from piston.utils import RFS, RF
 
 
 class IssueResource(BaseModelResource):
     model = Issue
-    default_detailed_fields = ('id', '_obj_name', 'name', 'created_by', 'watched_by', 'solver', 'leader')
-    fields = ('id', '_obj_name', 'name')
+    default_detailed_fields = ('id', '_obj_name', 'name', ('created_by', ('contract',)),
+                                  'solver', 'leader')
+    default_general_fields = ('id', '_obj_name', 'name', 'created_by', 'watched_by')
 
 
 class UserResource(BaseModelResource):
     model = User
     default_detailed_fields = ('id', '_obj_name', 'email', 'contract')
-    fields = ('id', '_obj_name', 'email')
+    default_general_fields = RFS('id', '_obj_name', 'email')
 
 
 class ExtraResource(BaseResource):

@@ -24,6 +24,7 @@ from .forms import RestModelForm
 from .utils import get_object_or_none, list_to_dict, dict_to_list, flat_list, rc, set_rest_context_to_request
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
+from piston.utils import RFS, rfs
 
 typemapper = { }
 resource_tracker = [ ]
@@ -135,7 +136,6 @@ class BaseResource(PermissionsResourceMixin):
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
         'fields': ('HTTP_X_FIELDS', '_fields'),
-        'extra_fields': ('HTTP_X_EXTRA_FIELDS', '_extra_fields'),
         'offset': ('HTTP_X_OFFSET', '_offset'),
         'base': ('HTTP_X_BASE', '_base'),
         'accept': ('HTTP_ACCEPT', '_accept'),
@@ -156,6 +156,12 @@ class BaseResource(PermissionsResourceMixin):
 
     def get_fields(self, obj=None):
         return None
+
+    def get_default_detailed_fields(self, obj=None):
+        return self.get_fields(obj)
+
+    def get_default_general_fields(self, obj=None):
+        return self.get_fields(obj)
 
     def __getattr__(self, name):
         if name == 'head':
@@ -183,40 +189,12 @@ class BaseResource(PermissionsResourceMixin):
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
 
-    def _get_filtered_fields(self, result):
-        allowed_fields = self.get_fields(obj=result)
-        if allowed_fields:
-            allowed_fields = list_to_dict(allowed_fields)
-            if not allowed_fields:
-                return []
-
-            fields = {}
-            x_fields = self.request._rest_context.get('fields', '')
-            for field in x_fields.split(','):
-                if field in allowed_fields:
-                    fields[field] = allowed_fields.get(field)
-
-            if fields:
-                return dict_to_list(fields)
-
-            if self._is_single_obj_request(result):
-                fields = self.get_default_detailed_fields(result)
-            else:
-                fields = self.get_default_general_fields(result)
-
-            fields = list_to_dict(fields)
-
-            x_extra_fields = self.request._rest_context.get('extra_fields', '')
-            for field in x_extra_fields.split(','):
-                if field in allowed_fields:
-                    fields[field] = allowed_fields.get(field)
-
-            return dict_to_list(fields)
-        return None
+    def _get_requested_fieldset(self, result):
+        return RFS.create_from_string(self.request._rest_context.get('fields', ''))
 
     def _serialize(self, result):
         return self.serializer(self).serialize(
-            self.request, result, self._get_filtered_fields(result),
+            self.request, result, self._get_requested_fieldset(result),
             self._get_serialization_format()
         )
 
@@ -320,7 +298,7 @@ class BaseResource(PermissionsResourceMixin):
         http_headers['Expires'] = '0'
         fields = self.get_fields(obj=result)
         if fields:
-            http_headers['X-Fields-Options'] = ','.join(flat_list(fields))
+            http_headers['X-Fields-Options'] = ','.join(fields.flat())
         return http_headers
 
     @classonlymethod
@@ -348,9 +326,9 @@ class BaseResource(PermissionsResourceMixin):
 
 class DefaultRestObjectResource(PermissionsResourceMixin):
 
-    fields = ('id', '_obj_name')
     default_detailed_fields = ('id', '_obj_name')
     default_general_fields = ('id', '_obj_name')
+    extra_fields = ()
     guest_fields = ('id', '_obj_name')
     allowed_methods = ()
 
@@ -358,16 +336,20 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
         return force_text(obj)
 
     def get_fields(self, obj=None):
-        return self.fields
+        return self.get_default_detailed_fields(obj).join(
+            self.get_default_detailed_fields(obj)).join(self.get_extra_fields(obj))
 
     def get_default_detailed_fields(self, obj=None):
-        return self.default_detailed_fields
+        return rfs(self.default_detailed_fields)
 
     def get_default_general_fields(self, obj=None):
-        return self.default_general_fields
+        return rfs(self.default_general_fields)
+
+    def get_extra_fields(self, obj=None):
+        return rfs(self.extra_fields)
 
     def get_guest_fields(self, request):
-        return self.guest_fields
+        return rfs(self.guest_fields)
 
 
 class BaseObjectResource(DefaultRestObjectResource, BaseResource):
