@@ -312,8 +312,9 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
     def _create_or_update_reverse_related_objects(self, data, key, data_item, rel_object):
         resource = self._get_resource(rel_object.model)
         if resource:
-            if 'set' in data_item:
-                self._create_or_update_reverse_related_objects_set(data_item.get('set'), key, data_item, rel_object)
+            if isinstance(data_item, list) or 'set' in data_item:
+                set_data_item = isinstance(data_item, list) and data_item or data_item.get('set')
+                self._create_or_update_reverse_related_objects_set(set_data_item, key, data_item, rel_object)
             else:
                 if 'remove' in data_item:
                     self._create_or_update_reverse_related_objects_remove(data_item.get('remove'), key,
@@ -324,8 +325,8 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
 
     def _process_field(self, data, files, key, data_item):
         model_description = getattr(self.model, key, None)
-        if (isinstance(model_description, ForeignRelatedObjectsDescriptor) and isinstance(data_item, dict)
-            and set(data_item.keys()).union({'set', 'add', 'remove'})):
+        if (isinstance(model_description, ForeignRelatedObjectsDescriptor) and ((isinstance(data_item, dict)
+            and set(data_item.keys()).union({'set', 'add', 'remove'})) or (isinstance(data_item, list)))):
             self._create_or_update_reverse_related_objects(data, key, data_item, model_description.related)
 
 

@@ -245,17 +245,22 @@ class ModelSerializer(Serializer):
         return [self._to_python_chain(request, m, serialization_format, **kwargs)
                 for m in getattr(obj, field.name).iterator()]
 
-    def _reverse_qs_to_python(self, val, request, obj, serialization_format, **kwargs):
-        return [self._to_python_chain(request, m, serialization_format, **kwargs) for m in val.iterator()]
-
-    def _reverse_to_python(self, val, field, request, obj, serialization_format, **kwargs):
-        model = val.__class__
+    def _get_reverse_excluded_fields(self, field, obj):
+        model = obj.__class__
         exclude_fields = []
         if hasattr(model, field) and isinstance(getattr(model, field, None),
                                                             (ForeignRelatedObjectsDescriptor,
                                                             SingleRelatedObjectDescriptor)):
             exclude_fields.append(getattr(model, field).related.field.name)
-        return self._to_python_chain(request, val, serialization_format, exclude_fields=exclude_fields, **kwargs)
+        return exclude_fields
+
+    def _reverse_qs_to_python(self, val, field, request, obj, serialization_format, **kwargs):
+        kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)
+        return [self._to_python_chain(request, m, serialization_format, **kwargs) for m in val.iterator()]
+
+    def _reverse_to_python(self, val, field, request, obj, serialization_format, **kwargs):
+        kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)
+        return self._to_python_chain(request, val, serialization_format, **kwargs)
 
     def _copy_kwargs(self, resource, kwargs):
         subkwargs = kwargs.copy()
@@ -310,7 +315,7 @@ class ModelSerializer(Serializer):
             try:
                 val = getattr(obj, field_name, None)
                 if hasattr(val, 'all'):
-                    return self._reverse_qs_to_python(val, request, obj, serialization_format, **kwargs)
+                    return self._reverse_qs_to_python(val, field_name, request, obj, serialization_format, **kwargs)
                 elif callable(val):
                     return self._method_to_python(val, request, obj, serialization_format, **kwargs)
                 elif isinstance(val, Model):
