@@ -120,40 +120,6 @@ def model_default_rest_fields(model):
     return rest_fields
 
 
-def list_to_dict(list_obj):
-    dict_obj = {}
-    for val in list_obj:
-        if isinstance(val, (list, tuple)):
-            dict_obj[val[0]] = list_to_dict(val[1])
-        else:
-            dict_obj[val] = {}
-    return dict_obj
-
-
-def dict_to_list(dict_obj):
-    list_obj = []
-    for key, val in dict_obj.items():
-        if val:
-            list_obj.append((key, dict_to_list(val)))
-        else:
-            list_obj.append(key)
-    return tuple(list_obj)
-
-
-def join_dicts(dict_obj1, dict_obj2):
-    joined_dict = dict_obj1.copy()
-
-    for key2, val2 in dict_obj2.items():
-        val1 = joined_dict.get(key2)
-        if not val1:
-            joined_dict[key2] = val2
-        elif not val2:
-            continue
-        else:
-            joined_dict[key2] = join_dicts(val1, val2)
-    return joined_dict
-
-
 def flat_list(list_obj):
     flat_list_obj = []
     for val in list_obj:
@@ -214,6 +180,37 @@ def set_rest_context_to_request(request, mapping):
     request._rest_context = context
 
 
+def is_match(regex, text):
+    pattern = re.compile(regex)
+    return pattern.search(text) is not None
+
+
+def split_fields(fields_string):
+
+    brackets = 0
+
+    field = ''
+    for char in fields_string:
+        if char == ',' and not brackets:
+            field = field.strip()
+            if field:
+                yield field
+            field = ''
+            continue
+
+        if char == '(':
+            brackets += 1
+
+        if char == ')':
+            brackets -= 1
+
+        field += char
+
+    field = field.strip()
+    if field:
+        yield field
+
+
 class RestField(object):
 
     @classmethod
@@ -252,37 +249,6 @@ class RestField(object):
         if self.subfieldset:
             return '%s(%s)' % (self.name, self.subfieldset)
         return '%s' % self.name
-
-
-def is_match(regex, text):
-    pattern = re.compile(regex)
-    return pattern.search(text) is not None
-
-
-def split_fields(fields_string):
-
-    brackets = 0
-
-    field = ''
-    for char in fields_string:
-        if char == ',' and not brackets:
-            field = field.strip()
-            if field:
-                yield field
-            field = ''
-            continue
-
-        if char == '(':
-            brackets += 1
-
-        if char == ')':
-            brackets -= 1
-
-        field += char
-
-    field = field.strip()
-    if field:
-        yield field
 
 
 class RestFieldset(object):

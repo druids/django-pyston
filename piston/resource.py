@@ -21,7 +21,7 @@ from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, R
 from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException)
 from .forms import RestModelForm
-from .utils import get_object_or_none, list_to_dict, dict_to_list, flat_list, rc, set_rest_context_to_request
+from .utils import get_object_or_none, rc, set_rest_context_to_request
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
 from piston.utils import RFS, rfs

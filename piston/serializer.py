@@ -11,7 +11,7 @@ from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
 
 from .exception import MimerDataException, UnsupportedMediaTypeException
-from .utils import coerce_put_post, list_to_dict, dict_to_list, Enum
+from .utils import coerce_put_post, Enum
 from .converter import get_converter_from_request
 
 value_serializers = []
@@ -384,12 +384,6 @@ class ModelSerializer(Serializer):
             return resource.get_guest_fields(request)
         else:
             return resource.get_fields(obj)
-
-    def _exclude_field_names(self, fields, exclude_fields):
-        field_names = list_to_dict(fields)
-        for exclude_field in exclude_fields:
-            field_names.pop(exclude_field, None)
-        return set(dict_to_list(field_names))
 
     def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via):
         default_fieldset = self._get_fieldset_from_resource(request, obj, via)
