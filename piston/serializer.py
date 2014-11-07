@@ -243,7 +243,7 @@ class ModelSerializer(Serializer):
 
     def _m2m_field_to_python(self, field, request, obj, serialization_format, **kwargs):
         return [self._to_python_chain(request, m, serialization_format, **kwargs)
-                for m in getattr(obj, field.name).iterator()]
+                for m in getattr(obj, field.name).all()]
 
     def _get_reverse_excluded_fields(self, field, obj):
         model = obj.__class__
@@ -256,7 +256,7 @@ class ModelSerializer(Serializer):
 
     def _reverse_qs_to_python(self, val, field, request, obj, serialization_format, **kwargs):
         kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)
-        return [self._to_python_chain(request, m, serialization_format, **kwargs) for m in val.iterator()]
+        return [self._to_python_chain(request, m, serialization_format, **kwargs) for m in val.all()]
 
     def _reverse_to_python(self, val, field, request, obj, serialization_format, **kwargs):
         kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)

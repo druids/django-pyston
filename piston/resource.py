@@ -315,7 +315,9 @@ class BaseResource(PermissionsResourceMixin):
 
     def _get_headers(self, result, http_headers):
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
-        http_headers['Cache-Control'] = 'must-revalidate, private'
+        http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
+        http_headers['Pragma'] = 'no-cache'
+        http_headers['Expires'] = '0'
         fields = self.get_fields(obj=result)
         if fields:
             http_headers['X-Fields-Options'] = ','.join(flat_list(fields))
