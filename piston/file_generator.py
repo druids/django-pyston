@@ -42,7 +42,16 @@ class CsvGenerator(object):
         return prepared_row
 
     def _prepare_value(self, value):
-        value = force_text(value)
+        try:
+            if isinstance(value, str):
+                value = float(value)
+        except ValueError:
+            pass
+        if isinstance(value, float):
+            print value
+            value = ('%.2f' % value).replace('.', ',')
+        else:
+            value = force_text(value)
         return value
 
 
