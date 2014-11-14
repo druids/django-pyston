@@ -85,6 +85,7 @@ if xlsxwriter:
 
             date_format = wb.add_format({'num_format': 'd. mmmm yyyy'})
             datetime_format = wb.add_format({'num_format': 'd. mmmm yyyy hh:mm:ss'})
+            decimal_format = wb.add_format({'num_format': '0.00'})
 
             row = 0
             if header:
@@ -94,10 +95,17 @@ if xlsxwriter:
 
             for data_row in data:
                 for col, val in enumerate(data_row):
-                    if isinstance(data_row[col], datetime):
+                    try:
+                        if isinstance(val, str):
+                            val = float(val)
+                    except ValueError:
+                        pass
+                    if isinstance(val, datetime):
                         ws.write(row, col, val.replace(tzinfo=None), datetime_format)
                     elif isinstance(val, date):
                         ws.write(row, col, val, date_format)
+                    elif isinstance(val, float):
+                        ws.write(row, col, val, decimal_format)
                     else:
                         ws.write(row, col, val)
                 row += 1
