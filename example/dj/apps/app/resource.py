@@ -1,13 +1,12 @@
 from piston.resource import BaseModelResource, BaseResource
+from piston.utils import RFS
 
 from .models import Issue, User
-from piston.utils import RFS, RF
 
 
 class IssueResource(BaseModelResource):
     model = Issue
-    default_detailed_fields = ('id', '_obj_name', 'name', ('created_by', ('contract',)),
-                                  'solver', 'leader')
+    default_detailed_fields = ('id', '_obj_name', 'name', ('created_by', ('contract',)), 'solver', 'leader')
     default_general_fields = ('id', '_obj_name', 'name', 'created_by', 'watched_by')
 
 

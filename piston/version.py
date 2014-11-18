@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-VERSION = (0, 5, 8)
-=======
-VERSION = (0, 5, 6)
->>>>>>> v0.5.6 Rest fieldset
+VERSION = (1, 0, 0)
 
 
 def get_version():

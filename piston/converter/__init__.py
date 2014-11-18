@@ -12,8 +12,11 @@ from django.utils.xmlutils import SimplerXMLGenerator
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.db.models.base import Model
 from django.conf import settings
+from django.utils.datastructures import SortedDict
 
-from .file_generator import CsvGenerator, XlsxGenerator, PdfGenerator
+from piston.file_generator import CsvGenerator, XlsxGenerator, PdfGenerator
+
+from .datastructures import ModelSortedDict, Field, Fieldset
 
 
 try:
@@ -112,7 +115,7 @@ class Converter(object):
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
 
-    def encode(self, request, converted_data, resource, result, field_name_list):
+    def encode(self, request, converted_data, resource, result):
         """
         Encode data to output
         """
@@ -133,7 +136,7 @@ class XMLConverter(Converter):
     """
 
     def _to_xml(self, xml, data):
-        if isinstance(data, (list, tuple)):
+        if isinstance(data, (list, tuple, set)):
             for item in data:
                 xml.startElement('resource', {})
                 self._to_xml(xml, item)
@@ -146,7 +149,7 @@ class XMLConverter(Converter):
         else:
             xml.characters(smart_unicode(data))
 
-    def encode(self, request, converted_data, resource, result, field_name_list):
+    def encode(self, request, converted_data, resource, result):
         stream = StringIO.StringIO()
 
         xml = SimplerXMLGenerator(stream, "utf-8")
@@ -166,49 +169,13 @@ class JSONConverter(Converter):
     """
     JSON emitter, understands timestamps.
     """
-    def encode(self, request, converted_data, resource, result, field_name_list):
+    def encode(self, request, converted_data, resource, result):
         return json.dumps(
             converted_data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4
         )
 
     def decode(self, request, data):
         return json.loads(data)
-
-
-if yaml:
-    class DjangoSafeDumper(yaml.SafeDumper):
-        def represent_decimal(self, data):
-            return self.represent_scalar('tag:yaml.org,2002:str', str(data))
-
-        def represent_birthnumber(self, data):
-            return self.represent_scalar('tag:yaml.org,2002:str', str(data))
-
-    DjangoSafeDumper.add_representer(decimal.Decimal, DjangoSafeDumper.represent_decimal)
-    if cz_models:
-        DjangoSafeDumper.add_representer(cz_models.fields.CZBirthNumber,
-                                         DjangoSafeDumper.represent_birthnumber)
-
-    @register('yaml', 'application/x-yaml; charset=utf-8')
-    class YAMLConverter(Converter):
-        """
-        YAML emitter, uses `safe_dump` to omit the
-        specific types when outputting to non-Python.
-        """
-        def encode(self, request, converted_data, resource, result, field_name_list):
-            return yaml.dump(converted_data, Dumper=DjangoSafeDumper)
-
-        def decode(self, request, data):
-            return dict(yaml.safe_load(data))
-
-
-@register('pickle', 'application/python-pickle')
-class PickleConverter(Converter):
-    """
-    Emitter that returns Python pickled.
-    Support only output conversion
-    """
-    def encode(self, request, converted_data, resource, result, field_name_list):
-        return pickle.dumps(converted_data)
 
 
 class GeneratorConverter(Converter):
@@ -219,105 +186,68 @@ class GeneratorConverter(Converter):
     Output is flat.
 
     It is necessary set generator_class as class attribute
+    
+    This class contains little bit low-level implementation
     """
 
     generator_class = None
 
-    def _get_field_label_from_model_related_objects(self, resource, field_name):
-        for rel in resource.model._meta.get_all_related_objects():
-            reverse_name = rel.get_accessor_name()
-            if field_name == reverse_name:
-                if isinstance(rel.field, models.OneToOneField):
-                    return rel.model._meta.verbose_name
-                else:
-                    return rel.model._meta.verbose_name_plural
-        return None
-
-    def _get_field_label_from_model_method(self, resource, field_name):
-        return getattr(resource.model(), field_name).short_description
-
-    def _get_field_label_from_model_field(self, resource, field_name):
-        return resource.model._meta.get_field(field_name).verbose_name
-
-    def _get_field_label_from_model(self, resource, field_name):
-        try:
-            return self._get_field_label_from_model_field(resource, field_name)
-        except FieldDoesNotExist:
-            try:
-                return self._get_field_label_from_model_method(resource, field_name)
-            except (AttributeError, ObjectDoesNotExist):
-                return self._get_field_label_from_model_related_objects(resource, field_name)
-        return None
-
-    def _get_field_label(self, resource, field_name):
-        result = None
-        if hasattr(resource, 'model') and issubclass(resource.model, Model):
-            result = self._get_field_label_from_model(resource, field_name)
-        return result or field_name
-
-    def _select_fields(self, field_name_list):
+    def _render_headers(self, field_name_list):
         result = []
+        if len(field_name_list) == 1 and '' in field_name_list:
+            return result
+
         for field_name in field_name_list:
-            if isinstance(field_name, (tuple, list)):
-                field_name = field_name[0]
-            if not field_name.startswith('_'):
-                result.append(field_name)
+            result.append(field_name)
         return result
 
-    def _render_dict_value(self, dict_value):
-        value = dict_value.get('_obj_name')
-        if value is None:
-            value = '\t'.join([force_text(val) for key, val in dict_value.items() if not key.startswith('_')
-                               and not isinstance(val, (dict, list))])
-        return value or ''
+    def _get_recursive_value_from_row(self, data, key_path):
+        if len(key_path) == 0:
+            return data
 
-    def _render_list_value(self, list_value):
-        values = []
-        for value in list_value:
-            if isinstance(value, dict):
-                value = self._render_dict_value(value)
-            else:
-                value = force_text(value)
-            values.append(value)
-        return '\n '.join(values)
+        if isinstance(data, dict):
+            return self._get_recursive_value_from_row(data.get(key_path[0], ''), key_path[1:])
+        elif isinstance(data, (list, tuple, set)):
+            return [self._get_recursive_value_from_row(val, key_path) for val in data]
+        else:
+            return ''
 
-    def _render_headers(self, resource, field_name_list):
-        result = []
-        for field_name in field_name_list:
-            result.append(self._get_field_label(resource, field_name))
-        return result
-
-    def _get_value_from_row(self, row, field_name):
-        value = row.get(field_name)
+    def render_value(self, value, first=True):
         if isinstance(value, dict):
-            value = self._render_dict_value(value)
-        elif isinstance(value, list):
-            value = self._render_list_value(value)
-        return value or ''
+            return '(%s)' % ', '.join(['%s: %s' % (key, self.render_value(val, False)) for key, val in value.items()])
+        elif isinstance(value, (list, tuple, set)):
+            if first:
+                return '\n'.join([self.render_value(val, False) for val in value])
+            else:
+                return '(%s)' % ', '.join([self.render_value(val, False) for val in value])
+        else:
+            return force_text(value)
 
-    def _render_content(self, resource, field_name_list, converted_data):
+    def _get_value_from_row(self, data, field):
+        return self.render_value(self._get_recursive_value_from_row(data, field.key_path) or '')
+
+    def _render_content(self, field_name_list, converted_data):
         result = []
 
         constructed_data = converted_data
-        if not isinstance(constructed_data, (list, tuple)):
+        if not isinstance(constructed_data, (list, tuple, set)):
             constructed_data = [constructed_data]
 
         for row in constructed_data:
             out_row = []
-            for field_name in field_name_list:
-                out_row.append(self._get_value_from_row(row, field_name))
+            for field in field_name_list:
+                out_row.append(self._get_value_from_row(row, field))
             result.append(out_row)
         return result
 
-    def encode(self, request, converted_data, resource, result, field_name_list):
+    def encode(self, request, converted_data, resource, result):
         output = StringIO.StringIO()
-        selected_field_name_list = self._select_fields(field_name_list)
-        if isinstance(converted_data, (dict, list, tuple)):
-            self.generator_class().generate(
-                self._render_headers(resource, selected_field_name_list),
-                self._render_content(resource, selected_field_name_list, converted_data),
-                output
-            )
+        fieldset = Fieldset.create_from_data(converted_data)
+        self.generator_class().generate(
+            self._render_headers(fieldset),
+            self._render_content(fieldset, converted_data),
+            output
+        )
         return output.getvalue()
 
 

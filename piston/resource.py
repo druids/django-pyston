@@ -12,6 +12,7 @@ from django.http.response import Http404
 from django.db import transaction
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import ugettext as _
 
 from functools import update_wrapper
 
@@ -21,10 +22,9 @@ from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, R
 from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException)
 from .forms import RestModelForm
-from .utils import get_object_or_none, rc, set_rest_context_to_request
+from .utils import get_object_or_none, rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer
 from .exception import UnsupportedMediaTypeException, MimerDataException
-from piston.utils import RFS, rfs
 
 typemapper = { }
 resource_tracker = [ ]
@@ -334,6 +334,7 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
 
     def _obj_name(self, obj):
         return force_text(obj)
+    _obj_name.short_description = _('object name')
 
     def get_fields(self, obj=None):
         return self.get_default_detailed_fields(obj).join(
@@ -521,7 +522,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             data, files = preprocessor(self, form, inst, via).process_data(data, files)
 
         form = self._get_form(fields=form.fields.keys(), inst=inst, data=data, files=files,
-                             initial=self._get_form_initial(inst))
+                              initial=self._get_form_initial(inst))
 
         errors = form.is_invalid()
         if errors:

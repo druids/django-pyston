@@ -1,0 +1,128 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2014-11-18 15:55-0600\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
+
+#: data_processor.py:91 data_processor.py:123
+msgid "Data must be object"
+msgstr "Špatný formát dat, vyžadován objekt"
+
+#: data_processor.py:139
+msgid "Object does not exist"
+msgstr "Objekt neexistuje"
+
+#: data_processor.py:164
+#, python-format
+msgid "Data must contain primary key: %s"
+msgstr "Data musí obsahovat primární klíč: %s"
+
+#: data_processor.py:177
+msgid "Data must be a collection"
+msgstr "Formát dat musí být kolekce"
+
+#: data_processor.py:234
+msgid "Object does not exist in selected data"
+msgstr "Objekt neexistuje ve vybraných datech"
+
+#: exception.py:31
+msgid "Select a valid choice. That choice is not one of the available choices."
+msgstr "Vyberte platnou možnost. Vybraná hodnota není dostupná."
+
+#: exception.py:35
+msgid "Not allowed."
+msgstr "Operace není dovolena."
+
+#: exception.py:39
+msgid "Not allowed method."
+msgstr "Nepodporovaná metoda."
+
+#: exception.py:43
+msgid "Conflict/Duplicate."
+msgstr "Konflikt/Duplikace."
+
+#: exception.py:47
+msgid "Object already exists but you do not allowed to change it."
+msgstr "Objekt již existuje nebo není dovoleno jej změnit."
+
+#: paginator.py:31
+msgid "Offset must be natural number"
+msgstr "Offset musí být přirozené číslo"
+
+#: paginator.py:40
+msgid "Base must be natural number or empty"
+msgstr "Base musí být ve formátu přirozeného čísla nebo prázdný"
+
+#: resource.py:337
+msgid "object name"
+msgstr "název objektu"
+
+#: serializer.py:309
+msgid "yes"
+msgstr "ano"
+
+#: serializer.py:309
+msgid "no"
+msgstr "ne"
+
+#: utils.py:24
+msgid "OK"
+msgstr "OK"
+
+#: utils.py:25
+msgid "The record was created"
+msgstr "Záznam byl vytvořen"
+
+#: utils.py:27
+msgid "Bad Request"
+msgstr "Neplatný dotaz"
+
+#: utils.py:28
+msgid "Forbidden"
+msgstr "Nepovolený dotaz"
+
+#: utils.py:29
+msgid "Not Found"
+msgstr "Nenalezeno"
+
+#: utils.py:30
+msgid "Method Not Allowed"
+msgstr "Metoda není podporována"
+
+#: utils.py:31
+msgid "Conflict/Duplicate"
+msgstr "Konflikt/Duplikace"
+
+#: utils.py:32
+msgid "Gone"
+msgstr "Zdroj již není dostupný"
+
+#: utils.py:33
+msgid "Unsupported Media Type"
+msgstr "Nepodporovaný typ"
+
+#: utils.py:34
+msgid "Internal server error"
+msgstr "Interní chyba serveru"
+
+#: utils.py:35
+msgid "Not implemented"
+msgstr "Neimplementováno"
+
+#: utils.py:36
+msgid "The resource was throttled"
+msgstr "Zdroj byl omezen, prosím zkuste to později"

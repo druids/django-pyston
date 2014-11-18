@@ -13,6 +13,7 @@ from django.utils.translation import ugettext as _
 from .exception import MimerDataException, UnsupportedMediaTypeException
 from .utils import coerce_put_post, Enum
 from .converter import get_converter_from_request
+from .converter.datastructures import ModelSortedDict
 
 value_serializers = []
 
@@ -114,10 +115,7 @@ class ResourceSerializer(Serializer):
         except ValueError:
             raise UnsupportedMediaTypeException
 
-
-        # TODO: solve fieldset
-        fieldset = []
-        return converter().encode(request, converted_dict, self.resource, result, fieldset), ct
+        return converter().encode(request, converted_dict, self.resource, result), ct
 
     def deserialize(self, request):
         rm = request.method.upper()
@@ -308,7 +306,7 @@ class ModelSerializer(Serializer):
             return getattr(obj, humanize_method_name)()
         val = self._get_model_field_raw_value(obj, field)
         if isinstance(val, bool):
-            val = val and _('Yes') or _('No')
+            val = val and _('yes') or _('no')
         elif field.choices:
             val = getattr(obj, 'get_%s_display' % field.attname)()
         elif isinstance(val, datetime.datetime):
@@ -345,7 +343,7 @@ class ModelSerializer(Serializer):
         model_fields = self._get_model_fields(obj)
         m2m_fields = self._get_m2m_fields(obj)
 
-        out = dict()
+        out = ModelSortedDict(obj, self._get_model_resource(request, obj))
         for field in fieldset.fields:
             subkwargs = self._copy_kwargs(self._get_model_resource(request, obj), kwargs)
             requested_field = None
