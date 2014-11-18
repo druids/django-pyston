@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import re
 
 from django.http import HttpResponse
-from django.utils.translation import ugettext as _
+from django.utils.translation import ugettext_lazy as _
 from django.db.models.fields.related import RelatedField
 from django.shortcuts import _get_queryset
 from django.http.response import Http404
