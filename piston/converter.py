@@ -9,7 +9,7 @@ from django.db import models
 from django.utils.encoding import smart_unicode, force_text
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.core.serializers.json import DateTimeAwareJSONEncoder
-from django.db.models.base import Model, ModelBase
+from django.db.models.base import Model
 from django.conf import settings
 
 from .file_generator import CsvGenerator, XlsxGenerator
@@ -234,7 +234,7 @@ class GeneratorConverter(Converter):
 
     def _get_field_label(self, resource, field_name):
         result = None
-        if hasattr(resource, 'model') and isinstance(resource.model, (Model, ModelBase)):
+        if hasattr(resource, 'model') and issubclass(resource.model, Model):
             result = self._get_field_label_from_model(resource, field_name)
         return result or field_name
 
