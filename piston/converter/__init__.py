@@ -20,18 +20,6 @@ from .datastructures import ModelSortedDict, Field, Fieldset
 
 
 try:
-    # yaml isn't standard with python.  It shouldn't be required if it
-    # isn't used.
-    import yaml
-except ImportError:
-    yaml = None
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-try:
     import cz_models
 except ImportError:
     cz_models = None
