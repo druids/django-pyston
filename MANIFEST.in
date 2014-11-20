@@ -1,1 +1,4 @@
-recursive-include piston/templates *
+include README
+include LICENSE
+include MANIFEST.in
+recursive-include piston *.py *.txt *.html *.po *.mo *.xml *.xslt *.xsl *.js *.sass *.css *.png *.jpg *.jpeg *.gif

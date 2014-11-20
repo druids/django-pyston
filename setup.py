@@ -1,27 +1,19 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+from setuptools import setup, find_packages
+
 from piston.version import get_version
 
-try:
-    from setuptools import setup, find_packages
-except ImportError:
-    import ez_setup
-    ez_setup.use_setuptools()
-    from setuptools import setup, find_packages
 
 setup(
     name="django-piston",
     version=get_version(),
-    url='http://bitbucket.org/jespern/django-piston/wiki/Home',
-	download_url='http://bitbucket.org/jespern/django-piston/downloads/',
-    license='BSD',
     description="Piston is a Django mini-framework creating APIs.",
-    author='Jesper Noehr',
-    author_email='jesper@noehr.org',
-    packages=find_packages(),
-    namespace_packages=['piston'],
+    author='Lubos Matl',
+    author_email='matllubos@gmail.com',
+    url='https://github.com/matllubos/django-piston',
+    license='BSD',
+    package_dir={'piston': 'piston'},
     include_package_data=True,
-    zip_safe=False,
+    packages=find_packages(),
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Framework :: Django',
@@ -30,5 +22,10 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Internet :: WWW/HTTP',
-    ]
+    ],
+    install_requires=[
+        'django>=1.6',
+        'mimeparse>=0.1.3'
+    ],
+    zip_safe=False
 )
