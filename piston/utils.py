@@ -359,6 +359,10 @@ class RestFieldset(object):
     def __str__(self):
         return ','.join(map(force_text, self.fields))
 
+    def __add__(self, rest_fieldset):
+        a_rfs = deepcopy(self)
+        return a_rfs.join(rest_fieldset)
+
     def __sub__(self, rest_fieldset):
         if isinstance(rest_fieldset, (list, tuple, set)):
             rest_fieldset = RFS(*rest_fieldset)
@@ -392,6 +396,23 @@ class RestFieldset(object):
             rest_field = rest_field.join(self.fields_map[rest_field.name])
 
         self.fields_map[rest_field.name] = rest_field
+        return self
+
+    def update(self, rest_fieldset):
+        if isinstance(rest_fieldset, (list, tuple, set)):
+            rest_fieldset = RFS(*rest_fieldset)
+
+        assert isinstance(rest_fieldset, RestFieldset)
+
+        b_rfs = deepcopy(rest_fieldset)
+
+        for rf in b_rfs.fields:
+            if rf.name not in self.fields_map:
+                self.fields_map[rf.name] = rf
+            else:
+                self.fields_map[rf.name] = self.fields_map[rf.name].join(rf)
+
+        return self
 
     def flat(self):
         return set(self.fields_map.keys())

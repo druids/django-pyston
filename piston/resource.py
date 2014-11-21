@@ -12,7 +12,7 @@ from django.http.response import Http404
 from django.db import transaction
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.translation import ugettext as _
+from django.utils.translation import ugettext_lazy as _
 
 from functools import update_wrapper
 
@@ -20,11 +20,12 @@ from .paginator import Paginator
 from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse,
                        RestNoConetentResponse)
 from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
-                        ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException)
+                        ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
+                        UnsupportedMediaTypeException, MimerDataException)
 from .forms import RestModelForm
 from .utils import get_object_or_none, rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer
-from .exception import UnsupportedMediaTypeException, MimerDataException
+
 
 typemapper = { }
 resource_tracker = [ ]
