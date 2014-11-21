@@ -5,6 +5,7 @@ import cStringIO
 import codecs
 
 from datetime import datetime, date
+from decimal import Decimal
 
 from django.utils.encoding import force_text
 
@@ -15,6 +16,8 @@ try:
 except ImportError:
     xlsxwriter = None
     XlsxGenerator = None
+
+TWOPLACES = Decimal(10) ** -2
 
 
 class CsvGenerator(object):
@@ -42,7 +45,12 @@ class CsvGenerator(object):
         return prepared_row
 
     def _prepare_value(self, value):
-        value = force_text(value)
+        if isinstance(value, float):
+            value = ('%.2f' % value).replace('.', ',')
+        elif isinstance(value, Decimal):
+            value = force_text(value.quantize(TWOPLACES)).replace('.', ',')
+        else:
+            value = force_text(value)
         return value
 
 
@@ -85,6 +93,7 @@ if xlsxwriter:
 
             date_format = wb.add_format({'num_format': 'd. mmmm yyyy'})
             datetime_format = wb.add_format({'num_format': 'd. mmmm yyyy hh:mm:ss'})
+            decimal_format = wb.add_format({'num_format': '0.00'})
 
             row = 0
             if header:
@@ -94,10 +103,12 @@ if xlsxwriter:
 
             for data_row in data:
                 for col, val in enumerate(data_row):
-                    if isinstance(data_row[col], datetime):
+                    if isinstance(val, datetime):
                         ws.write(row, col, val.replace(tzinfo=None), datetime_format)
                     elif isinstance(val, date):
                         ws.write(row, col, val, date_format)
+                    elif isinstance(val, (Decimal, float)):
+                        ws.write(row, col, val, decimal_format)
                     else:
                         ws.write(row, col, val)
                 row += 1

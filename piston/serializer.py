@@ -175,7 +175,7 @@ class QuerySetSerializer(Serializer):
 class DecimalSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
-        return str(thing)
+        return thing
 
     def _can_transform_to_python(self, thing):
         return isinstance(thing, decimal.Decimal)

@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import decimal
 import json
 import StringIO
 
@@ -27,6 +28,10 @@ try:
 except ImportError:
     import pickle
 
+try:
+    import cz_models
+except ImportError:
+    cz_models = None
 
 converters = {}
 
@@ -171,6 +176,18 @@ class JSONConverter(Converter):
 
 
 if yaml:
+    class DjangoSafeDumper(yaml.SafeDumper):
+        def represent_decimal(self, data):
+            return self.represent_scalar('tag:yaml.org,2002:str', str(data))
+
+        def represent_birthnumber(self, data):
+            return self.represent_scalar('tag:yaml.org,2002:str', str(data))
+
+    DjangoSafeDumper.add_representer(decimal.Decimal, DjangoSafeDumper.represent_decimal)
+    if cz_models:
+        DjangoSafeDumper.add_representer(cz_models.fields.CZBirthNumber,
+                                         DjangoSafeDumper.represent_birthnumber)
+
     @register('yaml', 'application/x-yaml; charset=utf-8')
     class YAMLConverter(Converter):
         """
@@ -178,7 +195,7 @@ if yaml:
         specific types when outputting to non-Python.
         """
         def encode(self, request, converted_data, resource, result, field_name_list):
-            return yaml.safe_dump(converted_data)
+            return yaml.dump(converted_data, Dumper=DjangoSafeDumper)
 
         def decode(self, request, data):
             return dict(yaml.safe_load(data))
@@ -200,7 +217,7 @@ class GeneratorConverter(Converter):
     Contains user readable informations (headers).
     Supports only output.
     Output is flat.
-    
+
     It is necessary set generator_class as class attribute
     """
 
@@ -227,14 +244,14 @@ class GeneratorConverter(Converter):
             return self._get_field_label_from_model_field(resource, field_name)
         except FieldDoesNotExist:
             try:
-                return self._get_label_from_model_method(resource, field_name)
+                return self._get_field_label_from_model_method(resource, field_name)
             except (AttributeError, ObjectDoesNotExist):
                 return self._get_field_label_from_model_related_objects(resource, field_name)
         return None
 
     def _get_field_label(self, resource, field_name):
         result = None
-        if hasattr(resource, 'model') and isinstance(resource.model, Model):
+        if hasattr(resource, 'model') and issubclass(resource.model, Model):
             result = self._get_field_label_from_model(resource, field_name)
         return result or field_name
 
