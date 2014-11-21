@@ -8,7 +8,7 @@ from .test_case import PistonTestCase
 
 class StandardOperationsTestCase(PistonTestCase):
 
-    ACCEPT_TYPES = ('application/json', 'text/xml', 'text/csv',
+    ACCEPT_TYPES = ('application/json', 'text/xml', 'text/csv', 'application/pdf',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
     @data_provider('get_users_data')
