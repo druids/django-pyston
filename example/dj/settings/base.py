@@ -138,6 +138,9 @@ INSTALLED_APPS = (
 
     # apps
     'app',
+
+    # Django-piston (REST)
+    'piston',
 )
 
 # A sample logging configuration. The only tangible logging

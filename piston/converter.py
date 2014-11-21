@@ -13,7 +13,7 @@ from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.db.models.base import Model
 from django.conf import settings
 
-from .file_generator import CsvGenerator, XlsxGenerator
+from .file_generator import CsvGenerator, XlsxGenerator, PdfGenerator
 
 
 try:
@@ -330,3 +330,9 @@ if XlsxGenerator:
     @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     class XLSXConverter(GeneratorConverter):
         generator_class = XlsxGenerator
+
+
+if PdfGenerator:
+    @register('pdf', 'application/pdf; charset=utf-8')
+    class PdfConverter(GeneratorConverter):
+        generator_class = PdfGenerator

@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import os
 import csv
 import cStringIO
 import codecs
@@ -7,7 +8,10 @@ import codecs
 from datetime import datetime, date
 from decimal import Decimal
 
+from django.template import Context
+from django.template.loader import get_template
 from django.utils.encoding import force_text
+from django.conf import settings
 
 try:
     # xlsxwriter isn't standard with python.  It shouldn't be required if it
@@ -16,6 +20,15 @@ try:
 except ImportError:
     xlsxwriter = None
     XlsxGenerator = None
+
+
+try:
+    # pisa isn't standard with python. It shouldn't be required if it isn't used.
+    from xhtml2pdf import pisa
+except ImportError:
+    pisa = None
+    PdfGenerator = None
+
 
 TWOPLACES = Decimal(10) ** -2
 
@@ -114,3 +127,23 @@ if xlsxwriter:
                 row += 1
 
             wb.close()
+
+if pisa:
+    class PdfGenerator(object):
+
+        template_name = getattr(settings, 'PDF_EXPORT_TEMPLATE', 'default_pdf_table.html')
+        encoding = 'utf-8'
+
+        def generate(self, header, data, output_stream):
+            def fetch_resources(uri, rel):
+                urls = {settings.MEDIA_ROOT: settings.MEDIA_URL, settings.STATICFILES_ROOT: settings.STATIC_URL}
+                for k, v in urls.items():
+                    if (uri.startswith(v)):
+                        return os.path.join(k, uri.replace(v, ""))
+                return ''
+            context = Context({'pagesize': 'A4', 'headers': header, 'data': data})
+            template = get_template(self.template_name)
+            html = template.render(context)
+
+            pisa.pisaDocument(cStringIO.StringIO(html.encode(self.encoding)), output_stream, encoding=self.encoding,
+                              link_callback=fetch_resources)
