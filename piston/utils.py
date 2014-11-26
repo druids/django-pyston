@@ -214,14 +214,6 @@ def split_fields(fields_string):
 
 class RestField(object):
 
-    @classmethod
-    def create_from_string(cls, full_field_name):
-        if '__' in full_field_name:
-            full_field_name, subfield_name = full_field_name.split('__', 1)
-            return RF(full_field_name, RFS(cls.create_from_string(subfield_name)))
-        else:
-            return RF(full_field_name)
-
     def __init__(self, name, subfieldset=None):
         assert isinstance(name, six.string_types)
         assert subfieldset is None or isinstance(subfieldset, RestFieldset)
@@ -285,10 +277,6 @@ class RestFieldset(object):
                 fields.append(field)
 
         return RestFieldset(*fields)
-
-    @classmethod
-    def create_from_flat_list(cls, fields_list):
-        return RestFieldset(*map(RestField.create_from_string, fields_list))
 
     def __init__(self, *fields):
         self.fields_map = SortedDict()
