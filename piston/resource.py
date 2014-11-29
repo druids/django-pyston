@@ -92,8 +92,10 @@ class PermissionsResourceMixin(object):
 
     def _check_permission(self, name, *args, **kwargs):
         if not hasattr(self, 'has_%s_permission' % name):
-            raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
-
+            if settings.DEBUG:
+                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+            else:
+                raise NotAllowedException
         if not getattr(self, 'has_%s_permission' % name)(*args, **kwargs):
             raise NotAllowedException
 
