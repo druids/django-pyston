@@ -79,7 +79,7 @@ class UnicodeWriter:
         self.queue = cStringIO.StringIO()
         self.writer = csv.writer(self.queue, dialect=dialect, **kwds)
         self.stream = f
-        self.stream.write(b'\ufeff')  # BOM for Excel
+        self.stream.write(codecs.BOM_UTF8)  # BOM for Excel
         self.encoder = codecs.getincrementalencoder(encoding)()
 
     def writerow(self, row):
