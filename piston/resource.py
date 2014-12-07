@@ -337,7 +337,6 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
 
     def _obj_name(self, obj):
         return force_text(obj)
-    _obj_name.short_description = _('object name')
 
     def get_fields(self, obj=None):
         return self.get_default_detailed_fields(obj).join(

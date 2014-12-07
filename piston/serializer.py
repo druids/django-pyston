@@ -392,8 +392,8 @@ class ModelSerializer(Serializer):
             allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
             if extended_fieldset:
                 allowed_fieldset = allowed_fieldset.join(extended_fieldset)
-            filtered_requested_fieldset = requested_fieldset.intersection(
-                allowed_fieldset
+            filtered_requested_fieldset = allowed_fieldset.intersection(
+                requested_fieldset
             )
             fieldset = filtered_requested_fieldset.extend_fields_fieldsets(default_fieldset)
         else:

@@ -3,6 +3,7 @@ from django.utils.encoding import force_text
 from django.db import models
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
+from django.template.defaultfilters import capfirst
 
 from collections import OrderedDict
 
@@ -25,7 +26,7 @@ class Field(object):
         return ' '.join(map(force_text, self.label_path))
 
     def __unicode__(self):
-        return ' '.join(map(force_text, self.label_path))
+        return capfirst(' '.join(map(force_text, self.label_path)))
 
     def __hash__(self):
             return hash('__'.join(self.key_path))
@@ -69,19 +70,20 @@ class Fieldset(object):
             del self.fieldset['__'.join(key_path)]
         else:
             for key, subtree in tree.items():
-                self.remove_childs(key_path + [key], subtree)
+                self._remove_childs(key_path + [key], subtree)
 
     def add(self, field):
         if not self._tree_contains(field):
             current = self.root
             for key in field.key_path:
                 current[key] = current.get(key, {})
+                prev = current
                 current = current[key]
 
             if current:
                 self._remove_childs(field.key_path, current)
 
-            current = {}
+            prev[key] = {}
             self.fieldset['__'.join(field.key_path)] = field
 
     def union(self, iterable):
@@ -113,7 +115,6 @@ class Fieldset(object):
                     return self._get_field_label_from_resource_or_model_method(resource_or_model, field_name)
                 except (AttributeError, ObjectDoesNotExist):
                     pass
-
             return self._get_field_label_from_model_related_objects(model, field_name)
 
     def _init_data(self, converted_data, key_path=None, label_path=None):
@@ -123,7 +124,9 @@ class Fieldset(object):
         if isinstance(converted_data, dict):
             for key, val in converted_data.items():
                 if isinstance(converted_data, ModelSortedDict):
-                    label = self._get_field_label_from_model(converted_data.model, converted_data.resource, key) or key
+                    label = (self._get_field_label_from_model(converted_data.model, converted_data.resource, key) or
+                               (key != '_obj_name' and key or '')
+                             )
                 else:
                     label = key
                 self._init_data(val, list(key_path) + [key], list(label_path) + [label])
@@ -136,7 +139,7 @@ class Fieldset(object):
                 self._init_data(val, list(key_path), list(label_path))
             if is_last_list:
                 self.add(Field(key_path, label_path, label_path))
-        else:
+        elif converted_data is not None:
             self.add(Field(key_path, label_path))
 
     def __iter__(self):
