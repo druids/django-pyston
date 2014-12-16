@@ -446,7 +446,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             self._delete(pk)
             return RestNoConetentResponse()
         except RestException as ex:
-            return RestErrorsResponse(ex.errors)
+            return RestErrorResponse(ex.message)
 
     def _delete(self, pk, via=None):
         via = via or []
