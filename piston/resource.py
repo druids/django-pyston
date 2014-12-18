@@ -15,7 +15,7 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from functools import update_wrapper
 
-from chamber.models.shortcuts import get_object_or_none
+from chamber.shortcuts import get_object_or_none
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse,
