@@ -10,8 +10,10 @@ from django.utils import formats, timezone
 from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
 
+from chamber.utils.datastructures import Enum
+
 from .exception import MimerDataException, UnsupportedMediaTypeException
-from .utils import coerce_put_post, Enum
+from .utils import coerce_put_post
 from .converter import get_converter_from_request
 from .converter.datastructures import ModelSortedDict
 
@@ -55,7 +57,7 @@ class Serializer(object):
     used convertor for final serialization
     """
 
-    SERIALIZATION_TYPES = Enum(('VERBOSE', 'RAW', 'BOTH'))
+    SERIALIZATION_TYPES = Enum('VERBOSE', 'RAW', 'BOTH')
 
     def _get_resource(self, request, obj):
         from .resource import typemapper

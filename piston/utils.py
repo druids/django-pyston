@@ -5,8 +5,6 @@ import re
 from django.http import HttpResponse
 from django.utils.translation import ugettext_lazy as _
 from django.db.models.fields.related import RelatedField
-from django.shortcuts import _get_queryset
-from django.http.response import Http404
 from django.template.defaultfilters import lower
 from django.db import models
 from django.utils import six
@@ -135,29 +133,6 @@ class JsonObj(dict):
 
     def __setattr__(self, name, value):
         self[name] = value
-
-
-class Enum(set):
-    def __getattr__(self, name):
-        if name in self:
-            return name
-        raise AttributeError
-
-
-def get_object_or_none(klass, *args, **kwargs):
-    queryset = _get_queryset(klass)
-    try:
-        return queryset.get(*args, **kwargs)
-    except (queryset.model.DoesNotExist, ValueError):
-        return None
-
-
-def get_object_or_404(klass, *args, **kwargs):
-    queryset = _get_queryset(klass)
-    try:
-        return queryset.get(*args, **kwargs)
-    except (queryset.model.DoesNotExist, ValueError):
-        raise Http404
 
 
 def model_resources_to_dict():

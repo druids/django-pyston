@@ -11,9 +11,10 @@ from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
 from django.http.response import Http404
 from django.utils.encoding import force_text
 
+from chamber.models.shortcuts import get_object_or_none
+
 from .exception import DataInvalidException, RestException
 from .resource import BaseObjectResource, typemapper, BaseModelResource
-from .utils import get_object_or_none
 
 
 class DataProcessorCollection(object):

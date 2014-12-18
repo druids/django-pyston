@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-11-18 15:55-0600\n"
+"POT-Creation-Date: 2014-12-14 21:52-0600\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: data_processor.py:91 data_processor.py:123
 msgid "Data must be object"
-msgstr "Špatný formát dat, vyžadován objekt"
+msgstr "��patn�� form��t dat, vy��adov��n objekt"
 
 #: data_processor.py:139
 msgid "Object does not exist"
@@ -29,27 +29,27 @@ msgstr "Objekt neexistuje"
 #: data_processor.py:164
 #, python-format
 msgid "Data must contain primary key: %s"
-msgstr "Data musí obsahovat primární klíč: %s"
+msgstr "Data mus�� obsahovat prim��rn�� kl����: %s"
 
 #: data_processor.py:177
 msgid "Data must be a collection"
-msgstr "Formát dat musí být kolekce"
+msgstr "Form��t dat mus�� b��t kolekce"
 
 #: data_processor.py:234
 msgid "Object does not exist in selected data"
-msgstr "Objekt neexistuje ve vybraných datech"
+msgstr "Objekt neexistuje ve vybran��ch datech"
 
 #: exception.py:31
 msgid "Select a valid choice. That choice is not one of the available choices."
-msgstr "Vyberte platnou možnost. Vybraná hodnota není dostupná."
+msgstr "Vyberte platnou mo��nost. Vybran�� hodnota nen�� dostupn��."
 
 #: exception.py:35
 msgid "Not allowed."
-msgstr "Operace není dovolena."
+msgstr "Operace nen�� dovolena."
 
 #: exception.py:39
 msgid "Not allowed method."
-msgstr "Nepodporovaná metoda."
+msgstr "Nepodporovan�� metoda."
 
 #: exception.py:43
 msgid "Conflict/Duplicate."
@@ -57,19 +57,15 @@ msgstr "Konflikt/Duplikace."
 
 #: exception.py:47
 msgid "Object already exists but you do not allowed to change it."
-msgstr "Objekt již existuje nebo není dovoleno jej změnit."
+msgstr "Objekt ji�� existuje nebo nen�� dovoleno jej zm��nit."
 
 #: paginator.py:31
 msgid "Offset must be natural number"
-msgstr "Offset musí být přirozené číslo"
+msgstr "Offset mus�� b��t p��irozen�� ����slo"
 
 #: paginator.py:40
 msgid "Base must be natural number or empty"
-msgstr "Base musí být ve formátu přirozeného čísla nebo prázdný"
-
-#: resource.py:337
-msgid "object name"
-msgstr "název objektu"
+msgstr "Base mus�� b��t ve form��tu p��irozen��ho ����sla nebo pr��zdn��"
 
 #: serializer.py:309
 msgid "yes"
@@ -79,21 +75,25 @@ msgstr "ano"
 msgid "no"
 msgstr "ne"
 
+#: templates/default_pdf_table.html:42
+msgid "No data are available"
+msgstr ""
+
 #: utils.py:24
 msgid "OK"
 msgstr "OK"
 
 #: utils.py:25
 msgid "The record was created"
-msgstr "Záznam byl vytvořen"
+msgstr "Z��znam byl vytvo��en"
 
 #: utils.py:27
 msgid "Bad Request"
-msgstr "Neplatný dotaz"
+msgstr "Neplatn�� dotaz"
 
 #: utils.py:28
 msgid "Forbidden"
-msgstr "Nepovolený dotaz"
+msgstr "Nepovolen�� dotaz"
 
 #: utils.py:29
 msgid "Not Found"
@@ -101,7 +101,7 @@ msgstr "Nenalezeno"
 
 #: utils.py:30
 msgid "Method Not Allowed"
-msgstr "Metoda není podporována"
+msgstr "Metoda nen�� podporov��na"
 
 #: utils.py:31
 msgid "Conflict/Duplicate"
@@ -109,20 +109,23 @@ msgstr "Konflikt/Duplikace"
 
 #: utils.py:32
 msgid "Gone"
-msgstr "Zdroj již není dostupný"
+msgstr "Zdroj ji�� nen�� dostupn��"
 
 #: utils.py:33
 msgid "Unsupported Media Type"
-msgstr "Nepodporovaný typ"
+msgstr "Nepodporovan�� typ"
 
 #: utils.py:34
 msgid "Internal server error"
-msgstr "Interní chyba serveru"
+msgstr "Intern�� chyba serveru"
 
 #: utils.py:35
 msgid "Not implemented"
-msgstr "Neimplementováno"
+msgstr "Neimplementov��no"
 
 #: utils.py:36
 msgid "The resource was throttled"
-msgstr "Zdroj byl omezen, prosím zkuste to později"
+msgstr "Zdroj byl omezen, pros��m zkuste to pozd��ji"
+
+#~ msgid "object name"
+#~ msgstr "n��zev objektu"
