@@ -612,7 +612,6 @@ class BaseModelResource(BaseObjectResource):
         exclude = list(self._get_exclude(inst)) + exclude
         form_class = self._get_form_class(inst)
         fields = self._get_form_fields(inst)
-
         if hasattr(form_class, '_meta') and form_class._meta.exclude:
             exclude.extend(form_class._meta.exclude)
         return modelform_factory(self.model, form=form_class, exclude=exclude, fields=fields)
