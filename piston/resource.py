@@ -385,6 +385,12 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         """
         return qs
 
+    def _preload_queryset(self, qs):
+        """
+        May contain preloading implementation for queryset
+        """
+        return qs
+
     def _order_queryset(self, qs):
         """
         Should contain implementation for objects ordering
@@ -417,7 +423,8 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         if pk:
             return self._get_obj_or_404()
         try:
-            qs = self._filter_queryset(self._get_queryset().all())
+            qs = self._preload_queryset(self._get_queryset().all())
+            qs = self._filter_queryset(qs)
             qs = self._order_queryset(qs)
             paginator = Paginator(qs, self.request)
             return HeadersResponse(paginator.page_qs, {'X-Total': paginator.total})
