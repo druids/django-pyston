@@ -15,7 +15,8 @@ class RestResponse(HeadersResponse):
 class RestOkResponse(HeadersResponse):
 
     def __init__(self, msg, http_headers={}, code=200):
-        super(RestOkResponse, self).__init__(result={'success': msg}, http_headers=http_headers, code=code)
+        super(RestOkResponse, self).__init__(result={'messages': {'success': msg}}, http_headers=http_headers,
+                                             code=code)
 
 
 class RestCreatedResponse(HeadersResponse):
@@ -33,10 +34,12 @@ class RestNoConetentResponse(HeadersResponse):
 class RestErrorsResponse(HeadersResponse):
 
     def __init__(self, msg, http_headers={}, code=400):
-        super(RestErrorsResponse, self).__init__(result={'errors': msg}, http_headers=http_headers, code=code)
+        super(RestErrorsResponse, self).__init__(result={'messages': {'errors': msg}}, http_headers=http_headers,
+                                                 code=code)
 
 
 class RestErrorResponse(HeadersResponse):
 
     def __init__(self, msg, http_headers={}, code=400):
-        super(RestErrorResponse, self).__init__(result={'error': msg}, http_headers=http_headers, code=code)
+        super(RestErrorResponse, self).__init__(result={'messages': {'error': msg}}, http_headers=http_headers,
+                                                code=code)
