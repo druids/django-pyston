@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import decimal
 import json
 import StringIO
+import time
 
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist

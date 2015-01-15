@@ -200,18 +200,12 @@ class RestField(object):
         return self.__class__(self.name, deepcopy(self.subfieldset))
 
     def join(self, rest_field):
-        a_rf = deepcopy(self)
-        b_rf = deepcopy(rest_field)
-
-        a_rf.subfieldset = a_rf.subfieldset.join(b_rf.subfieldset)
-        return a_rf
+        self.subfieldset = self.subfieldset.join(rest_field.subfieldset)
+        return self
 
     def intersection(self, rest_field):
-        a_rf = deepcopy(self)
-        b_rf = deepcopy(rest_field)
-
-        a_rf.subfieldset = a_rf.subfieldset.intersection(b_rf.subfieldset)
-        return a_rf
+        self.subfieldset = self.subfieldset.intersection(rest_field.subfieldset)
+        return self
 
     def __str__(self):
         if self.subfieldset:
@@ -238,7 +232,7 @@ class RestFieldset(object):
     @classmethod
     def create_from_list(cls, fields_list):
         if isinstance(fields_list, RestFieldset):
-            fields_list = fields_list.fields
+            return deepcopy(fields_list)
 
         fields = []
         for field in fields_list:
@@ -265,54 +259,49 @@ class RestFieldset(object):
     def join(self, rest_fieldset):
         assert isinstance(rest_fieldset, RestFieldset)
 
-        a_rfs = deepcopy(self)
-        b_rfs = deepcopy(rest_fieldset)
-
-        for rf in b_rfs.fields:
-            if rf.name not in a_rfs.fields_map:
-                a_rfs.fields_map[rf.name] = rf
+        for rf in rest_fieldset.fields:
+            if rf.name not in self.fields_map:
+                self.fields_map[rf.name] = deepcopy(rf)
             else:
-                a_rfs.fields_map[rf.name] = a_rfs.fields_map[rf.name].join(rf)
+                self.fields_map[rf.name] = self.fields_map[rf.name].join(rf)
 
-        return a_rfs
+        return self
 
     def intersection(self, rest_fieldset):
         assert isinstance(rest_fieldset, RestFieldset)
 
-        a_rfs = deepcopy(self)
-        b_rfs = deepcopy(rest_fieldset)
+        fields_map = self.fields_map
+        self.fields_map = SortedDict()
 
-        values = []
-        for rf in b_rfs.fields:
-            if rf.name in a_rfs.fields_map:
-                values.append(a_rfs.fields_map[rf.name].intersection(rf))
+        for name, rf in fields_map.items():
+            if name in rest_fieldset.fields_map:
+                self.append(rf.intersection(rest_fieldset.fields_map[name]))
 
-        return self.__class__(*values)
+        return self
 
     def extend_fields_fieldsets(self, rest_fieldset):
         assert isinstance(rest_fieldset, RestFieldset)
 
-        a_rfs = deepcopy(self)
-        b_rfs = deepcopy(rest_fieldset)
+        for rf in rest_fieldset.fields:
+            if rf.subfieldset and rf.name in self.fields_map and not self.fields_map[rf.name].subfieldset:
+                self.fields_map[rf.name].join(rf)
 
-        for rf in b_rfs.fields:
-            if rf.subfieldset and rf.name in a_rfs.fields_map and not a_rfs.fields_map[rf.name].subfieldset:
-                a_rfs.fields_map[rf.name].subfieldset = rf.subfieldset
+        return self
 
-        return a_rfs
+    def subtract(self, rest_fieldset):
+        if isinstance(rest_fieldset, (list, tuple, set)):
+            rest_fieldset = RFS(*rest_fieldset)
 
-    def flat_intersection(self, rest_fieldset):
         assert isinstance(rest_fieldset, RestFieldset)
 
-        a_rfs = deepcopy(self)
-        b_rfs = deepcopy(rest_fieldset)
+        fields_map = self.fields_map
+        self.fields_map = SortedDict()
 
-        values = []
-        for rf in b_rfs.fields:
-            if rf.name in a_rfs.fields_map:
-                values.append(a_rfs.fields_map[rf.name])
+        for name, rf in fields_map.items():
+            if name not in rest_fieldset.fields_map:
+                self.fields_map[name] = rf
 
-        return self.__class__(*values)
+        return self
 
     def __deepcopy__(self, memo):
         return self.__class__(*map(deepcopy, self.fields))
@@ -330,13 +319,10 @@ class RestFieldset(object):
 
         assert isinstance(rest_fieldset, RestFieldset)
 
-        a_rfs = deepcopy(self)
-        b_rfs = deepcopy(rest_fieldset)
-
         values = []
-        for rf in a_rfs.fields:
-            if rf.name not in b_rfs.fields_map:
-                values.append(rf)
+        for rf in self.fields:
+            if rf.name not in rest_fieldset.fields_map:
+                values.append(deepcopy(rf))
 
         return self.__class__(*values)
 
@@ -365,9 +351,8 @@ class RestFieldset(object):
 
         assert isinstance(rest_fieldset, RestFieldset)
 
-        b_rfs = deepcopy(rest_fieldset)
-
-        for rf in b_rfs.fields:
+        for rf in rest_fieldset.fields:
+            rf = deepcopy(rf)
             if rf.name not in self.fields_map:
                 self.fields_map[rf.name] = rf
             else:

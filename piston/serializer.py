@@ -1,6 +1,7 @@
 import decimal
 import datetime
 import inspect
+import time
 
 from django.db.models import Model
 from django.db.models.query import QuerySet
@@ -16,6 +17,7 @@ from .exception import MimerDataException, UnsupportedMediaTypeException
 from .utils import coerce_put_post
 from .converter import get_converter_from_request
 from .converter.datastructures import ModelSortedDict
+
 
 value_serializers = []
 
@@ -178,6 +180,7 @@ class QuerySetSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
         return [self._to_python_chain(request, v, serialization_format, **kwargs) for v in thing]
+
 
     def _can_transform_to_python(self, thing):
         return isinstance(thing, QuerySet)
@@ -388,21 +391,19 @@ class ModelSerializer(Serializer):
     def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via):
         default_fieldset = self._get_fieldset_from_resource(request, obj, via)
         if extended_fieldset:
-            default_fieldset = default_fieldset.join(extended_fieldset)
+            default_fieldset.join(extended_fieldset)
 
         if requested_fieldset:
             allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
             if extended_fieldset:
-                allowed_fieldset = allowed_fieldset.join(extended_fieldset)
-            filtered_requested_fieldset = allowed_fieldset.intersection(
-                requested_fieldset
-            )
-            fieldset = filtered_requested_fieldset.extend_fields_fieldsets(default_fieldset)
+                allowed_fieldset.join(extended_fieldset)
+            allowed_fieldset.intersection(requested_fieldset)
+            fieldset = allowed_fieldset.extend_fields_fieldsets(default_fieldset)
         else:
             fieldset = default_fieldset
 
         if exclude_fields:
-            fieldset -= exclude_fields
+            fieldset.subtract(exclude_fields)
         return fieldset
 
     def _to_python(self, request, obj, serialization_format, requested_fieldset=None,
