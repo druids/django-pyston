@@ -352,7 +352,7 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
     def get_extra_fields(self, obj=None):
         return rfs(self.extra_fields)
 
-    def get_guest_fields(self, request):
+    def get_guest_fields(self, obj=None):
         return rfs(self.guest_fields)
 
 

@@ -1,7 +1,6 @@
 import decimal
 import datetime
 import inspect
-import time
 
 from django.db.models import Model
 from django.db.models.query import QuerySet
@@ -107,13 +106,10 @@ class ResourceSerializer(Serializer):
         self.resource = resource
 
     def serialize(self, request, result, requested_fieldset, serialization_format):
-        if self.resource._is_single_obj_request(result):
-            extended_fieldset = self.resource.get_default_detailed_fields(result)
-        else:
-            extended_fieldset = self.resource.get_default_general_fields(result)
+        detailed = self.resource._is_single_obj_request(result)
         converted_dict = self._to_python(request, result, serialization_format,
                                          requested_fieldset=requested_fieldset,
-                                         extended_fieldset=extended_fieldset)
+                                         detailed=detailed)
         try:
             converter, ct = get_converter_from_request(request)
         except ValueError:
@@ -156,7 +152,7 @@ class StringSerializer(Serializer):
 class DictSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, exclude_fields=None, **kwargs):
+                   extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
         return dict([(k, self._to_python_chain(request, v, serialization_format, **kwargs))
                      for k, v in thing.iteritems()])
 
@@ -168,7 +164,7 @@ class DictSerializer(Serializer):
 class ListSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, exclude_fields=None, **kwargs):
+                   extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
         return [self._to_python_chain(request, v, serialization_format, **kwargs) for v in thing]
 
     def _can_transform_to_python(self, thing):
@@ -370,47 +366,46 @@ class ModelSerializer(Serializer):
         else:
             return DefaultRestObjectResource()
 
-    def _get_fieldset_from_resource(self, request, obj, via):
+    def _get_fieldset_from_resource(self, request, obj, via, detailed):
         resource = self._get_model_resource(request, obj)
-        if (not resource.has_get_permission(obj, via)
-            and not resource.has_put_permission(obj, via)
-            and not resource.has_post_permission(obj, via)):
+        if not resource.has_get_permission(obj, via):
             return resource.get_guest_fields(request)
+        elif detailed:
+            return resource.get_default_detailed_fields(obj)
         else:
             return resource.get_default_general_fields(obj)
 
     def _get_allowed_fieldset_from_resource(self, request, obj, via):
         resource = self._get_model_resource(request, obj)
-        if (not resource.has_get_permission(obj, via)
-            and not resource.has_put_permission(obj, via)
-            and not resource.has_post_permission(obj, via)):
+        if not resource.has_get_permission(obj, via):
             return resource.get_guest_fields(request)
         else:
             return resource.get_fields(obj)
 
-    def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via):
-        default_fieldset = self._get_fieldset_from_resource(request, obj, via)
+    def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed):
+        default_fieldset = self._get_fieldset_from_resource(request, obj, via, detailed)
+        allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
+
         if extended_fieldset:
             default_fieldset.join(extended_fieldset)
+            allowed_fieldset.join(extended_fieldset)
 
         if requested_fieldset:
-            allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
-            if extended_fieldset:
-                allowed_fieldset.join(extended_fieldset)
             allowed_fieldset.intersection(requested_fieldset)
             fieldset = allowed_fieldset.extend_fields_fieldsets(default_fieldset)
         else:
-            fieldset = default_fieldset
+            allowed_fieldset.intersection(default_fieldset)
+            fieldset = allowed_fieldset
 
         if exclude_fields:
             fieldset.subtract(exclude_fields)
         return fieldset
 
     def _to_python(self, request, obj, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, exclude_fields=None, **kwargs):
+                   extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
         exclude_fields = exclude_fields or []
         fieldset = self._get_fieldset(request, obj, extended_fieldset, requested_fieldset, exclude_fields,
-                                      kwargs.get('via'))
+                                      kwargs.get('via'), detailed)
         return self._fields_to_python(request, obj, serialization_format, fieldset, requested_fieldset, **kwargs)
 
     def _can_transform_to_python(self, thing):
