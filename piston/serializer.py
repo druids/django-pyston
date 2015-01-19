@@ -175,7 +175,13 @@ class ListSerializer(Serializer):
 class QuerySetSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
-        return [self._to_python_chain(request, v, serialization_format, **kwargs) for v in thing]
+        result = []
+        for v in thing:
+            value = self._to_python_chain(request, v, serialization_format, **kwargs)
+            if value is not None:
+                result.apped(value)
+
+        return result
 
 
     def _can_transform_to_python(self, thing):
@@ -366,25 +372,26 @@ class ModelSerializer(Serializer):
         else:
             return DefaultRestObjectResource()
 
-    def _get_fieldset_from_resource(self, request, obj, via, detailed):
+    def _get_fieldset_from_resource(self, request, obj, via, detailed, has_get_permission):
         resource = self._get_model_resource(request, obj)
-        if not resource.has_get_permission(obj, via):
+        if not has_get_permission:
             return resource.get_guest_fields(request)
         elif detailed:
             return resource.get_default_detailed_fields(obj)
         else:
             return resource.get_default_general_fields(obj)
 
-    def _get_allowed_fieldset_from_resource(self, request, obj, via):
+    def _get_allowed_fieldset_from_resource(self, request, obj, via, has_get_permission):
         resource = self._get_model_resource(request, obj)
-        if not resource.has_get_permission(obj, via):
+        if not has_get_permission:
             return resource.get_guest_fields(request)
         else:
             return resource.get_fields(obj)
 
-    def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed):
-        default_fieldset = self._get_fieldset_from_resource(request, obj, via, detailed)
-        allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via)
+    def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed,
+                      has_get_permission):
+        default_fieldset = self._get_fieldset_from_resource(request, obj, via, detailed, has_get_permission)
+        allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via, has_get_permission)
 
         if extended_fieldset:
             default_fieldset.join(extended_fieldset)
@@ -403,9 +410,13 @@ class ModelSerializer(Serializer):
 
     def _to_python(self, request, obj, serialization_format, requested_fieldset=None,
                    extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
+        has_get_permission = self._get_model_resource(request, obj).has_get_permission(obj, kwargs.get('via'))
+        if not has_get_permission and kwargs.get('via') is None:
+            return None
+
         exclude_fields = exclude_fields or []
         fieldset = self._get_fieldset(request, obj, extended_fieldset, requested_fieldset, exclude_fields,
-                                      kwargs.get('via'), detailed)
+                                      kwargs.get('via'), detailed, has_get_permission)
         return self._fields_to_python(request, obj, serialization_format, fieldset, requested_fieldset, **kwargs)
 
     def _can_transform_to_python(self, thing):
