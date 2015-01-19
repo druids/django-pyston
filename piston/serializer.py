@@ -179,7 +179,7 @@ class QuerySetSerializer(Serializer):
         for v in thing:
             value = self._to_python_chain(request, v, serialization_format, **kwargs)
             if value is not None:
-                result.apped(value)
+                result.append(value)
 
         return result
 
