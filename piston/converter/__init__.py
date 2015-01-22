@@ -55,11 +55,10 @@ def get_converter(format):
     raise ValueError('No converter found for type %s' % format)
 
 
-def get_converter_from_request(request, input=False):
+def get_converter_name_from_request(request, input=False):
     """
-    Function for determening which converter to use
-    for output. It lives here so you can easily subclass
-    `Resource` in order to change how emission is detected.
+    Function for determening which converter name to use
+    for output.
     """
     try:
         import mimeparse
@@ -91,8 +90,16 @@ def get_converter_from_request(request, input=False):
         except ValueError:
             pass
         default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
+    return default_converter_name
 
-    return get_converter(default_converter_name)
+
+def get_converter_from_request(request, input=False):
+    """
+    Function for determening which converter name to use
+    for output.
+    """
+
+    return get_converter(get_converter_name_from_request(request, input))
 
 
 def get_supported_mime_types():
