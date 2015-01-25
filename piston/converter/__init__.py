@@ -238,7 +238,11 @@ class GeneratorConverter(Converter):
 
     def encode(self, request, converted_data, resource, result):
         output = StringIO.StringIO()
-        fieldset = Fieldset.create_from_data(converted_data)
+        fields = request._rest_context.get('fields')
+        if fields:
+            fieldset = Fieldset.create_from_string(fields)
+        else:
+            fieldset = Fieldset.create_from_data(converted_data)
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, converted_data),

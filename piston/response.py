@@ -1,18 +1,24 @@
 class HeadersResponse(object):
 
+    fieldset = True
+
     def __init__(self, result, http_headers={}, code=200):
         self.result = result
         self.http_headers = http_headers
         self.status_code = code
 
 
-class RestResponse(HeadersResponse):
+class NoFieldsetResponse(HeadersResponse):
+
+    fieldset = False
+
+class RestResponse(NoFieldsetResponse):
 
     def __init__(self, msg, http_headers={}, code=200):
         super(RestResponse, self).__init__(result={'messages': msg}, http_headers=http_headers, code=code)
 
 
-class RestOkResponse(HeadersResponse):
+class RestOkResponse(NoFieldsetResponse):
 
     def __init__(self, msg, http_headers={}, code=200):
         super(RestOkResponse, self).__init__(result={'messages': {'success': msg}}, http_headers=http_headers,
@@ -25,7 +31,7 @@ class RestCreatedResponse(HeadersResponse):
         super(RestCreatedResponse, self).__init__(result=result, http_headers=http_headers, code=code)
 
 
-class RestNoConetentResponse(HeadersResponse):
+class RestNoConetentResponse(NoFieldsetResponse):
 
     def __init__(self, http_headers={}, code=204):
         super(RestNoConetentResponse, self).__init__(result='', http_headers=http_headers, code=code)
@@ -38,7 +44,7 @@ class RestErrorsResponse(HeadersResponse):
                                                  code=code)
 
 
-class RestErrorResponse(HeadersResponse):
+class RestErrorResponse(NoFieldsetResponse):
 
     def __init__(self, msg, http_headers={}, code=400):
         super(RestErrorResponse, self).__init__(result={'messages': {'error': msg}}, http_headers=http_headers,

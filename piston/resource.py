@@ -196,9 +196,9 @@ class BaseResource(PermissionsResourceMixin):
     def _get_requested_fieldset(self, result):
         return RFS.create_from_string(self.request._rest_context.get('fields', ''))
 
-    def _serialize(self, result):
+    def _serialize(self, result, fieldset):
         return self.serializer(self).serialize(
-            self.request, result, self._get_requested_fieldset(result),
+            self.request, result, fieldset and self._get_requested_fieldset(result) or None,
             self._get_serialization_format()
         )
 
@@ -222,6 +222,8 @@ class BaseResource(PermissionsResourceMixin):
     def _get_response_data(self):
         status_code = 200
         http_headers = {}
+
+        fieldset = True
         try:
             self.request = self._deserialize()
 
@@ -234,7 +236,10 @@ class BaseResource(PermissionsResourceMixin):
                 result = meth()
         except (MimerDataException, NotAllowedException, UnsupportedMediaTypeException, Http404) as ex:
             result = self._get_error_response(ex)
+            fieldset = False
+
         if isinstance(result, HeadersResponse):
+            fieldset = result.fieldset
             http_headers = result.http_headers
             status_code = result.status_code
             result = result.result
@@ -242,16 +247,16 @@ class BaseResource(PermissionsResourceMixin):
         if isinstance(result, HttpResponse):
             status_code = result.status_code
             result = result._container
-        return result, http_headers, status_code
+        return result, http_headers, status_code, fieldset
 
     def _set_response_headers(self, response, result, http_headers):
         for header, value in self._get_headers(result, http_headers).items():
             response[header] = value
 
     def _get_response(self):
-        result, http_headers, status_code = self._get_response_data()
+        result, http_headers, status_code, fieldset = self._get_response_data()
         try:
-            content, ct = self._serialize(result)
+            content, ct = self._serialize(result, fieldset)
         except UnsupportedMediaTypeException:
             content = ''
             status_code = 415

@@ -16,6 +16,7 @@ from .exception import MimerDataException, UnsupportedMediaTypeException
 from .utils import coerce_put_post
 from .converter import get_converter_from_request
 from .converter.datastructures import ModelSortedDict
+from piston.utils import rfs
 
 
 value_serializers = []
@@ -391,11 +392,10 @@ class ModelSerializer(Serializer):
             allowed_fieldset.join(extended_fieldset)
 
         if requested_fieldset:
-            allowed_fieldset.intersection(requested_fieldset)
-            fieldset = allowed_fieldset.extend_fields_fieldsets(default_fieldset)
+            # requested_fieldset must be cloned because RFS is not immutable and intersection change it
+            fieldset = rfs(requested_fieldset).intersection(allowed_fieldset).extend_fields_fieldsets(default_fieldset)
         else:
-            allowed_fieldset.intersection(default_fieldset)
-            fieldset = allowed_fieldset
+            fieldset = default_fieldset.intersection(allowed_fieldset)
 
         if exclude_fields:
             fieldset.subtract(exclude_fields)

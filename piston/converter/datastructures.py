@@ -46,6 +46,12 @@ class Fieldset(object):
         fieldset._init_data(data)
         return fieldset
 
+    @classmethod
+    def create_from_string(cls, str_fieldset):
+        fieldset = Fieldset()
+        fieldset._init_string(str_fieldset)
+        return fieldset
+
     def __init__(self):
         self.root = {}
         self.fieldset = SortedDict()
@@ -141,6 +147,10 @@ class Fieldset(object):
                 self.add(Field(key_path, label_path, label_path))
         elif converted_data is not None:
             self.add(Field(key_path, label_path))
+
+    def _init_string(self, str_fieldset, key_path=None, label_path=None):
+        for field in str_fieldset.split(','):
+            self.fieldset[field] = Field(field, field)
 
     def __iter__(self):
         return iter(self.fieldset.values())

@@ -221,10 +221,16 @@ class RestFieldset(object):
         for field in split_fields(fields_string):
             if is_match('^[^\(\)]+\(.+\)$', field):
                 field_name, subfields_string = field[:len(field) - 1].split('(', 1)
+                if '__' in field_name:
+                    field_name, subfields_string = field.split('__', 1)
+
                 subfieldset = RFS.create_from_string(subfields_string)
             else:
                 field_name = field
                 subfieldset = None
+                if '__' in field_name:
+                    field_name, subfields_string = field.split('__', 1)
+                    subfieldset = RFS.create_from_string(subfields_string)
 
             fields.append(RestField(field_name, subfieldset))
         return RestFieldset(*fields)
