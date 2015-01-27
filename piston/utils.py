@@ -161,6 +161,15 @@ def is_match(regex, text):
     return pattern.search(text) is not None
 
 
+def get_model_from_descriptor(model, field_name):
+    if model:
+        model_descriptor = getattr(model, field_name, None)
+        if model_descriptor and hasattr(model_descriptor, 'related'):
+            return model_descriptor.related.model
+        elif model_descriptor and hasattr(model_descriptor, 'field'):
+            return model_descriptor.field.rel.to
+
+
 def split_fields(fields_string):
 
     brackets = 0

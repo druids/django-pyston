@@ -6,6 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
 
 from collections import OrderedDict
+from piston.utils import split_fields, is_match, get_model_from_descriptor
 
 
 class ModelSortedDict(OrderedDict):
@@ -23,10 +24,10 @@ class Field(object):
         self.label_path = label_path
 
     def __str__(self):
-        return ' '.join(map(force_text, self.label_path))
+        return capfirst(' '.join(map(force_text, self.key_path))).strip()
 
     def __unicode__(self):
-        return capfirst(' '.join(map(force_text, self.label_path)))
+        return capfirst(' '.join(map(force_text, self.label_path))).strip()
 
     def __hash__(self):
             return hash('__'.join(self.key_path))
@@ -38,63 +39,20 @@ class Field(object):
         return not self.__eq__(other)
 
 
-class Fieldset(object):
+class FieldsetGenerator(object):
 
-    @classmethod
-    def create_from_data(cls, data):
-        fieldset = Fieldset()
-        fieldset._init_data(data)
-        return fieldset
+    def __init__(self, request, resource, data):
+        self.request = request
+        self.data = data
+        self.resource = resource
+        self.fields_string = request._rest_context.get('fields') or force_text(DataFieldset(data))
 
-    @classmethod
-    def create_from_string(cls, str_fieldset):
-        fieldset = Fieldset()
-        fieldset._init_string(str_fieldset)
-        return fieldset
+    def _get_resource(self, obj):
+        from piston.resource import typemapper
 
-    def __init__(self):
-        self.root = {}
-        self.fieldset = SortedDict()
-
-    def _tree_contains(self, field):
-        current = self.root.get(field.key_path[0])
-        if current is None:
-            return False
-
-        for key in field.key_path[1:]:
-            if not current:
-                return True
-            elif key not in current.keys():
-                return False
-            else:
-                current = current.get(key)
-
-        return not bool(current)
-
-    def _remove_childs(self, key_path, tree):
-        if not tree:
-            del self.fieldset['__'.join(key_path)]
-        else:
-            for key, subtree in tree.items():
-                self._remove_childs(key_path + [key], subtree)
-
-    def add(self, field):
-        if not self._tree_contains(field):
-            current = self.root
-            for key in field.key_path:
-                current[key] = current.get(key, {})
-                prev = current
-                current = current[key]
-
-            if current:
-                self._remove_childs(field.key_path, current)
-
-            prev[key] = {}
-            self.fieldset['__'.join(field.key_path)] = field
-
-    def union(self, iterable):
-        for item in iterable:
-            self.add(item)
+        resource_class = typemapper.get(type(obj))
+        if resource_class:
+            return resource_class(self.request)
 
     def _get_field_label_from_model_related_objects(self, model, field_name):
         for rel in model._meta.get_all_related_objects():
@@ -116,56 +74,124 @@ class Fieldset(object):
         try:
             return self._get_field_label_from_model_field(model, field_name)
         except FieldDoesNotExist:
-            for resource_or_model in [resource, model]:
+            if resource:
+                resource_and_model = (resource, model)
+            else:
+                resource_and_model = (model,)
+
+            for resource_or_model in resource_and_model:
                 try:
                     return self._get_field_label_from_resource_or_model_method(resource_or_model, field_name)
                 except (AttributeError, ObjectDoesNotExist):
                     pass
             return self._get_field_label_from_model_related_objects(model, field_name)
 
-    def _init_data(self, converted_data, key_path=None, label_path=None):
+    def _get_label(self, field_name, model):
+        if model:
+            return (self._get_field_label_from_model(model, self._get_resource(model), field_name) or
+                        (field_name != '_obj_name' and field_name or '')
+                    )
+        else:
+            return field_name
+
+    def _recursive_generator(self, fields, fields_string, model=None, key_path=None, label_path=None):
         key_path = key_path or []
         label_path = label_path or []
 
+        if not fields_string:
+            fields.append(Field(key_path, label_path))
+        else:
+            for field in split_fields(fields_string):
+                if is_match('^[^\(\)]+\(.+\)$', field):
+                    field_name, subfields_string = field[:len(field) - 1].split('(', 1)
+                else:
+                    field_name = field
+                    subfields_string = None
+
+                if '__' in field_name:
+                    field_name, subfields_string = field.split('__', 1)
+
+                self._recursive_generator(fields, subfields_string, get_model_from_descriptor(model, field_name),
+                                          key_path + [field_name],
+                                          label_path + [self._get_label(field_name, model)])
+
+    def generate(self):
+        fields = []
+        self._recursive_generator(fields, self.fields_string, getattr(self.resource, 'model', None))
+        return fields
+
+
+class DataFieldset(object):
+
+    def __init__(self, data):
+        self.root = {}
+        # SordedDict is used as SortedSet
+        self.fieldset = SortedDict()
+        self._init_data(data)
+
+    def _tree_contains(self, key_path):
+        current = self.root.get(key_path[0])
+
+        if current is None:
+            return False
+
+        for key in key_path[1:]:
+            if not current:
+                return True
+            elif key not in current.keys():
+                return False
+            else:
+                current = current.get(key)
+
+        return not bool(current)
+
+    def _remove_childs(self, key_path, tree):
+        if not tree:
+            del self.fieldset['__'.join(key_path)]
+        else:
+            for key, subtree in tree.items():
+                self._remove_childs(key_path + [key], subtree)
+
+    def _add(self, key_path):
+        if not self._tree_contains(key_path):
+            current = self.root
+            for key in key_path:
+                current[key] = current.get(key, {})
+                prev = current
+                current = current[key]
+
+            if current:
+                self._remove_childs(key_path, current)
+
+            prev[key] = {}
+            self.fieldset['__'.join(key_path)] = None
+
+    def _init_data(self, converted_data, key_path=None):
+        key_path = key_path or []
+
         if isinstance(converted_data, dict):
             for key, val in converted_data.items():
-                if isinstance(converted_data, ModelSortedDict):
-                    label = (self._get_field_label_from_model(converted_data.model, converted_data.resource, key) or
-                               (key != '_obj_name' and key or '')
-                             )
-                else:
-                    label = key
-                self._init_data(val, list(key_path) + [key], list(label_path) + [label])
+                self._init_data(val, list(key_path) + [key])
         elif isinstance(converted_data, (list, tuple, set)):
             is_last_list = False
             for val in converted_data:
                 if isinstance(list, (list, tuple, set)):
                     is_last_list = True
                     break
-                self._init_data(val, list(key_path), list(label_path))
+                self._init_data(val, list(key_path))
             if is_last_list:
-                self.add(Field(key_path, label_path, label_path))
+                self._add(key_path)
         elif converted_data is not None:
-            self.add(Field(key_path, label_path))
-
-    def _init_string(self, str_fieldset, key_path=None, label_path=None):
-        for field in str_fieldset.split(','):
-            self.fieldset[field] = Field(field, field)
+            self._add(key_path)
 
     def __iter__(self):
-        return iter(self.fieldset.values())
-
-    def __contains__(self, field):
-        if isinstance(field, Field):
-            return '__'.join(field.key_path) in self.fieldset
-        else:
-            return field in self.fieldset
+        return iter(self.fieldset.keys())
 
     def __nonzero__(self):
         return bool(self.fieldset)
 
     def __str__(self):
-        return '{%s}' % ', '.join(self.fieldset.values())
+        return '%s' % ','.join(self.fieldset.keys())
 
     def __len__(self):
         return len(self.fieldset)

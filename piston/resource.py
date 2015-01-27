@@ -196,9 +196,9 @@ class BaseResource(PermissionsResourceMixin):
     def _get_requested_fieldset(self, result):
         return RFS.create_from_string(self.request._rest_context.get('fields', ''))
 
-    def _serialize(self, result, fieldset):
+    def _serialize(self, result):
         return self.serializer(self).serialize(
-            self.request, result, fieldset and self._get_requested_fieldset(result) or None,
+            self.request, result, self._get_requested_fieldset(result),
             self._get_serialization_format()
         )
 
@@ -255,8 +255,13 @@ class BaseResource(PermissionsResourceMixin):
 
     def _get_response(self):
         result, http_headers, status_code, fieldset = self._get_response_data()
+
+        if not fieldset and 'fields' in self.request._rest_context:
+            del self.request._rest_context['fields']
+
         try:
-            content, ct = self._serialize(result, fieldset)
+            content, ct = self._serialize(result)
+
         except UnsupportedMediaTypeException:
             content = ''
             status_code = 415

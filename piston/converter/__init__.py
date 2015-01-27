@@ -17,7 +17,7 @@ from django.utils.datastructures import SortedDict
 
 from piston.file_generator import CsvGenerator, XlsxGenerator, PdfGenerator
 
-from .datastructures import ModelSortedDict, Field, Fieldset
+from .datastructures import ModelSortedDict, Field, FieldsetGenerator
 
 
 try:
@@ -238,11 +238,7 @@ class GeneratorConverter(Converter):
 
     def encode(self, request, converted_data, resource, result):
         output = StringIO.StringIO()
-        fields = request._rest_context.get('fields')
-        if fields:
-            fieldset = Fieldset.create_from_string(fields)
-        else:
-            fieldset = Fieldset.create_from_data(converted_data)
+        fieldset = FieldsetGenerator(request, resource, converted_data).generate()
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, converted_data),
