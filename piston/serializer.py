@@ -383,7 +383,9 @@ class ModelSerializer(Serializer):
             return resource.get_fields(obj)
 
     def _get_fieldset(self, request, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed):
-        has_get_permission = self._get_model_resource(request, obj).has_get_permission(obj, via)
+        has_get_permission = (self._get_model_resource(request, obj).has_get_permission(obj, via) or
+                              self._get_model_resource(request, obj).has_post_permission(obj, via) or
+                              self._get_model_resource(request, obj).has_put_permission(obj, via))
         default_fieldset = self._get_fieldset_from_resource(request, obj, via, detailed, has_get_permission)
         allowed_fieldset = self._get_allowed_fieldset_from_resource(request, obj, via, has_get_permission)
 

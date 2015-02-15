@@ -101,22 +101,22 @@ class PermissionsResourceMixin(object):
             raise NotAllowedException
 
     def has_get_permission(self, obj=None, via=None):
-        return 'get' in self.allowed_methods
+        return 'get' in self.allowed_methods and hasattr(self, 'get')
 
     def has_post_permission(self, obj=None, via=None):
-        return 'post' in self.allowed_methods
+        return 'post' in self.allowed_methods and hasattr(self, 'post')
 
     def has_put_permission(self, obj=None, via=None):
-        return 'put' in self.allowed_methods
+        return 'put' in self.allowed_methods and hasattr(self, 'put')
 
     def has_delete_permission(self, obj=None, via=None):
-        return 'delete' in self.allowed_methods
+        return 'delete' in self.allowed_methods and hasattr(self, 'delete')
 
     def has_head_permission(self, obj=None, via=None):
-        return 'head' in self.allowed_methods and self.has_get_permission(obj, via)
+        return 'head' in self.allowed_methods and (hasattr(self, 'head') or self.has_get_permission(obj, via))
 
     def has_options_permission(self, obj=None, via=None):
-        return 'options' in self.allowed_methods
+        return 'options' in self.allowed_methods and hasattr(self, 'options')
 
 
 class BaseResource(PermissionsResourceMixin):
