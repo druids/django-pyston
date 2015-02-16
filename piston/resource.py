@@ -351,7 +351,7 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
 
     def get_fields(self, obj=None):
         return self.get_default_detailed_fields(obj).join(
-            self.get_default_detailed_fields(obj)).join(self.get_extra_fields(obj))
+            self.get_default_general_fields(obj)).join(self.get_extra_fields(obj))
 
     def get_default_detailed_fields(self, obj=None):
         return rfs(self.default_detailed_fields)
