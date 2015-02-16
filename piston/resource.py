@@ -82,15 +82,6 @@ class PermissionsResourceMixin(object):
                 pass
         return allowed_methods
 
-    def __getattr__(self, name):
-        m = re.match(r'_check_(\w+)_permission', name)
-        if m:
-            def _call_check(*args, **kwargs):
-                return self._check_permission(m.group(1), *args, **kwargs)
-            return _call_check
-
-        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
-
     def _check_permission(self, name, *args, **kwargs):
         if not hasattr(self, 'has_%s_permission' % name):
             if settings.DEBUG:
@@ -99,6 +90,29 @@ class PermissionsResourceMixin(object):
                 raise NotAllowedException
         if not getattr(self, 'has_%s_permission' % name)(*args, **kwargs):
             raise NotAllowedException
+
+    def _check_call(self, name, *args, **kwargs):
+        if not hasattr(self, 'has_%s_permission' % name):
+            if settings.DEBUG:
+                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+            else:
+                return False
+        try:
+            return getattr(self, 'has_%s_permission' % name)(*args, **kwargs)
+        except Http404:
+            return False
+
+    def __getattr__(self, name):
+        for regex, method in (
+                (r'_check_(\w+)_permission', self._check_permission),
+                (r'can_call_(\w+)', self._check_call)
+            ):
+            m = re.match(regex, name)
+            if m:
+                def _call(*args, **kwargs):
+                    return method(m.group(1), *args, **kwargs)
+                return _call
+        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     def has_get_permission(self, obj=None, via=None):
         return 'get' in self.allowed_methods and hasattr(self, 'get')
