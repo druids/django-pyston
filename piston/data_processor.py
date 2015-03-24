@@ -70,10 +70,14 @@ class DataProcessor(object):
 @data_preprocessors.register(BaseObjectResource)
 class FileDataPreprocessor(DataProcessor):
 
-    def _process_field(self, data, files, key, data_item):
-        field = self.form.fields.get(key)
-        if (field and isinstance(field, FileField) and isinstance(data_item, dict) and
-            {'filename', 'content', 'content_type'}.issubset(set(data_item.keys()))):
+    def _validate_not_empty(self, data_item, key, item):
+        if not data_item.get(item):
+            error = self.errors.get(key, {})
+            error.update({item: _('This field is required')})
+            self.errors[key] = error
+
+    def _process_file_data_field(self, data, files, key, data_item):
+        try:
             filename = data_item.get('filename')
             file_content = cStringIO.StringIO(base64.b64decode(data_item.get('content')))
             content_type = data_item.get('content_type')
@@ -83,6 +87,23 @@ class FileDataPreprocessor(DataProcessor):
                 size=sys.getsizeof(file_content), charset=charset
             )
             data[key] = filename
+        except TypeError:
+            self.errors[key] = _('File content is not in base64 format')
+
+    def _process_field(self, data, files, key, data_item):
+        field = self.form.fields.get(key)
+        if field and isinstance(field, FileField) and isinstance(data_item, dict):
+            REQUIRED_ITEMS = {'filename', 'content', 'content_type'}
+
+            if not REQUIRED_ITEMS.issubset(set(data_item.keys())):
+                self.errors[key] = (_('File data item must contains %s') %
+                                     ', '.join(REQUIRED_ITEMS))
+            else:
+                for item in REQUIRED_ITEMS:
+                    self._validate_not_empty(data_item, key, item)
+
+                if not self.errors:
+                    self._process_file_data_field(data, files, key, data_item)
 
 
 class ResourceProcessorMixin(object):

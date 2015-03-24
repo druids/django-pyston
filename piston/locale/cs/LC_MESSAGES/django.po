@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-12-14 21:52-0600\n"
+"POT-Creation-Date: 2015-03-24 23:20+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,38 +18,51 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
 
-#: data_processor.py:91 data_processor.py:123
-msgid "Data must be object"
-msgstr "��patn�� form��t dat, vy��adov��n objekt"
+#: data_processor.py:76
+msgid "This field is required"
+msgstr "Toto pole je povinné"
 
-#: data_processor.py:139
+#: data_processor.py:91
+msgid "File content is not in base64 format"
+msgstr "Obsah souboru není ve formátu base64"
+
+#: data_processor.py:99
+#, python-format
+msgid "File data item must contains %s"
+msgstr "Datový objekt souboru musí obsahovat %s"
+
+#: data_processor.py:113 data_processor.py:145
+msgid "Data must be object"
+msgstr "Neplatný formát dat, vyžadován objekt"
+
+#: data_processor.py:161
 msgid "Object does not exist"
 msgstr "Objekt neexistuje"
 
-#: data_processor.py:164
+#: data_processor.py:186
 #, python-format
 msgid "Data must contain primary key: %s"
-msgstr "Data mus�� obsahovat prim��rn�� kl����: %s"
+msgstr "Data musí obsahovat primární klíč: %s"
 
-#: data_processor.py:177
+#: data_processor.py:199
 msgid "Data must be a collection"
-msgstr "Form��t dat mus�� b��t kolekce"
+msgstr "Formát dat musí být kolekce"
 
-#: data_processor.py:234
+#: data_processor.py:256
 msgid "Object does not exist in selected data"
-msgstr "Objekt neexistuje ve vybran��ch datech"
+msgstr "Objekt neexistuje ve vybraných datech"
 
 #: exception.py:31
 msgid "Select a valid choice. That choice is not one of the available choices."
-msgstr "Vyberte platnou mo��nost. Vybran�� hodnota nen�� dostupn��."
+msgstr "Vyberte platnou možnost. Vybraná hodnota není dostupná."
 
 #: exception.py:35
 msgid "Not allowed."
-msgstr "Operace nen�� dovolena."
+msgstr "Operace není dovolena."
 
 #: exception.py:39
 msgid "Not allowed method."
-msgstr "Nepodporovan�� metoda."
+msgstr "Nepodporovaná metoda."
 
 #: exception.py:43
 msgid "Conflict/Duplicate."
@@ -57,75 +70,72 @@ msgstr "Konflikt/Duplikace."
 
 #: exception.py:47
 msgid "Object already exists but you do not allowed to change it."
-msgstr "Objekt ji�� existuje nebo nen�� dovoleno jej zm��nit."
+msgstr "Objekt již existuje nebo není dovoleno jej změnit."
 
 #: paginator.py:31
 msgid "Offset must be natural number"
-msgstr "Offset mus�� b��t p��irozen�� ����slo"
+msgstr "Offset musí být přirozené číslo"
 
 #: paginator.py:40
 msgid "Base must be natural number or empty"
-msgstr "Base mus�� b��t ve form��tu p��irozen��ho ����sla nebo pr��zdn��"
+msgstr "Base musí být ve formátu přirozeného čísla nebo prázdný"
 
-#: serializer.py:309
+#: serializer.py:310
 msgid "yes"
 msgstr "ano"
 
-#: serializer.py:309
+#: serializer.py:310
 msgid "no"
 msgstr "ne"
 
-#: templates/default_pdf_table.html:42
-msgid "No data are available"
-msgstr ""
-
-#: utils.py:24
+#: utils.py:22
 msgid "OK"
 msgstr "OK"
 
-#: utils.py:25
+#: utils.py:23
 msgid "The record was created"
-msgstr "Z��znam byl vytvo��en"
+msgstr "Záznam byl vytvořen"
+
+#: utils.py:25
+msgid "Bad Request"
+msgstr "Neplatný dotaz"
+
+#: utils.py:26
+msgid "Forbidden"
+msgstr "Nepovolený dotaz"
 
 #: utils.py:27
-msgid "Bad Request"
-msgstr "Neplatn�� dotaz"
-
-#: utils.py:28
-msgid "Forbidden"
-msgstr "Nepovolen�� dotaz"
-
-#: utils.py:29
 msgid "Not Found"
 msgstr "Nenalezeno"
 
-#: utils.py:30
+#: utils.py:28
 msgid "Method Not Allowed"
-msgstr "Metoda nen�� podporov��na"
+msgstr "Metoda není podporována"
 
-#: utils.py:31
+#: utils.py:29
 msgid "Conflict/Duplicate"
 msgstr "Konflikt/Duplikace"
 
-#: utils.py:32
+#: utils.py:30
 msgid "Gone"
-msgstr "Zdroj ji�� nen�� dostupn��"
+msgstr "Zdroj již není dostupný"
+
+#: utils.py:31
+msgid "Unsupported Media Type"
+msgstr "Nepodporovaný typ"
+
+#: utils.py:32
+msgid "Internal server error"
+msgstr "Interní chyba serveru"
 
 #: utils.py:33
-msgid "Unsupported Media Type"
-msgstr "Nepodporovan�� typ"
+msgid "Not implemented"
+msgstr "Neimplementováno"
 
 #: utils.py:34
-msgid "Internal server error"
-msgstr "Intern�� chyba serveru"
-
-#: utils.py:35
-msgid "Not implemented"
-msgstr "Neimplementov��no"
-
-#: utils.py:36
 msgid "The resource was throttled"
-msgstr "Zdroj byl omezen, pros��m zkuste to pozd��ji"
+msgstr "Zdroj byl omezen, prosím zkuste to později"
 
-#~ msgid "object name"
-#~ msgstr "n��zev objektu"
+#: templates/default_pdf_table.html:42
+msgid "No data are available"
+msgstr "Žádná data nejsou dostupná"
