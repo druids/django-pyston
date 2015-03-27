@@ -218,9 +218,7 @@ class ModelSerializer(Serializer):
 
     def _get_model_fields(self, obj):
         out = dict()
-        proxy_local_fields = obj._meta.proxy_for_model._meta.local_fields if obj._meta.proxy_for_model else []
-        local_fields = obj._meta.local_fields + obj._meta.virtual_fields + proxy_local_fields
-        for f in local_fields:
+        for f in obj._meta.fields:
             if hasattr(f, 'serialize') and f.serialize:
                 out[f.name] = f
         return out
