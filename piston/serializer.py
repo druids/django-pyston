@@ -230,6 +230,19 @@ class ModelSerializer(Serializer):
                 out[mf.name] = mf
         return out
 
+    def _raw_to_verbose(self, raw):
+        verbose = raw
+        if isinstance(raw, bool):
+            verbose = raw and _('yes') or _('no')
+        elif isinstance(raw, datetime.datetime):
+            verbose = formats.localize(timezone.template_localtime(raw))
+        elif isinstance(raw, (datetime.date, datetime.time)):
+            verbose = formats.localize(raw)
+        return verbose
+
+    def _val_to_raw_verbose(self, val):
+        return RawVerboseValue(val, self._raw_to_verbose(val))
+
     def _method_to_python(self, method, request, obj, serialization_format, **kwargs):
         method_kwargs_names = inspect.getargspec(method)[0][1:]
 
@@ -241,7 +254,8 @@ class ModelSerializer(Serializer):
                 method_kwargs[arg_name] = fun_kwargs[arg_name]
 
         if len(method_kwargs_names) == len(method_kwargs):
-            return self._to_python_chain(request, method(**method_kwargs), serialization_format, **kwargs)
+            return self._to_python_chain(request, self._val_to_raw_verbose(method(**method_kwargs)),
+                                         serialization_format, **kwargs)
 
     def _model_field_to_python(self, field, request, obj, serialization_format, **kwargs):
         if not field.rel:
@@ -303,26 +317,20 @@ class ModelSerializer(Serializer):
         humanize_method_name = 'get_%s_humanized' % field.attname
         if hasattr(getattr(obj, humanize_method_name, None), '__call__'):
             return getattr(obj, humanize_method_name)()
-        val = self._get_model_field_raw_value(obj, field)
-        if isinstance(val, bool):
-            val = val and _('yes') or _('no')
         elif field.choices:
-            val = getattr(obj, 'get_%s_display' % field.attname)()
-        elif isinstance(val, datetime.datetime):
-            return formats.localize(timezone.template_localtime(val))
-        elif isinstance(val, (datetime.date, datetime.time)):
-            return formats.localize(val)
-        return val
+            return getattr(obj, 'get_%s_display' % field.attname)()
+        else:
+            return self._raw_to_verbose(self._get_model_field_raw_value(obj, field))
 
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
                          request, obj, serialization_format, **kwargs):
         if field_name in resource_method_fields:
             return self._method_to_python(resource_method_fields[field_name], request, obj, serialization_format,
                                           **kwargs)
-        elif field_name in model_fields:
-            return self._model_field_to_python(model_fields[field_name], request, obj, serialization_format, **kwargs)
         elif field_name in m2m_fields:
             return self._m2m_field_to_python(m2m_fields[field_name], request, obj, serialization_format, **kwargs)
+        elif field_name in model_fields:
+            return self._model_field_to_python(model_fields[field_name], request, obj, serialization_format, **kwargs)
         else:
             try:
                 val = getattr(obj, field_name, None)
@@ -333,7 +341,7 @@ class ModelSerializer(Serializer):
                 elif isinstance(val, Model):
                     return self._reverse_to_python(val, field_name, request, obj, serialization_format, **kwargs)
                 else:
-                    return self._to_python_chain(request, val, serialization_format, **kwargs)
+                    return self._to_python_chain(request, self._val_to_raw_verbose(val), serialization_format, **kwargs)
             except:
                 return None
 
