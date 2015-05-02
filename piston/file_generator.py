@@ -35,13 +35,14 @@ TWOPLACES = Decimal(10) ** -2
 
 class CsvGenerator(object):
 
-    def __init__(self, delimiter=b';', quotechar=b'"', encoding='utf-8'):
+    def __init__(self, delimiter=b';', quotechar=b'"', quoting=csv.QUOTE_ALL, encoding='utf-8'):
         self.encoding = encoding
         self.quotechar = quotechar
+        self.quoting = quoting
         self.delimiter = delimiter
 
     def generate(self, header, data, output_stream):
-        writer = UnicodeWriter(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=csv.QUOTE_ALL)
+        writer = UnicodeWriter(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=self.quoting)
 
         if header:
             writer.writerow(self._prepare_list(header))
