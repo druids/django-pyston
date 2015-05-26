@@ -277,7 +277,7 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcesso
         resource = self._get_resource(model)
         if resource:
             if isinstance(data_item, (tuple, list)) or 'set' in data_item:
-                set_data = isinstance(data_item, list) and data_item or data_item.get('set')
+                set_data = data_item if isinstance(data_item, list) else data_item.get('set')
                 data[key] = self._create_or_update_related_objects_set(set_data, key, data_item, model)
 
             else:
@@ -345,7 +345,7 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
         resource = self._get_resource(rel_object.model)
         if resource:
             if isinstance(data_item, list) or 'set' in data_item:
-                set_data_item = isinstance(data_item, list) and data_item or data_item.get('set')
+                set_data_item = data_item if isinstance(data_item, list) else data_item.get('set')
                 self._create_or_update_reverse_related_objects_set(set_data_item, key, data_item, rel_object)
             else:
                 if 'remove' in data_item:
