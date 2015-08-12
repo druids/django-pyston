@@ -10,7 +10,7 @@ from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, Sin
 from django.utils import formats, timezone
 from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
-from django.utils.html import escape
+from django.utils.html import conditional_escape
 
 from chamber.utils.datastructures import Enum
 
@@ -145,7 +145,7 @@ class StringSerializer(Serializer):
     def _to_python(self, request, thing, serialization_format, **kwargs):
         res = force_text(thing, strings_only=True)
         if isinstance(res, six.string_types):
-            return escape(res)
+            return conditional_escape(res)
         else:
             return res
 
