@@ -1,6 +1,7 @@
 import decimal
 import datetime
 import inspect
+import six
 
 from django.db.models import Model
 from django.db.models.query import QuerySet
@@ -9,15 +10,14 @@ from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, Sin
 from django.utils import formats, timezone
 from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _
+from django.utils.html import escape
 
 from chamber.utils.datastructures import Enum
 
 from .exception import MimerDataException, UnsupportedMediaTypeException
-from .utils import coerce_put_post
+from .utils import coerce_put_post, rfs
 from .converter import get_converter_from_request
 from .converter.datastructures import ModelSortedDict
-from piston.utils import rfs
-
 
 value_serializers = []
 
@@ -143,7 +143,11 @@ class ResourceSerializer(Serializer):
 class StringSerializer(Serializer):
 
     def _to_python(self, request, thing, serialization_format, **kwargs):
-        return force_text(thing, strings_only=True)
+        res = force_text(thing, strings_only=True)
+        if isinstance(res, six.string_types):
+            return escape(res)
+        else:
+            return res
 
     def _can_transform_to_python(self, thing):
         return True
