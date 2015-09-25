@@ -4,8 +4,12 @@ from django.db import models
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
+from django.forms.forms import pretty_name
+
+from chamber.utils import get_class_method
 
 from collections import OrderedDict
+
 from piston.utils import split_fields, is_match, get_model_from_descriptor
 
 
@@ -65,7 +69,7 @@ class FieldsetGenerator(object):
         return None
 
     def _get_field_label_from_resource_or_model_method(self, resource_or_model, field_name):
-        return getattr(resource_or_model, field_name).short_description
+        return get_class_method(resource_or_model, field_name).short_description
 
     def _get_field_label_from_model_field(self, model, field_name):
         return model._meta.get_field(field_name).verbose_name
@@ -84,7 +88,8 @@ class FieldsetGenerator(object):
                     return self._get_field_label_from_resource_or_model_method(resource_or_model, field_name)
                 except (AttributeError, ObjectDoesNotExist):
                     pass
-            return self._get_field_label_from_model_related_objects(model, field_name)
+
+            return self._get_field_label_from_model_related_objects(model, field_name) or pretty_name(field_name)
 
     def _get_label(self, field_name, model):
         if model:

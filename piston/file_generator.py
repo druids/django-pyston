@@ -112,6 +112,7 @@ if xlsxwriter:
             decimal_format = wb.add_format({'num_format': '0.00'})
 
             row = 0
+
             if header:
                 for col, head in enumerate(header):
                     ws.write(row, col, unicode(head))

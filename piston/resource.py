@@ -16,6 +16,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from functools import update_wrapper
 
 from chamber.shortcuts import get_object_or_none
+from chamber.utils import remove_accent
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse,
@@ -26,6 +27,7 @@ from .exception import (RestException, ConflictException, NotAllowedException, D
 from .forms import RestModelForm
 from .utils import rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer
+from .converter import get_converter_name_from_request
 
 
 typemapper = { }
@@ -319,11 +321,18 @@ class BaseResource(PermissionsResourceMixin):
         self._store_to_cache(response)
         return response
 
+    def _get_resource_name(self):
+        return 'resource'
+
+    def _get_filename(self):
+        return '%s.%s' % (self._get_resource_name(), get_converter_name_from_request(self.request))
+
     def _get_headers(self, result, http_headers):
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
+        http_headers['Content-Disposition'] = 'inline; filename="%s"' % self._get_filename()
         fields = self.get_fields(obj=result)
         if fields:
             http_headers['X-Fields-Options'] = ','.join(fields.flat())
@@ -620,6 +629,9 @@ class BaseModelResource(BaseObjectResource):
 
     def _get_form_class(self, inst):
         return self.form_class
+
+    def _get_resource_name(self):
+        return force_text(remove_accent(force_text(self.model._meta.verbose_name_plural)))
 
     def _get_instance(self, data):
         # If data contains id this method is update otherwise create
