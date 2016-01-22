@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext
 from django.db.models.query import QuerySet
 
 from .exception import RestException
@@ -10,6 +10,8 @@ class Paginator(object):
     """
     Rest paginator for list and querysets
     """
+
+    MAX_BIG_INT = pow(2, 63) - 1
 
     def __init__(self, qs, request):
         self.qs = qs
@@ -26,18 +28,26 @@ class Paginator(object):
     def _get_offset(self, request):
         offset = request._rest_context.get('offset', '0')
         if offset.isdigit():
-            return int(offset)
+            offset_int = int(offset)
+            if offset_int > self.MAX_BIG_INT:
+                raise RestException(ugettext('Offset must lower or equal to %s' % self.MAX_BIG_INT))
+            else:
+                return offset_int
         else:
-            raise RestException(_('Offset must be natural number'))
+            raise RestException(ugettext('Offset must be natural number'))
 
     def _get_base(self, request):
         base = request._rest_context.get('base')
         if not base:
             return None
         elif base.isdigit():
-            return int(base)
+            base_int = int(base)
+            if base_int > self.MAX_BIG_INT:
+                raise RestException(ugettext('Base must lower or equal to %s' % self.MAX_BIG_INT))
+            else:
+                return base_int
         else:
-            raise RestException(_('Base must be natural number or empty'))
+            raise RestException(ugettext('Base must be natural number or empty'))
 
     @property
     def page_qs(self):

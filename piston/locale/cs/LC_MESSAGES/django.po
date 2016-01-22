@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-03-24 23:20+0100\n"
+"POT-Creation-Date: 2016-01-22 17:02+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -72,21 +72,35 @@ msgstr "Konflikt/Duplikace."
 msgid "Object already exists but you do not allowed to change it."
 msgstr "Objekt již existuje nebo není dovoleno jej změnit."
 
-#: paginator.py:31
+#: paginator.py:33
+#, python-format
+msgid "Offset must lower or equal to %s"
+msgstr "Offset musí být menší nebo roven %s"
+
+#: paginator.py:37
 msgid "Offset must be natural number"
 msgstr "Offset musí být přirozené číslo"
 
-#: paginator.py:40
+#: paginator.py:46
+#, python-format
+msgid "Base must lower or equal to %s"
+msgstr "Base musí být menší nebo roven %s"
+
+#: paginator.py:50
 msgid "Base must be natural number or empty"
 msgstr "Base musí být ve formátu přirozeného čísla nebo prázdný"
 
-#: serializer.py:310
+#: serializer.py:240
 msgid "yes"
 msgstr "ano"
 
-#: serializer.py:310
+#: serializer.py:240
 msgid "no"
 msgstr "ne"
+
+#: templates/default_pdf_table.html:42
+msgid "No data are available"
+msgstr "Žádná data nejsou dostupná"
 
 #: utils.py:22
 msgid "OK"
@@ -135,7 +149,3 @@ msgstr "Neimplementováno"
 #: utils.py:34
 msgid "The resource was throttled"
 msgstr "Zdroj byl omezen, prosím zkuste to později"
-
-#: templates/default_pdf_table.html:42
-msgid "No data are available"
-msgstr "Žádná data nejsou dostupná"

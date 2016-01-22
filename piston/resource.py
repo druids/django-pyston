@@ -49,7 +49,7 @@ class ResourceMetaClass(type):
                 if already_registered(new_cls.model):
                     if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
                         warnings.warn("Resource already registered for model %s, "
-                            "you may experience inconsistent results." % new_cls.model.__name__)
+                                      "you may experience inconsistent results." % new_cls.model.__name__)
 
                 typemapper[new_cls.model] = new_cls
 
