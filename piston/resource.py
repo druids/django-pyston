@@ -16,6 +16,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from functools import update_wrapper
 
 from chamber.shortcuts import get_object_or_none
+from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
 
 from .paginator import Paginator
@@ -30,8 +31,8 @@ from .serializer import ResourceSerializer
 from .converter import get_converter_name_from_request
 
 
-typemapper = { }
-resource_tracker = [ ]
+typemapper = {}
+resource_tracker = []
 
 
 class ResourceMetaClass(type):
@@ -108,7 +109,7 @@ class PermissionsResourceMixin(object):
         for regex, method in (
                 (r'_check_(\w+)_permission', self._check_permission),
                 (r'can_call_(\w+)', self._check_call)
-            ):
+        ):
             m = re.match(regex, name)
             if m:
                 def _call(*args, **kwargs):
@@ -169,7 +170,7 @@ class BaseResource(PermissionsResourceMixin):
 
     def _flatten_dict(self, dct):
         if isinstance(dct, dict):
-            return dict([ (str(k), dct.get(k)) for k in dct.keys() ])
+            return dict([(str(k), dct.get(k)) for k in dct.keys()])
         return {}
 
     def get_dict_data(self):
@@ -212,7 +213,7 @@ class BaseResource(PermissionsResourceMixin):
     def options(self):
         obj = self._get_obj_or_none()
         allowed_methods = [method.upper() for method in self.get_allowed_methods(obj)]
-        return HeadersResponse(None, http_headers={'Allowed':','.join(allowed_methods)})
+        return HeadersResponse(None, http_headers={'Allowed': ','.join(allowed_methods)})
 
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
@@ -450,7 +451,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             return RestErrorsResponse(ex.errors)
         except NotAllowedException:
             raise
-        except RestException as ex:
+        except (RestException, PersistenceException) as ex:
             return RestErrorResponse(ex.message)
         return RestCreatedResponse(inst)
 
@@ -464,7 +465,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             qs = self._order_queryset(qs)
             paginator = Paginator(qs, self.request)
             return HeadersResponse(paginator.page_qs, {'X-Total': paginator.total})
-        except RestException as ex:
+        except (RestException, PersistenceException) as ex:
             return RestErrorResponse(ex.message)
         except Http404:
             raise
@@ -481,7 +482,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             return RestErrorsResponse(ex.errors)
         except (ConflictException, NotAllowedException):
             raise
-        except RestException as ex:
+        except (RestException, PersistenceException) as ex:
             return RestErrorResponse(ex.message)
 
     def delete(self):
@@ -489,7 +490,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             pk = self.kwargs.get(self.pk_name)
             self._delete(pk)
             return RestNoConetentResponse()
-        except RestException as ex:
+        except (RestException, PersistenceException) as ex:
             return RestErrorResponse(ex.message)
 
     def _delete(self, pk, via=None):
