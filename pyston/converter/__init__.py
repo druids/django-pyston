@@ -2,28 +2,24 @@ from __future__ import unicode_literals
 
 import decimal
 import json
-import StringIO
 import time
+
+from six.moves import cStringIO
+from six import BytesIO
 
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
-from django.utils.encoding import smart_unicode, force_text
+from django.utils.encoding import force_text
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.db.models.base import Model
 from django.conf import settings
-from django.utils.datastructures import SortedDict
 
-from piston.file_generator import CsvGenerator, XlsxGenerator, PdfGenerator
+from pyston.file_generator import CSVGenerator, XLSXGenerator, PDFGenerator
 
-from .datastructures import ModelSortedDict, Field, FieldsetGenerator
+from .datastructures import Field, FieldsetGenerator
 
-
-try:
-    import cz_models
-except ImportError:
-    cz_models = None
 
 converters = {}
 
@@ -45,19 +41,19 @@ def register(name, content_type):
     return _register
 
 
-def get_converter(format):
+def get_converter(result_format):
     """
     Gets an converter, returns the class and a content-type.
     """
-    if converters.has_key(format):
-        return converters.get(format)
+    if result_format in converters:
+        return converters.get(result_format)
+    else:
+        raise ValueError('No converter found for type {}'.format(result_format))
 
-    raise ValueError('No converter found for type %s' % format)
 
-
-def get_converter_name_from_request(request, input=False):
+def get_converter_name_from_request(request, input_serialization=False):
     """
-    Function for determening which converter name to use
+    Function for determining which converter name to use
     for output.
     """
     try:
@@ -65,10 +61,10 @@ def get_converter_name_from_request(request, input=False):
     except ImportError:
         mimeparse = None
 
-    default_converter_name = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
+    default_converter_name = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
 
     context_key = 'accept'
-    if input:
+    if input_serialization:
         context_key = 'content_type'
 
     if mimeparse and context_key in request._rest_context:
@@ -86,20 +82,20 @@ def get_converter_name_from_request(request, input=False):
             supported_mime_types.append(preferred_content_type)
         try:
             preferred_content_type = mimeparse.best_match(supported_mime_types,
-                                                            request._rest_context[context_key])
+                                                          request._rest_context[context_key])
         except ValueError:
             pass
         default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
     return default_converter_name
 
 
-def get_converter_from_request(request, input=False):
+def get_converter_from_request(request, input_serialization=False):
     """
-    Function for determening which converter name to use
+    Function for determining which converter name to use
     for output.
     """
 
-    return get_converter(get_converter_name_from_request(request, input))
+    return get_converter(get_converter_name_from_request(request, input_serialization))
 
 
 def get_supported_mime_types():
@@ -111,13 +107,13 @@ class Converter(object):
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
 
-    def encode(self, request, converted_data, resource, result):
+    def encode(self, data, **kwargs):
         """
         Encode data to output
         """
         raise NotImplementedError
 
-    def decode(self, request, data):
+    def decode(self, data, **kwargs):
         """
         Decode data to input
         """
@@ -138,23 +134,23 @@ class XMLConverter(Converter):
                 self._to_xml(xml, item)
                 xml.endElement('resource')
         elif isinstance(data, dict):
-            for key, value in data.iteritems():
+            for key, value in data.items():
                 xml.startElement(key, {})
                 self._to_xml(xml, value)
                 xml.endElement(key)
         else:
-            xml.characters(smart_unicode(data))
+            xml.characters(force_text(data))
 
-    def encode(self, request, converted_data, resource, result):
-        stream = StringIO.StringIO()
+    def encode(self, data, **kwargs):
+        stream = cStringIO()
 
-        xml = SimplerXMLGenerator(stream, "utf-8")
+        xml = SimplerXMLGenerator(stream, 'utf-8')
         xml.startDocument()
-        xml.startElement("response", {})
+        xml.startElement('response', {})
 
-        self._to_xml(xml, converted_data)
+        self._to_xml(xml, data)
 
-        xml.endElement("response")
+        xml.endElement('response')
         xml.endDocument()
 
         return stream.getvalue()
@@ -162,15 +158,14 @@ class XMLConverter(Converter):
 
 @register('json', 'application/json; charset=utf-8')
 class JSONConverter(Converter):
+
     """
     JSON emitter, understands timestamps.
     """
-    def encode(self, request, converted_data, resource, result):
-        return json.dumps(
-            converted_data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4
-        )
+    def encode(self, data, **kwargs):
+        return json.dumps(data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
 
-    def decode(self, request, data):
+    def decode(self, data, **kwargs):
         return json.loads(data)
 
 
@@ -182,7 +177,7 @@ class GeneratorConverter(Converter):
     Output is flat.
 
     It is necessary set generator_class as class attribute
-    
+
     This class contains little bit low-level implementation
     """
 
@@ -236,29 +231,35 @@ class GeneratorConverter(Converter):
             result.append(out_row)
         return result
 
-    def encode(self, request, converted_data, resource, result):
-        output = StringIO.StringIO()
-        fieldset = FieldsetGenerator(request, resource, converted_data).generate()
+    def _get_output(self):
+        return BytesIO()
+
+    def encode(self, data, resource=None, fields_string=None, **kwargs):
+        output = self._get_output()
+        fieldset = FieldsetGenerator(data, resource, fields_string).generate()
         self.generator_class().generate(
             self._render_headers(fieldset),
-            self._render_content(fieldset, converted_data),
+            self._render_content(fieldset, data),
             output
         )
         return output.getvalue()
 
 
 @register('csv', 'text/csv; charset=utf-8')
-class CsvConverter(GeneratorConverter):
-    generator_class = CsvGenerator
+class CSVConverter(GeneratorConverter):
+    generator_class = CSVGenerator
+
+    def _get_output(self):
+        return cStringIO()
 
 
-if XlsxGenerator:
+if XLSXGenerator:
     @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     class XLSXConverter(GeneratorConverter):
-        generator_class = XlsxGenerator
+        generator_class = XLSXGenerator
 
 
-if PdfGenerator:
+if PDFGenerator:
     @register('pdf', 'application/pdf; charset=utf-8')
-    class PdfConverter(GeneratorConverter):
-        generator_class = PdfGenerator
+    class PDFConverter(GeneratorConverter):
+        generator_class = PDFGenerator

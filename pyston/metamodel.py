@@ -71,7 +71,6 @@ class ResourceMetamodel(object):
                 }
             else:
                 deskriptor = getattr(self.resource.model, field_name, None)
-                print deskriptor
                 if deskriptor and hasattr(deskriptor, 'related'):
                     result[field_name] = {
                         'type': deskriptor.__class__.__name__,

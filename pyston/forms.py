@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 
-class RestFormMixin(object):
+class RESTFormMixin(object):
 
     def is_invalid(self):
         '''
@@ -28,7 +28,7 @@ class RestFormMixin(object):
 
     def is_valid(self):
         self._merge_from_initial()
-        return super(RestFormMixin, self).is_valid()
+        return super(RESTFormMixin, self).is_valid()
 
     """
     Subclass of `forms.ModelForm` which makes sure
@@ -56,5 +56,5 @@ class AllFieldsUniqueValidationModelForm(forms.ModelForm):
             self._update_errors(e)
 
 
-class RestModelForm(RestFormMixin, AllFieldsUniqueValidationModelForm):
+class RESTModelForm(RESTFormMixin, AllFieldsUniqueValidationModelForm):
     pass
