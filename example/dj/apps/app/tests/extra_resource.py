@@ -1,10 +1,10 @@
 from germanium.rest import RESTTestCase
 from germanium.anotations import data_provider
 
-from .test_case import PistonTestCase
+from .test_case import PystonTestCase
 
 
-class ExtraResourceTestCase(PistonTestCase):
+class ExtraResourceTestCase(PystonTestCase):
 
     def test_not_supported_message_for_put_post_and_delete(self):
         resp = self.put(self.EXTRA_API_URL, data=self.serialize({}))

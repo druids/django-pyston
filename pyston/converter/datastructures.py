@@ -1,26 +1,21 @@
-from django.utils.datastructures import SortedDict
+from __future__ import unicode_literals
+
 from django.utils.encoding import force_text
 from django.db import models
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
 from django.forms.forms import pretty_name
+from django.utils.encoding import python_2_unicode_compatible
 
 from chamber.utils import get_class_method
 
 from collections import OrderedDict
 
-from piston.utils import split_fields, is_match, get_model_from_descriptor
+from pyston.utils import split_fields, is_match, get_model_from_descriptor
+from pyston.utils.compatibility import get_all_related_objects_from_model
 
-
-class ModelSortedDict(OrderedDict):
-
-    def __init__(self, model, resource, *args, **kwargs):
-        super(ModelSortedDict, self).__init__(*args, **kwargs)
-        self.model = model
-        self.resource = resource
-
-
+@python_2_unicode_compatible
 class Field(object):
 
     def __init__(self, key_path, label_path):
@@ -29,9 +24,6 @@ class Field(object):
 
     def __str__(self):
         return capfirst(' '.join(map(force_text, self.key_path))).strip()
-
-    def __unicode__(self):
-        return capfirst(' '.join(map(force_text, self.label_path))).strip()
 
     def __hash__(self):
             return hash('__'.join(self.key_path))
@@ -45,21 +37,20 @@ class Field(object):
 
 class FieldsetGenerator(object):
 
-    def __init__(self, request, resource, data):
-        self.request = request
+    def __init__(self, data, resource=None, fields_string=None):
         self.data = data
         self.resource = resource
-        self.fields_string = request._rest_context.get('fields') or force_text(DataFieldset(data))
+        self.fields_string = fields_string or force_text(DataFieldset(data))
 
-    def _get_resource(self, obj):
-        from piston.resource import typemapper
+    def _get_resource_class(self, obj):
+        from pyston.resource import typemapper
 
         resource_class = typemapper.get(type(obj))
         if resource_class:
-            return resource_class(self.request)
+            return resource_class
 
     def _get_field_label_from_model_related_objects(self, model, field_name):
-        for rel in model._meta.get_all_related_objects():
+        for rel in get_all_related_objects_from_model(model):
             reverse_name = rel.get_accessor_name()
             if field_name == reverse_name:
                 if isinstance(rel.field, models.OneToOneField):
@@ -93,9 +84,8 @@ class FieldsetGenerator(object):
 
     def _get_label(self, field_name, model):
         if model:
-            return (self._get_field_label_from_model(model, self._get_resource(model), field_name) or
-                        (field_name != '_obj_name' and field_name or '')
-                    )
+            return (self._get_field_label_from_model(model, self._get_resource_class(model), field_name) or
+                    (field_name != '_obj_name' and field_name or ''))
         else:
             return field_name
 
@@ -130,8 +120,8 @@ class DataFieldset(object):
 
     def __init__(self, data):
         self.root = {}
-        # SordedDict is used as SortedSet
-        self.fieldset = SortedDict()
+        # OrderedDict is used as OrderedSet
+        self.fieldset = OrderedDict()
         self._init_data(data)
 
     def _tree_contains(self, key_path):

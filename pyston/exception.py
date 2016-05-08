@@ -15,11 +15,11 @@ class MimerDataException(Exception):
     pass
 
 
-class RestException(Exception):
+class RESTException(Exception):
     message = None
 
     def __init__(self, message=None):
-        super(RestException, self).__init__()
+        super(RESTException, self).__init__()
         self.message = message or self.message
 
     @property
@@ -27,23 +27,23 @@ class RestException(Exception):
         return {'error': self.message}
 
 
-class ResourceNotFoundException(RestException):
+class ResourceNotFoundException(RESTException):
     message = _('Select a valid choice. That choice is not one of the available choices.')
 
 
-class NotAllowedException(RestException):
+class NotAllowedException(RESTException):
     message = _('Not allowed.')
 
 
-class NotAllowedMethodException(RestException):
+class NotAllowedMethodException(RESTException):
     message = _('Not allowed method.')
 
 
-class DuplicateEntryException(RestException):
+class DuplicateEntryException(RESTException):
     message = _('Conflict/Duplicate.')
 
 
-class ConflictException(RestException):
+class ConflictException(RESTException):
     message = _('Object already exists but you do not allowed to change it.')
 
 

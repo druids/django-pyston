@@ -3,6 +3,10 @@ from __future__ import unicode_literals
 import re
 import warnings
 
+import six
+
+from six.moves.urllib.parse import urlparse
+
 from django.conf import settings
 from django.http import HttpResponse
 from django.utils.decorators import classonlymethod
@@ -20,15 +24,23 @@ from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
 
 from .paginator import Paginator
-from .response import (HeadersResponse, RestErrorResponse, RestErrorsResponse, RestCreatedResponse,
-                       RestNoConetentResponse)
-from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
+from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
+                       RESTNoConetentResponse)
+from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
-from .forms import RestModelForm
+from .forms import RESTModelForm
 from .utils import rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer
 from .converter import get_converter_name_from_request
+
+
+ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
+ACCESS_CONTROL_EXPOSE_HEADERS = 'Access-Control-Expose-Headers'
+ACCESS_CONTROL_ALLOW_CREDENTIALS = 'Access-Control-Allow-Credentials'
+ACCESS_CONTROL_ALLOW_HEADERS = 'Access-Control-Allow-Headers'
+ACCESS_CONTROL_ALLOW_METHODS = 'Access-Control-Allow-Methods'
+ACCESS_CONTROL_MAX_AGE = 'Access-Control-Max-Age'
 
 
 typemapper = {}
@@ -41,16 +53,17 @@ class ResourceMetaClass(type):
     mappings.
     """
     def __new__(cls, name, bases, attrs):
+        abstract = attrs.pop('abstract', False)
         new_cls = type.__new__(cls, name, bases, attrs)
-        if new_cls.register:
+        if not abstract and new_cls.register:
             def already_registered(model):
                 return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
                 if already_registered(new_cls.model):
-                    if not getattr(settings, 'PISTON_IGNORE_DUPE_MODELS', False):
-                        warnings.warn("Resource already registered for model %s, "
-                                      "you may experience inconsistent results." % new_cls.model.__name__)
+                    if not getattr(settings, 'PYSTON_IGNORE_DUPE_MODELS', False):
+                        warnings.warn('Resource already registered for model %s, '
+                                      'you may experience inconsistent results.' % new_cls.model.__name__)
 
                 typemapper[new_cls.model] = new_cls
 
@@ -65,8 +78,7 @@ class PermissionsResourceMixin(object):
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
 
     def _get_via(self, via=None):
-        via = via or []
-        via = list(via)
+        via = list(via) if via is not None else []
         via.append(self)
         return via
 
@@ -108,14 +120,13 @@ class PermissionsResourceMixin(object):
     def __getattr__(self, name):
         for regex, method in (
                 (r'_check_(\w+)_permission', self._check_permission),
-                (r'can_call_(\w+)', self._check_call)
-        ):
+                (r'can_call_(\w+)', self._check_call)):
             m = re.match(regex, name)
             if m:
                 def _call(*args, **kwargs):
                     return method(m.group(1), *args, **kwargs)
                 return _call
-        raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
+        raise AttributeError('%r object has no attribute %r' % (self.__class__, name))
 
     def has_get_permission(self, obj=None, via=None):
         return 'get' in self.allowed_methods and hasattr(self, 'get')
@@ -136,7 +147,7 @@ class PermissionsResourceMixin(object):
         return 'options' in self.allowed_methods and hasattr(self, 'options')
 
 
-class BaseResource(PermissionsResourceMixin):
+class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixin)):
     """
     BaseResource that gives you CRUD for free.
     You are supposed to subclass this for specific
@@ -146,11 +157,11 @@ class BaseResource(PermissionsResourceMixin):
     receive a request as the first argument from the
     resource. Use this for checking `request.user`, etc.
     """
-    __metaclass__ = ResourceMetaClass
 
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
     serializer = ResourceSerializer
     register = False
+    abstract = True
     csrf_exempt = True
     cache = None
 
@@ -169,9 +180,7 @@ class BaseResource(PermissionsResourceMixin):
         self.kwargs = {}
 
     def _flatten_dict(self, dct):
-        if isinstance(dct, dict):
-            return dict([(str(k), dct.get(k)) for k in dct.keys()])
-        return {}
+        return {str(k): dct.get(k) for k in dct.keys()} if isinstance(dct, dict) else {}
 
     def get_dict_data(self):
         return self._flatten_dict(self.request.data) if hasattr(self.request, 'data') else {}
@@ -210,10 +219,40 @@ class BaseResource(PermissionsResourceMixin):
             raise Http404
         return obj
 
+    def _get_cors_allowed_headers(self):
+        return ('X-Base', 'X-Offset', 'X-Fields', 'origin', 'content-type', 'accept')
+
+    def _get_cors_allowed_exposed_headers(self):
+        return ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options')
+
+    def _get_cors_origins_whitelist(self):
+        return getattr(settings, 'PYSTON_CORS_WHITELIST', ())
+
+    def _get_cors_max_age(self):
+        return getattr(settings, 'PYSTON_CORS_MAX_AGE', 60 * 30)
+
+    def _cors_is_origin_in_whitelist(self, origin):
+        if not origin:
+            return False
+        else:
+            url = urlparse(origin)
+            return url.netloc in self._get_cors_origins_whitelist() or self._regex_domain_match(origin)
+
+    def _regex_domain_match(self, origin):
+        for domain_pattern in self._get_cors_origins_whitelist():
+            if re.match(domain_pattern, origin):
+                return origin
+
     def options(self):
-        obj = self._get_obj_or_none()
-        allowed_methods = [method.upper() for method in self.get_allowed_methods(obj)]
-        return HeadersResponse(None, http_headers={'Allowed': ','.join(allowed_methods)})
+        if getattr(settings, 'PYSTON_CORS', False) and self.request.META.get('HTTP_ORIGIN'):
+            http_headers = {
+                ACCESS_CONTROL_ALLOW_METHODS: self.request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', 'OPTIONS'),
+                ACCESS_CONTROL_ALLOW_HEADERS: ', '.join(self._get_cors_allowed_headers())
+            }
+        else:
+            obj = self._get_obj_or_none()
+            http_headers = {'Allowed': ', '.join((method.upper() for method in self.get_allowed_methods(obj)))}
+        return HeadersResponse(None, http_headers=http_headers)
 
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
@@ -224,8 +263,12 @@ class BaseResource(PermissionsResourceMixin):
     def _serialize(self, result):
         return self.serializer(self).serialize(
             self.request, result, self._get_requested_fieldset(result),
-            self._get_serialization_format()
+            self._get_serialization_format(),
+            serialize_obj_without_resource=self._is_serialized_obj_without_resource()
         )
+
+    def _is_serialized_obj_without_resource(self):
+        return False
 
     def _deserialize(self):
         return self.serializer(self).deserialize(self.request)
@@ -286,11 +329,10 @@ class BaseResource(PermissionsResourceMixin):
 
         try:
             content, ct = self._serialize(result)
-
         except UnsupportedMediaTypeException:
             content = ''
             status_code = 415
-            ct = getattr(settings, 'PISTON_DEFAULT_CONVERTER', 'json')
+            ct = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
 
         if result is None:
             content = ''
@@ -337,14 +379,28 @@ class BaseResource(PermissionsResourceMixin):
         return '%s.%s' % (self._get_resource_name(), get_converter_name_from_request(self.request))
 
     def _get_headers(self, result, http_headers):
+        origin = self.request.META.get('HTTP_ORIGIN')
+
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
         http_headers['Content-Disposition'] = 'inline; filename="%s"' % self._get_filename()
+
         fields = self.get_fields(obj=result)
         if fields:
             http_headers['X-Fields-Options'] = ','.join(fields.flat())
+
+        if getattr(settings, 'PYSTON_CORS', False):
+            if origin and self._cors_is_origin_in_whitelist(origin):
+                http_headers[ACCESS_CONTROL_ALLOW_ORIGIN] = origin
+            http_headers[ACCESS_CONTROL_ALLOW_CREDENTIALS] = (
+                'true' if getattr(settings, 'PYSTON_CORS_ALLOW_CREDENTIALS', True) else 'false'
+            )
+            cors_allowed_exposed_headers = self._get_cors_allowed_exposed_headers()
+            if cors_allowed_exposed_headers:
+                http_headers[ACCESS_CONTROL_EXPOSE_HEADERS] = ', '.join(cors_allowed_exposed_headers)
+            http_headers[ACCESS_CONTROL_MAX_AGE] = str(self._get_cors_max_age())
         return http_headers
 
     @classonlymethod
@@ -370,16 +426,13 @@ class BaseResource(PermissionsResourceMixin):
         return view
 
 
-class DefaultRestObjectResource(PermissionsResourceMixin):
+class DefaultRESTObjectResource(PermissionsResourceMixin):
 
     default_detailed_fields = ('id', '_obj_name')
     default_general_fields = ('id', '_obj_name')
     extra_fields = ()
     guest_fields = ('id', '_obj_name')
     allowed_methods = ()
-
-    def _obj_name(self, obj):
-        return force_text(obj)
 
     def get_fields(self, obj=None):
         return self.get_default_detailed_fields(obj).join(
@@ -398,11 +451,46 @@ class DefaultRestObjectResource(PermissionsResourceMixin):
         return rfs(self.guest_fields)
 
 
-class BaseObjectResource(DefaultRestObjectResource, BaseResource):
+class DefaultRESTModelResource(DefaultRESTObjectResource):
+
+    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    default_detailed_fields = None
+    default_general_fields = None
+    extra_fields = None
+    guest_fields = None
+    model = None
+
+    def get_default_detailed_fields(self, obj=None):
+        return rfs(
+            self.default_detailed_fields if self.default_detailed_fields is not None
+            else self.model._rest_meta.default_detailed_fields
+        )
+
+    def get_default_general_fields(self, obj=None):
+        return rfs(
+            self.default_general_fields if self.default_general_fields is not None
+            else self.model._rest_meta.default_general_fields
+        )
+
+    def get_extra_fields(self, obj=None):
+        return rfs(
+            self.extra_fields if self.extra_fields is not None
+            else self.model._rest_meta.extra_fields
+        )
+
+    def get_guest_fields(self, obj=None):
+        return rfs(
+            self.guest_fields if self.guest_fields is not None
+            else self.model._rest_meta.guest_fields
+        )
+
+
+class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
     pk_name = 'pk'
     pk_field_name = 'id'
+    abstract = True
 
     def _get_queryset(self):
         """
@@ -440,20 +528,22 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         """
         raise NotImplementedError
 
+    def _get_pk(self):
+        return self.kwargs.get(self.pk_name)
+
     def post(self):
-        pk = self.kwargs.get(self.pk_name)
+        pk = self._get_pk()
         data = self.get_dict_data()
         if pk and self._exists_obj(pk=pk):
             raise DuplicateEntryException
         try:
-            inst = self._atomic_create_or_update(data)
+            return RESTCreatedResponse(self._atomic_create_or_update(data))
         except DataInvalidException as ex:
-            return RestErrorsResponse(ex.errors)
+            return RESTErrorsResponse(ex.errors)
         except NotAllowedException:
             raise
-        except (RestException, PersistenceException) as ex:
-            return RestErrorResponse(ex.message)
-        return RestCreatedResponse(inst)
+        except (RESTException, PersistenceException) as ex:
+            return RESTErrorResponse(ex.message)
 
     def get(self):
         pk = self.kwargs.get(self.pk_name)
@@ -465,33 +555,33 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
             qs = self._order_queryset(qs)
             paginator = Paginator(qs, self.request)
             return HeadersResponse(paginator.page_qs, {'X-Total': paginator.total})
-        except (RestException, PersistenceException) as ex:
-            return RestErrorResponse(ex.message)
+        except (RESTException, PersistenceException) as ex:
+            return RESTErrorResponse(ex.message)
         except Http404:
             raise
         except Exception as ex:
             return HeadersResponse([], {'X-Total': 0})
 
     def put(self):
-        pk = self.kwargs.get(self.pk_name)
+        pk = self._get_pk()
         data = self.get_dict_data()
         data[self.pk_field_name] = pk
         try:
             return self._atomic_create_or_update(data)
         except DataInvalidException as ex:
-            return RestErrorsResponse(ex.errors)
+            return RESTErrorsResponse(ex.errors)
         except (ConflictException, NotAllowedException):
             raise
-        except (RestException, PersistenceException) as ex:
-            return RestErrorResponse(ex.message)
+        except (RESTException, PersistenceException) as ex:
+            return RESTErrorResponse(ex.message)
 
     def delete(self):
         try:
             pk = self.kwargs.get(self.pk_name)
             self._delete(pk)
-            return RestNoConetentResponse()
-        except (RestException, PersistenceException) as ex:
-            return RestErrorResponse(ex.message)
+            return RESTNoConetentResponse()
+        except (RESTException, PersistenceException) as ex:
+            return RESTErrorResponse(ex.message)
 
     def _delete(self, pk, via=None):
         via = via or []
@@ -555,8 +645,7 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         """
         Helper for creating or updating resource
         """
-        from piston.data_processor import data_preprocessors
-        from piston.data_processor import data_postprocessors
+        from pyston.data_processor import data_preprocessors, data_postprocessors
 
         if via is None:
             via = []
@@ -605,10 +694,11 @@ class BaseObjectResource(DefaultRestObjectResource, BaseResource):
         pass
 
 
-class BaseModelResource(BaseObjectResource):
+class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
 
     register = True
-    form_class = RestModelForm
+    abstract = True
+    form_class = RESTModelForm
 
     def _get_queryset(self):
         return self.model.objects.all()
