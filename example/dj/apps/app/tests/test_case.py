@@ -1,7 +1,7 @@
 from germanium.rest import RESTTestCase
 
 
-class PistonTestCase(RESTTestCase):
+class PystonTestCase(RESTTestCase):
     USER_API_URL = '/api/user/'
     ISSUE_API_URL = '/api/issue/'
     EXTRA_API_URL = '/api/extra/'

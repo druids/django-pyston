@@ -2,14 +2,17 @@ from __future__ import unicode_literals
 
 import re
 
+import six
+
+from collections import OrderedDict
+
+import django
 from django.http import HttpResponse
 from django.utils.translation import ugettext_lazy as _
 from django.db.models.fields.related import RelatedField
 from django.template.defaultfilters import lower
 from django.db import models
-from django.utils import six
 from django.utils.encoding import force_text
-from django.utils.datastructures import SortedDict
 
 from copy import deepcopy
 
@@ -23,8 +26,8 @@ class rc_factory(object):
         CREATED=({'success': _('The record was created')}, 201),
         DELETED=('', 204),  # 204 says "Don't send a body!"
         BAD_REQUEST=({'error': _('Bad Request')}, 400),
-        FORBIDDEN=({'error':_('Forbidden')}, 403),
-        NOT_FOUND=({'error':_('Not Found')}, 404),
+        FORBIDDEN=({'error': _('Forbidden')}, 403),
+        NOT_FOUND=({'error': _('Not Found')}, 404),
         METHOD_NOT_ALLOWED=({'error': _('Method Not Allowed')}, 405),
         DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
         NOT_HERE=({'error': _('Gone')}, 410),
@@ -47,7 +50,7 @@ class rc_factory(object):
 
         class HttpResponseWrapper(HttpResponse):
             """
-            Wrap HttpResponse and make sure that the internal_base_content_is_iter 
+            Wrap HttpResponse and make sure that the internal_base_content_is_iter
             flag is updated when the _set_content method (via the content
             property) is called
             """
@@ -58,7 +61,7 @@ class rc_factory(object):
                 HttpResponse.content although this bug report (feature request)
                 suggests that it should: http://code.djangoproject.com/ticket/9403
                 """
-                if not isinstance(content, basestring) and hasattr(content, '__iter__'):
+                if not isinstance(content, six.string_types) and hasattr(content, '__iter__'):
                     self._container = {'messages': content}
                     self._base_content_is_iter = True
                 else:
@@ -78,11 +81,11 @@ def coerce_put_post(request):
     In case we send data over PUT, Django won't
     actually look at the data and load it. We need
     to twist its arm here.
-    
+
     The try/except abominiation here is due to a bug
     in mod_python. This should fix it.
     """
-    if request.method == "PUT":
+    if request.method == 'PUT':
         # Bug fix: if _load_post_and_files has already been called, for
         # example by middleware accessing request.POST, the below code to
         # pretend the request is a POST instead of a PUT will be too late
@@ -98,9 +101,9 @@ def coerce_put_post(request):
             del request._files
 
         try:
-            request.method = "POST"
+            request.method = 'POST'
             request._load_post_and_files()
-            request.method = "PUT"
+            request.method = 'PUT'
         except AttributeError:
             request.META['REQUEST_METHOD'] = 'POST'
             request._load_post_and_files()
@@ -110,12 +113,12 @@ def coerce_put_post(request):
 
 
 def model_default_rest_fields(model):
-    rest_fields = []
+    rest_fields = {'_obj_name', '_rest_links'}
     for field in model._meta.fields:
         if isinstance(field, RelatedField):
-            rest_fields.append((field.name, ('id', '_obj_name', '_rest_links')))
+            rest_fields.add((field.name, ('id', '_obj_name', '_rest_links')))
         else:
-            rest_fields.append(field.name)
+            rest_fields.add(field.name)
     return rest_fields
 
 
@@ -136,13 +139,13 @@ class JsonObj(dict):
 
 
 def model_resources_to_dict():
-    from resource import resource_tracker
+    from pyston.resource import resource_tracker
 
     model_resources = {}
     for resource in resource_tracker:
         if hasattr(resource, 'model') and issubclass(resource.model, models.Model):
             model = resource.model
-            model_label = lower('%s.%s' % (model._meta.app_label, model._meta.object_name))
+            model_label = lower('{}.{}'.format(model._meta.app_label, model._meta.object_name))
             model_resources[model_label] = resource
     return model_resources
 
@@ -196,14 +199,14 @@ def split_fields(fields_string):
         yield field
 
 
-class RestField(object):
+class RESTField(object):
 
     def __init__(self, name, subfieldset=None):
         assert isinstance(name, six.string_types)
-        assert subfieldset is None or isinstance(subfieldset, RestFieldset)
+        assert subfieldset is None or isinstance(subfieldset, RESTFieldset)
 
         self.name = name
-        self.subfieldset = subfieldset or RestFieldset()
+        self.subfieldset = subfieldset or RESTFieldset()
 
     def __deepcopy__(self, memo):
         return self.__class__(self.name, deepcopy(self.subfieldset))
@@ -218,11 +221,11 @@ class RestField(object):
 
     def __str__(self):
         if self.subfieldset:
-            return '%s(%s)' % (self.name, self.subfieldset)
-        return '%s' % self.name
+            return '{}({})'.format(self.name, self.subfieldset)
+        return force_text(self.name)
 
 
-class RestFieldset(object):
+class RESTFieldset(object):
 
     @classmethod
     def create_from_string(cls, fields_string):
@@ -241,12 +244,12 @@ class RestFieldset(object):
                     field_name, subfields_string = field.split('__', 1)
                     subfieldset = RFS.create_from_string(subfields_string)
 
-            fields.append(RestField(field_name, subfieldset))
-        return RestFieldset(*fields)
+            fields.append(RESTField(field_name, subfieldset))
+        return RESTFieldset(*fields)
 
     @classmethod
     def create_from_list(cls, fields_list):
-        if isinstance(fields_list, RestFieldset):
+        if isinstance(fields_list, RESTFieldset):
             return deepcopy(fields_list)
 
         fields = []
@@ -254,17 +257,17 @@ class RestFieldset(object):
             if isinstance(field, (list, tuple)):
                 field_name, subfield_list = field
 
-                fields.append(RestField(field_name, cls.create_from_list(subfield_list)))
+                fields.append(RESTField(field_name, cls.create_from_list(subfield_list)))
             else:
                 fields.append(field)
 
-        return RestFieldset(*fields)
+        return RESTFieldset(*fields)
 
     def __init__(self, *fields):
-        self.fields_map = SortedDict()
+        self.fields_map = OrderedDict()
         for field in fields:
-            if not isinstance(field, RestField):
-                field = RestField(field)
+            if not isinstance(field, RESTField):
+                field = RESTField(field)
             self.append(field)
 
     @property
@@ -272,7 +275,7 @@ class RestFieldset(object):
         return self.fields_map.values()
 
     def join(self, rest_fieldset):
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         for rf in rest_fieldset.fields:
             if rf.name not in self.fields_map:
@@ -283,10 +286,10 @@ class RestFieldset(object):
         return self
 
     def intersection(self, rest_fieldset):
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         fields_map = self.fields_map
-        self.fields_map = SortedDict()
+        self.fields_map = OrderedDict()
 
         for name, rf in fields_map.items():
             if name in rest_fieldset.fields_map:
@@ -295,7 +298,7 @@ class RestFieldset(object):
         return self
 
     def extend_fields_fieldsets(self, rest_fieldset):
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         for rf in rest_fieldset.fields:
             if rf.subfieldset and rf.name in self.fields_map and not self.fields_map[rf.name].subfieldset:
@@ -307,10 +310,10 @@ class RestFieldset(object):
         if isinstance(rest_fieldset, (list, tuple, set)):
             rest_fieldset = RFS(*rest_fieldset)
 
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         fields_map = self.fields_map
-        self.fields_map = SortedDict()
+        self.fields_map = OrderedDict()
 
         for name, rf in fields_map.items():
             if name not in rest_fieldset.fields_map:
@@ -332,7 +335,7 @@ class RestFieldset(object):
         if isinstance(rest_fieldset, (list, tuple, set)):
             rest_fieldset = RFS(*rest_fieldset)
 
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         values = []
         for rf in self.fields:
@@ -349,10 +352,10 @@ class RestFieldset(object):
         return self.fields_map.get(key)
 
     def append(self, field):
-        if isinstance(field, RestField):
+        if isinstance(field, RESTField):
             rest_field = field
         else:
-            rest_field = RestField(field)
+            rest_field = RESTField(field)
 
         if rest_field.name in self.fields_map:
             rest_field = rest_field.join(self.fields_map[rest_field.name])
@@ -364,7 +367,7 @@ class RestFieldset(object):
         if isinstance(rest_fieldset, (list, tuple, set)):
             rest_fieldset = RFS(*rest_fieldset)
 
-        assert isinstance(rest_fieldset, RestFieldset)
+        assert isinstance(rest_fieldset, RESTFieldset)
 
         for rf in rest_fieldset.fields:
             rf = deepcopy(rf)
@@ -379,6 +382,6 @@ class RestFieldset(object):
         return set(self.fields_map.keys())
 
 
-RF = RestField
-RFS = RestFieldset
+RF = RESTField
+RFS = RESTFieldset
 rfs = RFS.create_from_list

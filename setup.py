@@ -1,17 +1,17 @@
 from setuptools import setup, find_packages
 
-from piston.version import get_version
+from pyston.version import get_version
 
 
 setup(
-    name="django-piston",
+    name="django-pyston",
     version=get_version(),
-    description="Piston is a Django mini-framework creating APIs.",
+    description="Pyston is a Django mini-framework creating APIs.",
     author='Lubos Matl',
     author_email='matllubos@gmail.com',
-    url='https://github.com/matllubos/django-piston',
+    url='https://github.com/matllubos/django-pyston',
     license='BSD',
-    package_dir={'piston': 'piston'},
+    package_dir={'pyston': 'pyston'},
     include_package_data=True,
     packages=find_packages(),
     classifiers=[
@@ -26,10 +26,10 @@ setup(
     install_requires=[
         'django>=1.6',
         'mimeparse>=0.1.3',
-        'django-chamber>=0.1.10'
+        'django-chamber>=0.1.13'
     ],
     dependency_links=[
-        'https://github.com/matllubos/django-chamber/tarball/0.1.10#egg=django-chamber-0.1.10'
+        'https://github.com/druids/django-chamber/tarball/0.1.13#egg=django-chamber-0.1.13'
     ],
     zip_safe=False
 )
