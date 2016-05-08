@@ -1,0 +1,75 @@
+{% load i18n %}
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>PDF</title>
+    <style type="text/css">
+        {% block style %}
+            @page {
+                size: {{ pagesize }} landscape;
+                margin: 3cm 1cm 2cm 1cm;
+                @frame header {
+                    -pdf-frame-content: header;
+                    top: 1cm;
+                    margin-left: 1cm;
+                    margin-right: 1cm;
+                    margin-bottom: 5cm;
+                    height: 1.5cm;
+                }
+                @frame footer {
+                    -pdf-frame-content: footer;
+                    bottom: 0cm;
+                    margin-left: 1cm;
+                    margin-right: 1cm;
+                    height: 1cm;
+                }
+            }
+        {% endblock %}
+    </style>
+</head>
+<body>
+<div id="header">
+    {% block header %}
+    {% endblock %}
+</div>
+<div class="report {{ type }}">
+    {% block content %}
+        <div class="row">
+            <div class="col-md-12">
+                {% block above-table %}{% endblock %}
+                <table data-show-actions="false" data-filter="filter-report" class="{% block table-classes %}report-grid table table-striped{% endblock %}" data-cols="{{ list_display|join:',' }}"
+                       data-currency="Kč" data-no-data-message="{% trans 'No data are available' %}"
+                        {% block table-attributes %}{% endblock %}>
+                    <thead>
+                    {% block table-header %}
+                        <tr>
+                            {% for header in headers %}
+                                <th class="{{ header }}">
+                                    <span>{{ header|capfirst }}</span>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    {% endblock %}
+                    </thead>
+                    <tfoot>
+                    {% block table-footer %}
+                    {% endblock %}
+                    </tfoot>
+                    <tbody>
+                    {% for row in data %}
+                        <tr>
+                            {% for cell in row %}
+                                <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% block below-table %}{% endblock %}
+            </div>
+        </div>
+    {% endblock %}
+</div>
+</body>
+</html>

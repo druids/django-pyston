@@ -16,6 +16,8 @@ DJANGO_POSTFIX = --settings=$(DJANGO_SETTINGS_MODULE) --pythonpath=$(PYTHONPATH)
 PYTHON_BIN = $(VIRTUAL_ENV)/bin
 TYPE = dev
 OS = $(shell uname)
+PYTHON_VERSION_MAJOR = 3.4
+PYTHON = python$(PYTHON_VERSION_MAJOR)
 
 INIT_DATA_PATH = data
 INIT_DATA_FILE = $(INIT_DATA_PATH)/init.json
@@ -39,7 +41,7 @@ pip:
 	$(PYTHON_BIN)/pip install --process-dependency-links --allow-all-external -r requirements/base.txt
 
 initvirtualenv:
-	virtualenv --no-site-packages $(VIRTUAL_ENV)
+	virtualenv -p $(PYTHON) --no-site-packages $(VIRTUAL_ENV)
 	$(PYTHON_BIN)/pip install --upgrade pip==1.5
 	$(PYTHON_BIN)/pip install setuptools --no-use-wheel --upgrade
 
@@ -60,13 +62,9 @@ initdb:
 
 syncdb:
 	$(PYTHON_BIN)/python manage.py syncdb --noinput $(DJANGO_POSTFIX)
-	$(MAKE) migrate
 
 initdata: syncmedia
 	if [ -a $(LOCALPATH)/$(INIT_DATA_FILE) ]; then $(PYTHON_BIN)/python manage.py loaddata $(LOCALPATH)/$(INIT_DATA_FILE) $(DJANGO_POSTFIX); fi;
-
-migrate:
-	$(PYTHON_BIN)/python manage.py migrate $(DJANGO_POSTFIX)
 
 resetdb:
 	$(PYTHON_BIN)/python manage.py reset_db --noinput $(DJANGO_POSTFIX)
@@ -107,10 +105,11 @@ endif
 datamigration:
 	$(PYTHON_BIN)/python manage.py datamigration $(app) $(name) $(DJANGO_POSTFIX)
 
-install: cleanvar bootstrap initlog initdb syncdb initdata initenv
+install: cleanvar bootstrap initlog linklibrary initdb syncdb initdata initenv
 
 update: clean cleanvirtualenv bootstrap syncdb initenv
 
 include build/Makefile.$(OS)
 
-
+linklibrary:
+	ln -sf $(LOCALPATH)/../pyston/ $(LOCALPATH)/var/ve/lib/python$(PYTHON_VERSION_MAJOR)/site-packages/;
