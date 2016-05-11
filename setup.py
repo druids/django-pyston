@@ -25,7 +25,7 @@ setup(
     ],
     install_requires=[
         'django>=1.6',
-        'mimeparse>=0.1.3',
+        'python-mimeparse>=1.5.1',
         'django-chamber>=0.1.13'
     ],
     dependency_links=[
