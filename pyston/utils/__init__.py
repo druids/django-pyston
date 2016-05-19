@@ -15,6 +15,7 @@ from django.db import models
 from django.utils.encoding import force_text
 
 from copy import deepcopy
+from pyston.utils.compatibility import is_related_descriptor, get_model_from_related_descriptor
 
 
 class rc_factory(object):
@@ -167,10 +168,10 @@ def is_match(regex, text):
 def get_model_from_descriptor(model, field_name):
     if model:
         model_descriptor = getattr(model, field_name, None)
-        if model_descriptor and hasattr(model_descriptor, 'related'):
-            return model_descriptor.related.model
-        elif model_descriptor and hasattr(model_descriptor, 'field'):
-            return model_descriptor.field.rel.to
+        if model_descriptor and is_related_descriptor(model, field_name):
+            return get_model_from_related_descriptor(model_descriptor)
+        elif model_descriptor and hasattr(model_descriptor, 'field') and hasattr(model_descriptor, 'related'):
+            return model_descriptor.field.related.model
 
 
 def split_fields(fields_string):

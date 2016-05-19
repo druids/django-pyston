@@ -28,9 +28,14 @@ def get_all_related_objects_from_model(model):
 
 def get_related_from_descriptior(model_descriptor):
     if django.get_version() >= '1.9':
+        print model_descriptor
         return getattr(model_descriptor, 'rel', getattr(model_descriptor, 'related', None))
     else:
         return model_descriptor.related
+
+
+def get_model_from_related_descriptor(model_descriptor):
+    return get_model_from_rel_obj(get_related_from_descriptior(model_descriptor))
 
 
 def is_single_related_descriptor(model, field_name):
@@ -51,6 +56,10 @@ def is_multiple_related_descriptor(model, field_name):
         from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
 
         return isinstance(getattr(model, field_name, None), ForeignRelatedObjectsDescriptor)
+
+
+def is_related_descriptor(model, field_name):
+    return is_single_related_descriptor(model, field_name) or is_multiple_related_descriptor(model, field_name)
 
 
 def render_template(template_name, context):

@@ -15,6 +15,7 @@ from collections import OrderedDict
 from pyston.utils import split_fields, is_match, get_model_from_descriptor
 from pyston.utils.compatibility import get_all_related_objects_from_model
 
+
 @python_2_unicode_compatible
 class Field(object):
 
