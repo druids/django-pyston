@@ -1,26 +1,23 @@
 from __future__ import unicode_literals
 
+from functools import update_wrapper
 import re
+import six
+from six.moves.urllib.parse import urlparse
 import warnings
 
-import six
-
-from six.moves.urllib.parse import urlparse
-
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.db.models.base import Model
+from django.forms.models import modelform_factory
 from django.http import HttpResponse
+from django.http.response import Http404
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
-from django.db.models.base import Model
-from django.http.response import Http404
-from django.db import transaction
-from django.forms.models import modelform_factory
-from django.core.exceptions import ObjectDoesNotExist
 
-from functools import update_wrapper
-
-from chamber.shortcuts import get_object_or_none
 from chamber.exceptions import PersistenceException
+from chamber.shortcuts import get_object_or_none
 from chamber.utils import remove_accent
 
 from .paginator import Paginator
@@ -49,8 +46,7 @@ resource_tracker = []
 
 class ResourceMetaClass(type):
     """
-    Metaclass that keeps a registry of class -> resource
-    mappings.
+    Metaclass that keeps a registry of class -> resource mappings.
     """
     def __new__(cls, name, bases, attrs):
         abstract = attrs.pop('abstract', False)
