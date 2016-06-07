@@ -6,10 +6,8 @@ import six
 
 from collections import OrderedDict
 
-import django
 from django.http import HttpResponse
 from django.utils.translation import ugettext_lazy as _
-from django.db.models.fields.related import RelatedField
 from django.template.defaultfilters import lower
 from django.db import models
 from django.utils.encoding import force_text
@@ -114,14 +112,8 @@ def coerce_put_post(request):
         request.PUT = request.POST
 
 
-def model_default_rest_fields(model):
-    rest_fields = {'_obj_name', '_rest_links'}
-    for field in model._meta.fields:
-        if isinstance(field, RelatedField):
-            rest_fields.add((field.name, ('id', '_obj_name', '_rest_links')))
-        else:
-            rest_fields.add(field.name)
-    return rest_fields
+def model_all_available_fields(model):
+    return {'_obj_name'} | {field.name for field in model._meta.fields}
 
 
 def flat_list(list_obj):

@@ -428,9 +428,9 @@ class ModelSerializer(Serializer):
             allowed_fieldset = self._get_allowed_fieldset_from_resource(model_resource, obj, via, has_get_permission)
         else:
             allowed_fieldset = (
-                rfs(
+                (requested_fieldset if requested_fieldset else rfs(
                     obj._rest_meta.extra_fields
-                ).join(rfs(obj._rest_meta.default_general_fields)).join(rfs(obj._rest_meta.default_detailed_fields))
+                 ).join(rfs(obj._rest_meta.default_general_fields)).join(rfs(obj._rest_meta.default_detailed_fields)))
                 if serialize_obj_without_resource else rfs(obj._rest_meta.guest_fields)
             )
             default_fieldset = (
@@ -465,12 +465,16 @@ class ModelSerializer(Serializer):
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
               converter_name='json'):
+
     requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
     converted_dict = Serializer()._to_python(data, serialization_format, requested_fieldset=requested_fieldset,
                                              detailed=True, serialize_obj_without_resource=True)
-    try:
-        converter, _ = get_converter(converter_name)
-    except ValueError:
-        raise UnsupportedMediaTypeException
+    if converter_name == 'python':
+        return converted_dict
+    else:
+        try:
+            converter, _ = get_converter(converter_name)
+        except ValueError:
+            raise UnsupportedMediaTypeException
 
-    return converter().encode(converted_dict)
+        return converter().encode(converted_dict)
