@@ -22,16 +22,13 @@ from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _, ugettext
 from django.utils.html import conditional_escape
 
-from chamber.utils.datastructures import Enum
 from chamber.utils import get_class_method
 
-from .exception import MimerDataException, UnsupportedMediaTypeException
 from .utils import coerce_put_post, rfs
 from .utils.compatibility import get_reverse_field_name
-from .converter import get_converter_from_request, get_converter
 
 
-value_serializers = []
+thing_serializers = []
 
 
 def register(klass):
@@ -41,38 +38,8 @@ def register(klass):
     for serializer in value_serializers:
         if type(serializer) == klass:
             return None
-    value_serializers.insert(0, klass())
+    thing_serializers.insert(0, klass)
     return klass
-
-
-def get_resource(request, thing):
-    from .resource import typemapper
-
-    resource_class = typemapper.get(type(thing))
-    return resource_class(request) if resource_class else None
-
-
-def _to_python_via_resource(self, thing, serialization_format, request=None, **kwargs):
-    resource = self._get_resource(request, thing)
-    if resource:
-        thing._resource = resource
-        return resource.serializer(resource)._to_python(thing, serialization_format, request=request, **kwargs)
-    else:
-        return None
-
-
-def find_thing_serializer(thing, request=None):
-    if request:
-        resource = get_resource(request, thing)
-        if resource:
-            return resource.serializer(resource)
-
-    for serializer in value_serializers:
-        if serializer._can_transform_to_python(thing):
-            return serializer
-
-    raise NotImplementedError('Serializer not found for {}'.format(thing))
-
 
 
 class RawVerboseValue(object):
@@ -95,176 +62,136 @@ class RawVerboseValue(object):
             return {'_raw': self.raw_value, '_verbose': self.verbose_value}
 
 
-class Serializer(object):
-    """
-    REST serializer and deserializer, firstly is data serialized to standard python data types and after that is
-    used convertor for final serialization
-    """
+class AbstractThingSerializer(object)
 
-    SERIALIZATION_TYPES = Enum('VERBOSE', 'RAW', 'BOTH')
+    def __init__(self, thing, serialization_format, **kwargs):
+        self.thing = thing
+        self.serialization_format = serialization_format
+        self.kwargs = kwargs
 
-    def _get_resource(self, request, obj):
-        from .resource import typemapper
-
-        resource_class = typemapper.get(type(obj))
-        if resource_class:
-            return resource_class(request)
-
-    def _to_python_via_resource(self, thing, serialization_format, request=None, **kwargs):
-        resource = self._get_resource(request, thing)
-        if resource:
-            thing._resource = resource
-            return resource.serializer(resource)._to_python(thing, serialization_format, request=request, **kwargs)
-        else:
-            return None
-
-    def _find_to_serializer(self, thing):
-        for serializer in value_serializers:
-            if serializer._can_transform_to_python(thing):
-                return serializer
-
-    def _to_python_chain(self, thing, serialization_format, **kwargs):
-        if 'request' in kwargs and not hasattr(thing, '_resource'):
-            result = self._to_python_via_resource(thing, serialization_format, **kwargs)
-            if result:
-                return result
-        serializer = self._find_to_serializer(thing)
-        if serializer:
-            return serializer._to_python(thing, serialization_format, **kwargs)
-        raise NotImplementedError('Serializer not found for %s' % thing)
-
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return self._to_python_chain(thing, serialization_format, **kwargs)
-
-    def _can_transform_to_python(self, thing):
+    def serialize(self):
         raise NotImplementedError
 
+    @classmethod
+    def can_transform_to_python(cls, thing):
+        raise NotImplementedError
 
-class ResourceSerializer(Serializer):
-    """
-    Default resource serializer perform serialization to th client format
-    """
+    def _find_serializer_class(self, thing):
+        for serializer__class in thing_serializers:
+            if serializer__class.can_transform_to_python(thing):
+                return serializer__class
 
-    def __init__(self, resource):
-        self.resource = resource
+    def _find_and_call_serializer_class(self, thing, **kwargs):
+        return self._find_serializer_class(thing)(thing, **kwargs)
 
-    def serialize(self, request, result, requested_fieldset, serialization_format,
-                  serialize_obj_without_resource=False):
-        detailed = self.resource._is_single_obj_request(result)
-        converted_dict = self._to_python(result, serialization_format,
-                                         requested_fieldset=requested_fieldset,
-                                         detailed=detailed, request=request,
-                                         serialize_obj_without_resource=serialize_obj_without_resource)
-        try:
-            converter, ct = get_converter_from_request(request)
-        except ValueError:
-            raise UnsupportedMediaTypeException
 
-        return converter().encode(converted_dict, resource=self.resource,
-                                  fields_string=request._rest_context.get('fields')), ct
+class ResourceSerializer(AbstractThingSerializer):
 
-    def deserialize(self, request):
-        rm = request.method.upper()
-        # Django's internal mechanism doesn't pick up
-        # PUT request, so we trick it a little here.
-        if rm == 'PUT':
-            coerce_put_post(request)
-
-        if rm in {'POST', 'PUT'}:
-            try:
-                converter, _ = get_converter_from_request(request, True)
-                request.data = converter().decode(force_text(request.body))
-            except (TypeError, ValueError):
-                raise MimerDataException
-            except NotImplementedError:
-                raise UnsupportedMediaTypeException
-        return request
-
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return super(ResourceSerializer, self)._to_python(thing, serialization_format, **kwargs)
+    def serialize(self):
+        return _find_and_call_serializer_class(self.thing, self.serialization_format, **self.kwargs)
 
 
 @register
-class StringSerializer(Serializer):
+class StringSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, **kwargs):
-        res = force_text(thing, strings_only=True)
-        if isinstance(res, six.string_types):
-            return conditional_escape(res)
-        else:
-            return res
+    def serialize(self):
+        val = force_text(self.thing, strings_only=True)
+        return conditional_escape(val) if isinstance(res, six.string_types) else val
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def can_transform_to_python(cls, thing):
         return True
 
 
 @register
-class DateTimeSerializer(Serializer):
+class DateTimeSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return timezone.localtime(thing)
+    def serialize(self):
+        return timezone.localtime(self.thing)
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def can_transform_to_python(cls, thing):
         return isinstance(thing, datetime.datetime)
 
 
 @register
-class DictSerializer(Serializer):
+class DictSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
-        return dict([(k, self._to_python_chain(v, serialization_format, **kwargs))
-                     for k, v in thing.items()])
+    def serialize(self):
+        return {
+            k: self._find_and_call_serializer_class(v, self.serialization_format,
+                                                    **self.kwargs) for k, v in self.thing.items()
+        }
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, dict)
 
 
 @register
-class ListSerializer(Serializer):
+class IterableSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, detailed=False, exclude_fields=None, **kwargs):
-        return [self._to_python_chain(v, serialization_format, **kwargs) for v in thing]
+    def serialize(self):
+        return (
+            self._find_and_call_serializer_class(v, self.serialization_format, **self.kwargs) for v in self.thing
+        )
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, (list, tuple, set))
 
 
 @register
-class QuerySetSerializer(Serializer):
+class QuerySetSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return [self._to_python_chain(v, serialization_format, **kwargs) for v in thing]
+    def serialize(self):
+        return (
+            self._find_and_call_serializer_class(v, self.serialization_format, **self.kwargs) for v in self.thing
+        )
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, QuerySet)
 
 
 @register
-class DecimalSerializer(Serializer):
+class DecimalSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return thing
+    def serialize(self):
+        return self.thing
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, decimal.Decimal)
 
 
 @register
-class RawVerboseSerializer(Serializer):
+class RawVerboseSerializer(AbstractThingSerializer):
 
-    def _to_python(self, thing, serialization_format, **kwargs):
-        return self._to_python_chain(thing.get_value(serialization_format), serialization_format, **kwargs)
+    def serialize(self):
+        return self._find_and_call_serializer_class(self.thing.get_value(self.serialization_format),
+                                                    self.serialization_format, **kwargs)
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, RawVerboseValue)
 
 
 @register
-class ModelSerializer(Serializer):
+class ModelSerializer(AbstractThingSerializer):
 
     RESERVED_FIELDS = {'read', 'update', 'create', 'delete', 'model', 'allowed_methods', 'fields', 'exclude'}
+
+    def __init__(self, thing, serialization_format, requested_fieldset=None, extended_fieldset=None, detailed=False,
+                 exclude_fields=None, allow_tags=False, serialize_obj_without_resource=False, **kwargs):
+        super(ModelSerializer, self).__init__(thing, serialization_format, **kwargs)
+        self.requested_fieldset = requested_fieldset
+        self.extended_fieldset = extended_fieldset
+        self.detailed = detailed
+        self.exclude_fields = exclude_fields if exclude_fields is not None else []
+        self.extended_fieldset = exclude_fields
+        self.allow_tags = allow_tags
+        self.serialize_obj_without_resource = serialize_obj_without_resource
 
     def _get_resource_method_fields(self, resource, fields):
         out = {}
@@ -313,21 +240,25 @@ class ModelSerializer(Serializer):
                 method_kwargs[arg_name] = fun_kwargs[arg_name]
 
         if len(method_kwargs_names) == len(method_kwargs):
-            return self._to_python_chain(self._val_to_raw_verbose(method(**method_kwargs)),
-                                         serialization_format, allow_tags=getattr(method, 'allow_tags', False),
-                                         **kwargs)
+            return self._find_and_call_serializer_class(
+                self._val_to_raw_verbose(method(**method_kwargs)), serialization_format,
+                allow_tags=getattr(method, 'allow_tags', False), **kwargs
+            )
 
     def _model_field_to_python(self, field, obj, serialization_format, **kwargs):
         if not field.rel:
             val = self._get_model_value(obj, field)
         else:
             val = getattr(obj, field.name)
-        return self._to_python_chain(val, serialization_format,
-                                     allow_tags=getattr(field, 'allow_tags', False), **kwargs)
+        return self._find_and_call_serializer_class(val, serialization_format,
+                                                    allow_tags=getattr(field, 'allow_tags', False), **kwargs)
 
     def _m2m_field_to_python(self, field, obj, serialization_format, **kwargs):
-        return [self._to_python_chain(m, serialization_format, allow_tags=getattr(field, 'allow_tags', False), **kwargs)
-                for m in getattr(obj, field.name).all()]
+        return (
+            self._find_and_call_serializer_class(m, serialization_format,
+                                                 allow_tags=getattr(field, 'allow_tags', False), **kwargs)
+            for m in getattr(obj, field.name).all()
+        )
 
     def _get_reverse_excluded_fields(self, field, obj):
         model = obj.__class__
@@ -340,11 +271,13 @@ class ModelSerializer(Serializer):
 
     def _reverse_qs_to_python(self, val, field, obj, serialization_format, **kwargs):
         kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)
-        return [self._to_python_chain(m, serialization_format, **kwargs) for m in val.all()]
+        return (
+            self._find_and_call_serializer_class(m, serialization_format, **kwargs) for m in val.all()
+        )
 
     def _reverse_to_python(self, val, field, obj, serialization_format, **kwargs):
         kwargs['exclude_fields'] = self._get_reverse_excluded_fields(field, obj)
-        return self._to_python_chain(val, serialization_format, **kwargs)
+        return self._find_and_call_serializer_class(val, serialization_format, **kwargs)
 
     def _copy_kwargs(self, resource, kwargs):
         subkwargs = kwargs.copy()
@@ -404,9 +337,11 @@ class ModelSerializer(Serializer):
                 return self._method_to_python(val, obj, serialization_format, **kwargs)
             else:
                 method = get_class_method(obj, field_name)
-                return self._to_python_chain(self._val_to_raw_verbose(val), serialization_format,
-                                             allow_tags=method is not None and getattr(method, 'allow_tags', False),
-                                             **kwargs)
+                return self._find_and_call_serializer_class(
+                    self._val_to_raw_verbose(val), serialization_format,
+                    allow_tags=method is not None and getattr(method, 'allow_tags', False),
+                    **kwargs
+                )
 
     def _fields_to_python(self, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
         model_resource = self._get_model_resource(obj)
@@ -482,25 +417,13 @@ class ModelSerializer(Serializer):
             fieldset.subtract(exclude_fields)
         return fieldset
 
-    def _to_python(self, obj, serialization_format, requested_fieldset=None, extended_fieldset=None, detailed=False,
-                   exclude_fields=None, allow_tags=False, serialize_obj_without_resource=False, **kwargs):
-        exclude_fields = exclude_fields or []
-        fieldset = self._get_fieldset(obj, extended_fieldset, requested_fieldset, exclude_fields,
-                                      kwargs.get('via'), detailed, serialize_obj_without_resource)
-        return self._fields_to_python(obj, serialization_format, fieldset, requested_fieldset, **kwargs)
+    def serialize(self):
+        fieldset = self._get_fieldset(self.thing, self.extended_fieldset, self.requested_fieldset, self.exclude_fields,
+                                      self.kwargs.get('via'), self.detailed, self.serialize_obj_without_resource)
+        return self._fields_to_python(self.thing, self.serialization_format, fieldset, self.requested_fieldset,
+                                      **self.kwargs)
 
-    def _can_transform_to_python(self, thing):
+    @classmethod
+    def _can_transform_to_python(cls, thing):
         return isinstance(thing, Model)
 
-
-def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
-              converter_name='json'):
-    requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
-    converted_dict = Serializer()._to_python(data, serialization_format, requested_fieldset=requested_fieldset,
-                                             detailed=True, serialize_obj_without_resource=True)
-    try:
-        converter, _ = get_converter(converter_name)
-    except ValueError:
-        raise UnsupportedMediaTypeException
-
-    return converter().encode(converted_dict)
