@@ -51,13 +51,10 @@ data_postprocessors = DataProcessorCollection()
 
 
 class DataProcessor(object):
-    def __init__(self, resource, form, inst, via):
+    def __init__(self, resource, form, *args, **kwargs):
         self.resource = resource
-        self.model = resource.model
         self.request = resource.request
         self.form = form
-        self.inst = inst
-        self.via = resource._get_via(via)
 
     def _process_field(self, data, files, key, data_item):
         raise NotImplementedError
@@ -114,6 +111,14 @@ class FileDataPreprocessor(DataProcessor):
 
                 if not self.errors:
                     self._process_file_data_field(data, files, key, data_item)
+
+
+class ModelResourceDataProcessor(DataProcessor):
+    def __init__(self, resource, form, inst, via):
+        super(ModelResourceDataProcessor, self).__init__(resource, form)
+        self.model = resource.model
+        self.inst = inst
+        self.via = resource._get_via(via)
 
 
 class ResourceProcessorMixin(object):
@@ -214,7 +219,7 @@ class MultipleDataProcessorMixin(object):
 
 
 @data_preprocessors.register(BaseObjectResource)
-class ModelDataPreprocessor(ResourceProcessorMixin, DataProcessor):
+class ModelDataPreprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
@@ -229,7 +234,7 @@ class ModelDataPreprocessor(ResourceProcessorMixin, DataProcessor):
 
 
 @data_preprocessors.register(BaseObjectResource)
-class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, DataProcessor):
+class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, ModelResourceDataProcessor):
 
     def _create_or_update_related_objects_set(self, data, key, data_item, model):
         if isinstance(data, (tuple, list)):
@@ -309,7 +314,7 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcesso
 
 
 @data_postprocessors.register(BaseModelResource)
-class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, DataProcessor):
+class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, ModelResourceDataProcessor):
 
     def _create_or_update_reverse_related_objects_set(self, data, key, data_item):
         model = get_model_from_relation(self.model, key)
@@ -378,7 +383,7 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
 
 
 @data_postprocessors.register(BaseModelResource)
-class ReverseDataPostprocessor(ResourceProcessorMixin, DataProcessor):
+class ReverseDataPostprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
 
     def _create_or_update_reverse_related_object(self, data, key, data_item):
         model_descriptor = getattr(self.model, key)
