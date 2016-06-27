@@ -119,12 +119,12 @@ class ResourceSerializer(Serializer):
         self.resource = resource
 
     def serialize(self, request, result, requested_fieldset, serialization_format,
-                  serialize_obj_without_resource=False):
+                  direct_serialization=False):
         detailed = self.resource._is_single_obj_request(result)
         converted_dict = self._to_python(result, serialization_format,
                                          requested_fieldset=requested_fieldset,
                                          detailed=detailed, request=request,
-                                         serialize_obj_without_resource=serialize_obj_without_resource)
+                                         direct_serialization=direct_serialization)
         try:
             converter, ct = get_converter_from_request(request)
         except ValueError:
@@ -417,7 +417,7 @@ class ModelSerializer(Serializer):
             return model_resource.get_fields(obj)
 
     def _get_fieldset(self, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed,
-                      serialize_obj_without_resource):
+                      direct_serialization):
         model_resource = self._get_model_resource(obj)
 
         if model_resource:
@@ -430,12 +430,14 @@ class ModelSerializer(Serializer):
             allowed_fieldset = (
                 (requested_fieldset if requested_fieldset else rfs(
                     obj._rest_meta.extra_fields
-                 ).join(rfs(obj._rest_meta.default_general_fields)).join(rfs(obj._rest_meta.default_detailed_fields)))
-                if serialize_obj_without_resource else rfs(obj._rest_meta.guest_fields)
+                 ).join(rfs(obj._rest_meta.default_general_fields)).join(
+                    rfs(obj._rest_meta.default_detailed_fields)
+                 ).join(rfs(obj._rest_meta.direct_serialization_fields)))
+                if direct_serialization else rfs(obj._rest_meta.guest_fields)
             )
             default_fieldset = (
-                rfs(obj._rest_meta.default_detailed_fields) if detailed else rfs(obj._rest_meta.default_general_fields)
-                if serialize_obj_without_resource else rfs(obj._rest_meta.guest_fields)
+                rfs(obj._rest_meta.direct_serialization_fields)
+                if direct_serialization else rfs(obj._rest_meta.guest_fields)
             )
 
         if extended_fieldset:
@@ -453,11 +455,12 @@ class ModelSerializer(Serializer):
         return fieldset
 
     def _to_python(self, obj, serialization_format, requested_fieldset=None, extended_fieldset=None, detailed=False,
-                   exclude_fields=None, allow_tags=False, serialize_obj_without_resource=False, **kwargs):
+                   exclude_fields=None, allow_tags=False, direct_serialization=False, **kwargs):
         exclude_fields = exclude_fields or []
         fieldset = self._get_fieldset(obj, extended_fieldset, requested_fieldset, exclude_fields,
-                                      kwargs.get('via'), detailed, serialize_obj_without_resource)
-        return self._fields_to_python(obj, serialization_format, fieldset, requested_fieldset, **kwargs)
+                                      kwargs.get('via'), detailed, direct_serialization)
+        return self._fields_to_python(obj, serialization_format, fieldset, requested_fieldset,
+                                      direct_serialization=direct_serialization, **kwargs)
 
     def _can_transform_to_python(self, thing):
         return isinstance(thing, Model)
@@ -468,7 +471,7 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
 
     requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
     converted_dict = Serializer()._to_python(data, serialization_format, requested_fieldset=requested_fieldset,
-                                             detailed=True, serialize_obj_without_resource=True)
+                                             detailed=True, direct_serialization=True)
     if converter_name == 'python':
         return converted_dict
     else:

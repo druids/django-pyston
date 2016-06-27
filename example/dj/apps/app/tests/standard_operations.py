@@ -17,7 +17,7 @@ class StandardOperationsTestCase(PystonTestCase):
         self.assert_valid_JSON_created_response(resp)
         pk = self.deserialize(resp)['id']
         resp = self.get(self.USER_API_URL)
-        self.assert_equal(len(self.deserialize(resp)), number + 1)
+        self.assert_equal(len(self.deserialize(resp)), 1)
         self.assert_valid_JSON_response(self.get('%s%s/' % (self.USER_API_URL, pk)))
 
     @data_provider('get_users_data')
@@ -52,7 +52,7 @@ class StandardOperationsTestCase(PystonTestCase):
         self.assert_equal(self.deserialize(resp).get('email'), data['email'])
 
         resp = self.get(self.USER_API_URL)
-        self.assert_equal(len(self.deserialize(resp)), number + 1)
+        self.assert_equal(len(self.deserialize(resp)), 1)
 
     @data_provider('get_users_data')
     def test_delete_user(self, number, data):
@@ -124,7 +124,7 @@ class StandardOperationsTestCase(PystonTestCase):
         self.assert_equal(set(output_data.keys()), {'email', 'id'})
 
         resp = self.get(self.USER_API_URL, headers=headers)
-        self.assert_equal(resp['X-Total'], str(number + 1))
+        self.assert_equal(int(resp['X-Total']), 1)
         for item_data in self.deserialize(resp):
             self.assert_equal(set(item_data.keys()), {'email', 'id'})
 
