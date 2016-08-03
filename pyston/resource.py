@@ -13,7 +13,6 @@ from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
 from django.http.response import Http404
-from django.db import transaction
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -22,6 +21,7 @@ from functools import update_wrapper
 from chamber.shortcuts import get_object_or_none
 from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
+from chamber.utils import transaction
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
