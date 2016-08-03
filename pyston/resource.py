@@ -264,10 +264,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return self.serializer(self).serialize(
             self.request, result, self._get_requested_fieldset(result),
             self._get_serialization_format(),
-            serialize_obj_without_resource=self._is_serialized_obj_without_resource()
+            direct_serialization=self._is_direct_serialization()
         )
 
-    def _is_serialized_obj_without_resource(self):
+    def _is_direct_serialization(self):
         return False
 
     def _deserialize(self):

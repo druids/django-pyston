@@ -13,6 +13,7 @@ class RESTOptions(Options):
     attributes = {
         'default_detailed_fields': {'id', '_obj_name', '_rest_links'},
         'default_general_fields': {'id', '_obj_name', '_rest_links'},
+        'direct_serialization_fields': {'id'},
         'extra_fields': {},
         'guest_fields': {'id'},
     }
