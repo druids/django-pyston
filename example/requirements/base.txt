@@ -1,3 +1,4 @@
+html5lib==0.9999999
 django==1.8
 Pillow==3.0.0
 XlsxWriter==0.7.7
@@ -5,6 +6,6 @@ python-mimeparse==0.1.4
 pep8==1.6.2
 six==1.10.0
 https://github.com/LukasRychtecky/germanium/tarball/1.0.12#egg=germanium-1.0.12
-https://github.com/druids/django-chamber/tarball/0.1.13#egg=django-chamber-0.1.13
+https://github.com/druids/django-chamber/tarball/0.1.18#egg=django-chamber-0.1.18
 https://github.com/matllubos/xhtml2pdf/tarball/develop
 coverage==4.0.2

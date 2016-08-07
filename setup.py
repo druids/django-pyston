@@ -26,10 +26,10 @@ setup(
     install_requires=[
         'django>=1.6',
         'python-mimeparse==0.1.4',
-        'django-chamber>=0.1.13'
+        'django-chamber>=0.1.18'
     ],
     dependency_links=[
-        'https://github.com/druids/django-chamber/tarball/0.1.13#egg=django-chamber-0.1.13'
+        'https://github.com/druids/django-chamber/tarball/0.1.18#egg=django-chamber-0.1.18'
     ],
     zip_safe=False
 )
