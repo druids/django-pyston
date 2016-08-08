@@ -35,12 +35,23 @@ def get_model_from_rel_obj(rel_obj):
 def get_all_related_objects_from_model(model):
     return model._meta.get_all_related_objects() if django.get_version() < '1.9' else [
         f for f in model._meta.get_fields()
-        if (f.one_to_many or f.one_to_one) and f.auto_created
+        if (f.one_to_many or f.one_to_one) and f.auto_created and not f.concrete
     ]
 
 
-def get_model_from_related_descriptor(model_descriptor):
-    return get_model_from_rel_obj(get_related_from_descriptior(model_descriptor))
+def get_concrete_field(model, field_name):
+    if django.get_version() >= '1.8':
+        field = {f.name: f for f in model._meta.get_fields()
+            if f.concrete and (
+                not f.is_relation or f.one_to_one or (f.many_to_one and f.related_model)
+            )
+        }.get(field_name)
+        if not field:
+            raise FieldDoesNotExist
+        else:
+            return field
+    else:
+        return model._meta.get_field(field_name)
 
 
 def is_reverse_many_to_one(model, field_name):
