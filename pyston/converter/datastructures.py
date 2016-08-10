@@ -13,7 +13,7 @@ from chamber.utils import get_class_method
 from collections import OrderedDict
 
 from pyston.utils import split_fields, is_match, get_model_from_descriptor
-from pyston.utils.compatibility import get_all_related_objects_from_model
+from pyston.utils.compatibility import get_all_related_objects_from_model, get_concrete_field, get_model_from_relation
 
 
 @python_2_unicode_compatible
@@ -24,10 +24,10 @@ class Field(object):
         self.label_path = label_path
 
     def __str__(self):
-        return capfirst(' '.join(map(force_text, self.key_path))).strip()
+        return capfirst(' '.join(map(force_text, self.label_path))).strip()
 
     def __hash__(self):
-            return hash('__'.join(self.key_path))
+        return hash('__'.join(self.key_path))
 
     def __eq__(self, other):
         return self.__str__() == other.__str__()
@@ -54,17 +54,18 @@ class FieldsetGenerator(object):
         for rel in get_all_related_objects_from_model(model):
             reverse_name = rel.get_accessor_name()
             if field_name == reverse_name:
+                model = get_model_from_relation(model, field_name)
                 if isinstance(rel.field, models.OneToOneField):
-                    return rel.model._meta.verbose_name
+                    return model._meta.verbose_name
                 else:
-                    return rel.model._meta.verbose_name_plural
+                    return model._meta.verbose_name_plural
         return None
 
     def _get_field_label_from_resource_or_model_method(self, resource_or_model, field_name):
         return get_class_method(resource_or_model, field_name).short_description
 
     def _get_field_label_from_model_field(self, model, field_name):
-        return model._meta.get_field(field_name).verbose_name
+        return get_concrete_field(model, field_name).verbose_name
 
     def _get_field_label_from_model(self, model, resource, field_name):
         try:
@@ -85,8 +86,10 @@ class FieldsetGenerator(object):
 
     def _get_label(self, field_name, model):
         if model:
-            return (self._get_field_label_from_model(model, self._get_resource_class(model), field_name) or
-                    (field_name != '_obj_name' and field_name or ''))
+            return (
+                self._get_field_label_from_model(model, self._get_resource_class(model), field_name)
+                if field_name != '_obj_name' and field_name else ''
+            )
         else:
             return field_name
 
