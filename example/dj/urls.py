@@ -1,5 +1,7 @@
+from distutils.version import StrictVersion
+
 import django
-from django.conf.urls import patterns, url
+from django.conf.urls import url
 
 from app.resource import IssueResource, UserResource, ExtraResource
 
@@ -11,5 +13,7 @@ urlpatterns = [
     url(r'^api/extra/$', ExtraResource.as_view())
 ]
 
-if django.get_version() < '1.9':
+if StrictVersion(django.get_version()) < StrictVersion('1.9'):
+    from django.conf.urls import patterns
+
     urlpatterns = patterns('', *urlpatterns)
