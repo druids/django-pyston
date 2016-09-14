@@ -30,7 +30,7 @@ class Paginator(object):
         if offset.isdigit():
             offset_int = int(offset)
             if offset_int > self.MAX_BIG_INT:
-                raise RESTException(ugettext('Offset must lower or equal to %s' % self.MAX_BIG_INT))
+                raise RESTException(ugettext('Offset must be lower or equal to {}').format(self.MAX_BIG_INT))
             else:
                 return offset_int
         else:
@@ -43,7 +43,7 @@ class Paginator(object):
         elif base.isdigit():
             base_int = int(base)
             if base_int > self.MAX_BIG_INT:
-                raise RESTException(ugettext('Base must lower or equal to %s' % self.MAX_BIG_INT))
+                raise RESTException(ugettext('Base must lower or equal to {}').format(self.MAX_BIG_INT))
             else:
                 return base_int
         else:
