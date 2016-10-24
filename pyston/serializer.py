@@ -258,18 +258,22 @@ class ModelSerializer(Serializer):
                 out[mf.name] = mf
         return out
 
-    def _raw_to_verbose(self, raw):
-        verbose = raw
+    def _get_verbose_value(self, raw, field_or_method, obj, **kwargs):
+        if hasattr(field_or_method, 'humanized') and field_or_method.humanized:
+            return field_or_method.humanized(raw, obj, **kwargs)
+        elif hasattr(field_or_method, 'choices') and field_or_method.choices:
+            return getattr(obj, 'get_{}_display'.format(field_or_method.attname))()
         if isinstance(raw, bool):
-            verbose = raw and ugettext('yes') or ugettext('no')
+            return raw and ugettext('Yes') or ugettext('No')
         elif isinstance(raw, datetime.datetime):
-            verbose = formats.localize(timezone.template_localtime(raw))
+            return formats.localize(timezone.template_localtime(raw))
         elif isinstance(raw, (datetime.date, datetime.time)):
-            verbose = formats.localize(raw)
-        return verbose
+            return formats.localize(raw)
+        else:
+            return raw
 
-    def _val_to_raw_verbose(self, val):
-        return RawVerboseValue(val, self._raw_to_verbose(val))
+    def _value_to_raw_verbose(self, val, field_or_method, obj, **kwargs):
+        return RawVerboseValue(val, self._get_verbose_value(val, field_or_method, obj, **kwargs))
 
     def _method_to_python(self, method, obj, serialization_format, **kwargs):
         method_kwargs_names = inspect.getargspec(method)[0][1:]
@@ -283,17 +287,16 @@ class ModelSerializer(Serializer):
                 method_kwargs[arg_name] = fun_kwargs[arg_name]
 
         if len(method_kwargs_names) == len(method_kwargs):
-            return self._to_python_chain(self._val_to_raw_verbose(method(**method_kwargs)),
-                                         serialization_format, allow_tags=getattr(method, 'allow_tags', False),
-                                         **kwargs)
+            return self._to_python_chain(
+                self._value_to_raw_verbose(method(**method_kwargs), method, obj,
+                                         **{k: v for k, v in method_kwargs.items() if k != 'obj'}),
+                serialization_format, allow_tags=getattr(method, 'allow_tags', False), **kwargs
+            )
 
     def _model_field_to_python(self, field, obj, serialization_format, **kwargs):
-        if not field.rel:
-            val = self._get_model_value(obj, field)
-        else:
-            val = getattr(obj, field.name)
-        return self._to_python_chain(val, serialization_format,
-                                     allow_tags=getattr(field, 'allow_tags', False), **kwargs)
+        return self._to_python_chain(self._value_to_raw_verbose(self._get_model_field_raw_value(obj, field), field, obj)
+                                     if not field.rel else getattr(obj, field.name),
+                                     serialization_format, allow_tags=getattr(field, 'allow_tags', False), **kwargs)
 
     def _m2m_field_to_python(self, field, obj, serialization_format, **kwargs):
         return [self._to_python_chain(m, serialization_format, allow_tags=getattr(field, 'allow_tags', False), **kwargs)
@@ -332,26 +335,12 @@ class ModelSerializer(Serializer):
             subkwargs['requested_fieldset'] = requested_field.subfieldset
         return field_name
 
-    def _get_model_value(self, obj, field):
-        raw = self._get_model_field_raw_value(obj, field)
-        verbose = self._get_model_field_verbose_value(obj, field)
-        return RawVerboseValue(raw, verbose)
-
     def _get_model_field_raw_value(self, obj, field):
         val = getattr(obj, field.attname)
         if isinstance(field, FileField):
             # FileField returns blank string if file does not exists, None is better
             val = val and val.url or None
         return val
-
-    def _get_model_field_verbose_value(self, obj, field):
-        humanize_method_name = 'get_%s_humanized' % field.attname
-        if hasattr(getattr(obj, humanize_method_name, None), '__call__'):
-            return getattr(obj, humanize_method_name)()
-        elif field.choices:
-            return getattr(obj, 'get_%s_display' % field.attname)()
-        else:
-            return self._raw_to_verbose(self._get_model_field_raw_value(obj, field))
 
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
                          obj, serialization_format, **kwargs):
@@ -374,7 +363,7 @@ class ModelSerializer(Serializer):
                 return self._method_to_python(val, obj, serialization_format, **kwargs)
             else:
                 method = get_class_method(obj, field_name)
-                return self._to_python_chain(self._val_to_raw_verbose(val), serialization_format,
+                return self._to_python_chain(self._value_to_raw_verbose(val, method, obj), serialization_format,
                                              allow_tags=method is not None and getattr(method, 'allow_tags', False),
                                              **kwargs)
 
