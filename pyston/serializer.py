@@ -288,12 +288,8 @@ class ModelSerializer(Serializer):
                                          **kwargs)
 
     def _model_field_to_python(self, field, obj, serialization_format, **kwargs):
-        if not field.rel:
-            val = self._get_model_value(obj, field)
-        else:
-            val = getattr(obj, field.name)
-        return self._to_python_chain(val, serialization_format,
-                                     allow_tags=getattr(field, 'allow_tags', False), **kwargs)
+        return self._to_python_chain(self._get_model_value(obj, field) if not field.rel else getattr(obj, field.name),
+                                     serialization_format, allow_tags=getattr(field, 'allow_tags', False), **kwargs)
 
     def _m2m_field_to_python(self, field, obj, serialization_format, **kwargs):
         return [self._to_python_chain(m, serialization_format, allow_tags=getattr(field, 'allow_tags', False), **kwargs)
@@ -345,13 +341,15 @@ class ModelSerializer(Serializer):
         return val
 
     def _get_model_field_verbose_value(self, obj, field):
-        humanize_method_name = 'get_%s_humanized' % field.attname
-        if hasattr(getattr(obj, humanize_method_name, None), '__call__'):
-            return getattr(obj, humanize_method_name)()
+        value = self._get_model_field_raw_value(obj, field)
+        print(field.humanized)
+        if field.humanized:
+            print(field.humanized(value, obj))
+            return field.humanized(value, obj)
         elif field.choices:
-            return getattr(obj, 'get_%s_display' % field.attname)()
+            return getattr(obj, 'get_{}_display'.format(field.attname))()
         else:
-            return self._raw_to_verbose(self._get_model_field_raw_value(obj, field))
+            return self._raw_to_verbose(value)
 
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
                          obj, serialization_format, **kwargs):
