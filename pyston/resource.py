@@ -653,7 +653,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         inst = self._get_instance(data)
         change = inst and True or False
 
-        files = self.request.FILES
+        files = self.request.FILES.copy()
 
         form = self._get_form(inst=inst, data=data, initial=self._get_form_initial(inst))
 
