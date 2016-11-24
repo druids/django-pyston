@@ -333,6 +333,9 @@ class ModelSerializer(Serializer):
 
         if requested_field and requested_field.subfieldset:
             subkwargs['requested_fieldset'] = requested_field.subfieldset
+        elif field.subfieldset:
+            subkwargs['requested_fieldset'] = field.subfieldset
+
         return field_name
 
     def _get_model_field_raw_value(self, obj, field):
