@@ -546,9 +546,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             return RESTErrorResponse(ex.message)
 
     def get(self):
-        pk = self.kwargs.get(self.pk_name)
+        pk = self._get_pk()
         if pk:
-            return self._get_obj_or_404()
+            return self._get_obj_or_404(pk=pk)
         try:
             qs = self._preload_queryset(self._get_queryset().all())
             qs = self._filter_queryset(qs)
