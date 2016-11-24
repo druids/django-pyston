@@ -6,11 +6,9 @@ import inspect
 
 from six import BytesIO
 
-import django
 from django.forms.fields import FileField
 from django.utils.translation import ugettext_lazy as _, ugettext
 from django.core.files.uploadedfile import InMemoryUploadedFile
-from django.db.models.fields import FieldDoesNotExist
 
 from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
 from django.http.response import Http404
@@ -142,16 +140,19 @@ class ResourceProcessorMixin(object):
         result = []
         i = 0
         for obj_data in data:
-            if not isinstance(obj_data, (dict, list)):
+            if not isinstance(obj_data, dict):
                 obj_data = {resource.pk_field_name: obj_data}
 
             try:
                 if created_via_field_name:
                     obj_data[created_via_field_name] = created_via_inst.pk
 
-                related_obj = self._create_or_update_related_object(obj_data, model)
-                if related_obj:
-                    result.append(related_obj.pk)
+                if set(obj_data.keys()) ^ {resource.pk_field_name}:
+                    related_obj = self._create_or_update_related_object(obj_data, model)
+                    if related_obj:
+                        result.append(related_obj.pk)
+                else:
+                    result.append(obj_data[resource.pk_field_name])
             except DataInvalidException as ex:
                 rel_obj_errors = ex.errors
                 rel_obj_errors['_index'] = i
