@@ -428,10 +428,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
 
 class DefaultRESTObjectResource(PermissionsResourceMixin):
 
-    default_detailed_fields = ('id', '_obj_name')
-    default_general_fields = ('id', '_obj_name')
+    default_detailed_fields = ()
+    default_general_fields = ()
     extra_fields = ()
-    guest_fields = ('id', '_obj_name')
+    guest_fields = ()
     allowed_methods = ()
 
     def get_fields(self, obj=None):

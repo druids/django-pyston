@@ -7,6 +7,7 @@ import six
 
 from collections import OrderedDict
 
+from django.conf import settings
 from django.db.models import Model
 from django.db.models.query import QuerySet
 from django.db.models.fields.files import FileField
@@ -19,7 +20,7 @@ except ImportError:
 
 from django.utils import formats, timezone
 from django.utils.encoding import force_text
-from django.utils.translation import ugettext as _, ugettext
+from django.utils.translation import ugettext
 from django.utils.html import conditional_escape
 
 from chamber.utils.datastructures import Enum
@@ -27,8 +28,15 @@ from chamber.utils import get_class_method
 
 from .exception import MimerDataException, UnsupportedMediaTypeException
 from .utils import coerce_put_post, rfs
-from .utils.compatibility import get_reverse_field_name
-from .converter import get_converter_from_request, get_converter
+from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
+from .converter import get_converter_name_from_request, get_converter_from_request, get_converter
+
+
+DEFAULT_CONVERTER_OPTIONS = {
+    'json': {
+        'indent': 4
+    }
+}
 
 
 value_serializers = []
@@ -126,11 +134,14 @@ class ResourceSerializer(Serializer):
                                          detailed=detailed, request=request,
                                          direct_serialization=direct_serialization)
         try:
-            converter, ct = get_converter_from_request(request)
+            converter_name = get_converter_name_from_request(request)
         except ValueError:
             raise UnsupportedMediaTypeException
 
-        return converter().encode(converted_dict, resource=self.resource,
+        converter, ct = get_converter(converter_name)
+        converter_options = getattr(settings, 'DEFAULT_CONVERTER_OPTIONS',
+                                    DEFAULT_CONVERTER_OPTIONS).get(converter_name, {})
+        return converter().encode(converted_dict, converter_options, resource=self.resource,
                                   fields_string=request._rest_context.get('fields')), ct
 
     def deserialize(self, request):
@@ -377,6 +388,7 @@ class ModelSerializer(Serializer):
         m2m_fields = self._get_m2m_fields(obj)
 
         out = OrderedDict()
+
         for field in fieldset.fields:
             subkwargs = self._copy_kwargs(model_resource, kwargs)
             requested_field = None
@@ -384,8 +396,7 @@ class ModelSerializer(Serializer):
                 requested_field = requested_fieldset.get(field.name)
             field_name = self._get_field_name(field, requested_field, subkwargs)
             out[field_name] = self._field_to_python(
-                field_name, resource_method_fields, model_fields, m2m_fields, obj, serialization_format,
-                **subkwargs
+                field_name, resource_method_fields, model_fields, m2m_fields, obj, serialization_format, **subkwargs
             )
 
         return out
@@ -409,7 +420,11 @@ class ModelSerializer(Serializer):
             return model_resource.get_fields(obj)
 
     def _get_fieldset(self, obj, extended_fieldset, requested_fieldset, exclude_fields, via, detailed,
-                      direct_serialization):
+                      direct_serialization, serialized_objects):
+
+        if self._get_obj_serialization_name(obj) in serialized_objects:
+            return rfs((get_last_parent_pk_field_name(obj)))
+
         model_resource = self._get_model_resource(obj)
 
         if model_resource:
@@ -446,12 +461,19 @@ class ModelSerializer(Serializer):
             fieldset.subtract(exclude_fields)
         return fieldset
 
+    def _get_obj_serialization_name(self, obj):
+        return '{}__{}'.format(obj._meta.db_table, obj.pk)
+
     def _to_python(self, obj, serialization_format, requested_fieldset=None, extended_fieldset=None, detailed=False,
-                   exclude_fields=None, allow_tags=False, direct_serialization=False, **kwargs):
-        exclude_fields = exclude_fields or []
+                   exclude_fields=None, allow_tags=False, direct_serialization=False, serialized_objects=None,
+                   **kwargs):
+        exclude_fields = [] if exclude_fields is None else exclude_fields
+        serialized_objects = set() if serialized_objects is None else set(serialized_objects)
         fieldset = self._get_fieldset(obj, extended_fieldset, requested_fieldset, exclude_fields,
-                                      kwargs.get('via'), detailed, direct_serialization)
+                                      kwargs.get('via'), detailed, direct_serialization, serialized_objects)
+        serialized_objects.add(self._get_obj_serialization_name(obj))
         return self._fields_to_python(obj, serialization_format, fieldset, requested_fieldset,
+                                      serialized_objects=serialized_objects,
                                       direct_serialization=direct_serialization, **kwargs)
 
     def _can_transform_to_python(self, thing):
@@ -459,8 +481,10 @@ class ModelSerializer(Serializer):
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
-              converter_name='json'):
-
+              converter_name=None, converter_options=None):
+    converter_name = (
+        converter_name if converter_name is not None else getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
+    )
     requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
     converted_dict = Serializer()._to_python(data, serialization_format, requested_fieldset=requested_fieldset,
                                              detailed=True, direct_serialization=True)
@@ -471,5 +495,8 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
             converter, _ = get_converter(converter_name)
         except ValueError:
             raise UnsupportedMediaTypeException
-
-        return converter().encode(converted_dict)
+        converter_options = (
+            converter_options if converter_options is not None
+            else getattr(settings, 'DEFAULT_DIRECT_SERIALIZATION_CONVERTER_OPTIONS', {}).get(converter_name, {})
+        )
+        return converter().encode(converted_dict, converter_options)
