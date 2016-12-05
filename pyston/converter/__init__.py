@@ -1,13 +1,19 @@
 from __future__ import unicode_literals
 
+import decimal
 import json
+import time
 
 from six.moves import cStringIO
 from six import BytesIO
 
+from django.db.models.fields import FieldDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import models
 from django.utils.encoding import force_text
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.core.serializers.json import DateTimeAwareJSONEncoder
+from django.db.models.base import Model
 from django.conf import settings
 
 from pyston.file_generator import CSVGenerator, XLSXGenerator, PDFGenerator
@@ -101,7 +107,7 @@ class Converter(object):
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
 
-    def encode(self, data, options, **kwargs):
+    def encode(self, data, **kwargs):
         """
         Encode data to output
         """
@@ -135,7 +141,7 @@ class XMLConverter(Converter):
         else:
             xml.characters(force_text(data))
 
-    def encode(self, data, options, **kwargs):
+    def encode(self, data, **kwargs):
         stream = cStringIO()
 
         xml = SimplerXMLGenerator(stream, 'utf-8')
@@ -156,8 +162,8 @@ class JSONConverter(Converter):
     """
     JSON emitter, understands timestamps.
     """
-    def encode(self, data, options, **kwargs):
-        return json.dumps(data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, **options)
+    def encode(self, data, **kwargs):
+        return json.dumps(data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
 
     def decode(self, data, **kwargs):
         return json.loads(data)
@@ -228,7 +234,7 @@ class GeneratorConverter(Converter):
     def _get_output(self):
         return BytesIO()
 
-    def encode(self, data, options, resource=None, fields_string=None, **kwargs):
+    def encode(self, data, resource=None, fields_string=None, **kwargs):
         output = self._get_output()
         fieldset = FieldsetGenerator(data, resource, fields_string).generate()
         self.generator_class().generate(

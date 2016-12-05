@@ -3,9 +3,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.db.models.fields import Field
 
-from chamber.patch import Options
-
-from pyston.utils.compatibility import get_last_parent_pk_field_name
+from chamber.patch import Options, OptionsLazy
 
 
 class RESTOptions(Options):
@@ -13,16 +11,13 @@ class RESTOptions(Options):
     model_class = models.Model
     meta_class_name = 'RESTMeta'
     meta_name = '_rest_meta'
-
-    def _get_attributes(self, model):
-        pk_field_name = get_last_parent_pk_field_name(model)
-        return {
-            'default_detailed_fields': {pk_field_name, '_obj_name', '_rest_links'},
-            'default_general_fields': {pk_field_name, '_obj_name', '_rest_links'},
-            'direct_serialization_fields': {pk_field_name},
-            'extra_fields': {},
-            'guest_fields': {pk_field_name},
-        }
+    attributes = {
+        'default_detailed_fields': {'id', '_obj_name', '_rest_links'},
+        'default_general_fields': {'id', '_obj_name', '_rest_links'},
+        'direct_serialization_fields': {'id'},
+        'extra_fields': {},
+        'guest_fields': {'id'},
+    }
 
 
 def field_init(self, *args, **kwargs):

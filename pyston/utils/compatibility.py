@@ -194,10 +194,3 @@ def render_template(template_name, context):
     if StrictVersion(django.get_version()) < StrictVersion('1.9'):
         context = Context(context)
     return get_template(template_name).render(context)
-
-
-def get_last_parent_pk_field_name(obj):
-    for field in obj._meta.fields:
-        if field.primary_key and (not field.is_relation or not field.auto_created):
-            return field.name
-    raise RuntimeError('Last parent field name was not found (cannot happen)')

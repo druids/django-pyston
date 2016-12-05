@@ -31,7 +31,7 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
 from .utils import rc, set_rest_context_to_request, RFS, rfs
-from .serializer import ResourceSerializer
+from .serializer import ResourceSerializer, ModelResourceSerializer
 from .converter import get_converter_name_from_request
 
 
@@ -368,9 +368,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         response = self._get_from_cache()
         if response:
             return response
-        response = self._get_response()
-        self._store_to_cache(response)
-        return response
+        else:
+            response = self._get_response()
+            self._store_to_cache(response)
+            return response
 
     def _get_resource_name(self):
         return 'resource'
@@ -428,10 +429,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
 
 class DefaultRESTObjectResource(PermissionsResourceMixin):
 
-    default_detailed_fields = ()
-    default_general_fields = ()
+    default_detailed_fields = ('id', '_obj_name')
+    default_general_fields = ('id', '_obj_name')
     extra_fields = ()
-    guest_fields = ()
+    guest_fields = ('id', '_obj_name')
     allowed_methods = ()
 
     def get_fields(self, obj=None):
@@ -559,8 +560,6 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             return RESTErrorResponse(ex.message)
         except Http404:
             raise
-        except Exception as ex:
-            return HeadersResponse([], {'X-Total': 0})
 
     def put(self):
         pk = self._get_pk()
@@ -699,6 +698,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     register = True
     abstract = True
     form_class = RESTModelForm
+    serializer = ModelResourceSerializer
 
     def _get_queryset(self):
         return self.model.objects.all()
