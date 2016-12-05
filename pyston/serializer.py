@@ -423,7 +423,7 @@ class ModelSerializer(Serializer):
                       direct_serialization, serialized_objects):
 
         if self._get_obj_serialization_name(obj) in serialized_objects:
-            return rfs((get_last_parent_pk_field_name(obj)))
+            return rfs((get_last_parent_pk_field_name(obj),))
 
         model_resource = self._get_model_resource(obj)
 
