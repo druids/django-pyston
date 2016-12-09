@@ -109,7 +109,7 @@ class Serializer(object):
         serializer = self._find_to_serializer(thing)
         if serializer:
             return serializer._to_python(thing, serialization_format, **kwargs)
-        raise NotImplementedError('Serializer not found for %s' % thing)
+        raise NotImplementedError('Serializer not found for {}'.format(thing))
 
     def _to_python(self, thing, serialization_format, **kwargs):
         return self._to_python_chain(thing, serialization_format, **kwargs)
@@ -163,6 +163,24 @@ class ResourceSerializer(Serializer):
 
     def _to_python(self, thing, serialization_format, **kwargs):
         return super(ResourceSerializer, self)._to_python(thing, serialization_format, **kwargs)
+
+
+class ModelResourceSerializer(ResourceSerializer):
+
+    def _model_inst_to_python(self, thing, serialization_format, **kwargs):
+        thing._resource = self.resource
+        serializer = self._find_to_serializer(thing)
+        if serializer:
+            return serializer._to_python(thing, serialization_format, **kwargs)
+        raise NotImplementedError('Serializer not found for {}'.format(thing))
+
+    def _to_python(self, thing, serialization_format, **kwargs):
+        if isinstance(thing, QuerySet):
+            return [self._model_inst_to_python(v, serialization_format, **kwargs) for v in thing]
+        elif isinstance(thing, Model):
+            return self._model_inst_to_python(thing, serialization_format, **kwargs)
+        else:
+            return super(ModelResourceSerializer, self)._to_python(thing, serialization_format, **kwargs)
 
 
 @register
