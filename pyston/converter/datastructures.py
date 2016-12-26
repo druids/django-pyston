@@ -38,10 +38,9 @@ class Field(object):
 
 class FieldsetGenerator(object):
 
-    def __init__(self, data, resource=None, fields_string=None):
-        self.data = data
+    def __init__(self, resource=None, fields_string=None):
         self.resource = resource
-        self.fields_string = fields_string or force_text(DataFieldset(data))
+        self.fields_string = fields_string
 
     def _get_resource_class(self, obj):
         from pyston.resource import typemapper

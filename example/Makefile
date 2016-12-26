@@ -61,7 +61,7 @@ initdb:
 	mkdir -p $(LOCALPATH)/var/db
 
 syncdb:
-	$(PYTHON_BIN)/python manage.py syncdb --noinput $(DJANGO_POSTFIX)
+	$(PYTHON_BIN)/python manage.py migrate --noinput $(DJANGO_POSTFIX)
 
 initdata: syncmedia
 	if [ -a $(LOCALPATH)/$(INIT_DATA_FILE) ]; then $(PYTHON_BIN)/python manage.py loaddata $(LOCALPATH)/$(INIT_DATA_FILE) $(DJANGO_POSTFIX); fi;

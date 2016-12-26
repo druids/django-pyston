@@ -1,6 +1,3 @@
-from germanium.rest import RESTTestCase
-from germanium.anotations import data_provider
-
 from .test_case import PystonTestCase
 
 

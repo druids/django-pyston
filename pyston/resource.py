@@ -8,7 +8,7 @@ import six
 from six.moves.urllib.parse import urlparse
 
 from django.conf import settings
-from django.http import HttpResponse
+from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
@@ -30,9 +30,9 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
-from .utils import rc, set_rest_context_to_request, RFS, rfs
+from .utils import coerce_put_post, rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer, ModelResourceSerializer
-from .converter import get_converter_name_from_request
+from .converter import get_converter_name_from_request, get_converter_from_request, get_converter
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -45,6 +45,13 @@ ACCESS_CONTROL_MAX_AGE = 'Access-Control-Max-Age'
 
 typemapper = {}
 resource_tracker = []
+
+
+DEFAULT_CONVERTER_OPTIONS = {
+    'json': {
+        'indent': 4
+    }
+}
 
 
 class ResourceMetaClass(type):
@@ -258,20 +265,59 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return isinstance(result, dict)
 
     def _get_requested_fieldset(self, result):
-        return RFS.create_from_string(self.request._rest_context.get('fields', ''))
-
-    def _serialize(self, result):
-        return self.serializer(self).serialize(
-            self.request, result, self._get_requested_fieldset(result),
-            self._get_serialization_format(),
-            direct_serialization=self._is_direct_serialization()
+        return (
+            RFS.create_from_string(self.request._rest_context.get('fields'))
+            if 'fields' in self.request._rest_context
+            else (
+                self.get_default_detailed_fields()
+                if self._is_single_obj_request(result)
+                else self.get_default_general_fields()
+            )
         )
 
     def _is_direct_serialization(self):
         return False
 
+    def _get_converted_dict(self, result, requested_fieldset):
+        converted_dict = self.serializer(self, request=self.request).serialize(
+            result, self._get_serialization_format(), requested_fieldset=requested_fieldset,
+            direct_serialization=self._is_direct_serialization(), lazy=True
+        )
+        return converted_dict
+
+    def _serialize(self, os, result):
+        requested_fieldset = self._get_requested_fieldset(result)
+        converted_dict = self._get_converted_dict(result, requested_fieldset)
+        try:
+            converter_name = get_converter_name_from_request(self.request)
+        except ValueError:
+            raise UnsupportedMediaTypeException
+
+        converter, ct = get_converter(converter_name)
+        converter_options = getattr(settings, 'DEFAULT_CONVERTER_OPTIONS',
+                                    DEFAULT_CONVERTER_OPTIONS).get(converter_name, {})
+
+        if result is not None:
+            converter().encode_to_stream(os, converted_dict, converter_options, resource=self,
+                                         fields_string=force_text(requested_fieldset))
+        return ct
+
     def _deserialize(self):
-        return self.serializer(self).deserialize(self.request)
+        rm = self.request.method.upper()
+        # Django's internal mechanism doesn't pick up
+        # PUT request, so we trick it a little here.
+        if rm == 'PUT':
+            coerce_put_post(self.request)
+
+        if rm in {'POST', 'PUT'}:
+            try:
+                converter, _ = get_converter_from_request(self.request, True)
+                self.request.data = self.serializer(self).deserialize(converter().decode(force_text(self.request.body)))
+            except (TypeError, ValueError):
+                raise MimerDataException
+            except NotImplementedError:
+                raise UnsupportedMediaTypeException
+        return self.request
 
     def _get_error_response(self, exception):
 
@@ -321,29 +367,6 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         for header, value in self._get_headers(result, http_headers).items():
             response[header] = value
 
-    def _get_response(self):
-        result, http_headers, status_code, fieldset = self._get_response_data()
-
-        if not fieldset and 'fields' in self.request._rest_context:
-            del self.request._rest_context['fields']
-
-        try:
-            content, ct = self._serialize(result)
-        except UnsupportedMediaTypeException:
-            content = ''
-            status_code = 415
-            ct = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
-
-        if result is None:
-            content = ''
-
-        response = content
-        if not isinstance(content, HttpResponse):
-            response = HttpResponse(content, content_type=ct, status=status_code)
-
-        self._set_response_headers(response, result, http_headers)
-        return response
-
     def _get_from_cache(self):
         if self.cache:
             return self.cache.get_response(self.request)
@@ -363,13 +386,31 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 context[key] = val
         return context
 
+    def render_response(self, result, http_headers, status_code, fieldset):
+        if isinstance(result, HttpResponseBase):
+            return result
+        else:
+            if not fieldset and 'fields' in self.request._rest_context:
+                del self.request._rest_context['fields']
+            response = HttpResponse()
+            try:
+                ct = self._serialize(response, result)
+            except UnsupportedMediaTypeException:
+                status_code = 415
+                ct = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
+
+            response['Content-Type'] = ct
+            response.status_code = status_code
+            self._set_response_headers(response, result, http_headers)
+            return response
+
     def dispatch(self, request, *args, **kwargs):
         set_rest_context_to_request(request, self._get_headers_queryset_context_mapping())
         response = self._get_from_cache()
         if response:
             return response
         else:
-            response = self._get_response()
+            response = self.render_response(*self._get_response_data())
             self._store_to_cache(response)
             return response
 

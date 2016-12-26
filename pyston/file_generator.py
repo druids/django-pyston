@@ -98,6 +98,7 @@ class Py2CSV(object):
         self.stream.write(data)
         # empty queue
         self.queue.truncate(0)
+        self.stream.flush()
 
     def writerows(self, rows):
         for row in rows:
@@ -108,10 +109,12 @@ class Py3CSV(object):
 
     def __init__(self, f, dialect=csv.excel, encoding='utf-8', **kwds):
         self.writer = csv.writer(f, dialect=dialect, **kwds)
-        f.write(force_text(codecs.BOM_UTF8))  # BOM for Excel
+        self.stream = f
+        self.stream.write(force_text(codecs.BOM_UTF8))  # BOM for Excel
 
     def writerow(self, row):
         self.writer.writerow(row)
+        self.stream.flush()
 
     def writerows(self, rows):
         for row in rows:
@@ -149,7 +152,6 @@ if xlsxwriter:
                     else:
                         ws.write(row, col, val)
                 row += 1
-
             wb.close()
 
 if pisa:

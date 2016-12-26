@@ -1,16 +1,18 @@
 from __future__ import unicode_literals
 
+import types
 import json
 
-from six.moves import cStringIO
-from six import BytesIO
 
+from six.moves import cStringIO
+
+from django.conf import settings
+from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.utils.encoding import force_text
 from django.utils.xmlutils import SimplerXMLGenerator
-from django.core.serializers.json import DateTimeAwareJSONEncoder
-from django.conf import settings
 
 from pyston.file_generator import CSVGenerator, XLSXGenerator, PDFGenerator
+from pyston.utils.helpers import UniversalBytesIO
 
 from .datastructures import Field, FieldsetGenerator
 
@@ -101,17 +103,33 @@ class Converter(object):
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
 
-    def encode(self, data, options, **kwargs):
+    def _encode(self, data, options, **kwargs):
         """
-        Encode data to output
+        Encodes data to output string. You must implement this method or change implementation encode_to_stream method.
         """
         raise NotImplementedError
 
-    def decode(self, data, **kwargs):
+    def _decode(self, data, **kwargs):
         """
-        Decode data to input
+        Decodes data to string input
         """
         raise NotImplementedError
+
+    def _encode_to_stream(self, os, data, options, **kwargs):
+        """
+        Encodes data and writes it to the output stream
+        """
+        self._get_output_stream(os).write(self._encode(data, options, **kwargs))
+
+    def encode_to_stream(self, os, data, options, **kwargs):
+        self._encode_to_stream(self._get_output_stream(os), data, options, **kwargs)
+
+    def decode(self, data, **kwargs):
+        return self._decode(data, **kwargs)
+
+    def _get_output_stream(self, os):
+        return os if isinstance(os, UniversalBytesIO) else UniversalBytesIO(os)
+
 
 
 @register('xml', 'text/xml; charset=utf-8')
@@ -122,7 +140,11 @@ class XMLConverter(Converter):
     """
 
     def _to_xml(self, xml, data):
-        if isinstance(data, (list, tuple, set)):
+        from pyston.serializer import LazySerializedData
+
+        if isinstance(data, LazySerializedData):
+            self._to_xml(xml, data.serialize())
+        elif isinstance(data, (list, tuple, set, types.GeneratorType)):
             for item in data:
                 xml.startElement('resource', {})
                 self._to_xml(xml, item)
@@ -135,7 +157,7 @@ class XMLConverter(Converter):
         else:
             xml.characters(force_text(data))
 
-    def encode(self, data, options, **kwargs):
+    def _encode(self, data, options, **kwargs):
         stream = cStringIO()
 
         xml = SimplerXMLGenerator(stream, 'utf-8')
@@ -150,16 +172,29 @@ class XMLConverter(Converter):
         return stream.getvalue()
 
 
+class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
+
+    def default(self, o):
+        from pyston.serializer import LazySerializedData
+
+        if isinstance(o, types.GeneratorType):
+            return tuple(o)
+        elif isinstance(o, LazySerializedData):
+            return o.serialize()
+        else:
+            return super(LazyDateTimeAwareJSONEncoder, self).default(o)
+
+
 @register('json', 'application/json; charset=utf-8')
 class JSONConverter(Converter):
-
     """
     JSON emitter, understands timestamps.
     """
-    def encode(self, data, options, **kwargs):
-        return json.dumps(data, cls=DateTimeAwareJSONEncoder, ensure_ascii=False, **options)
 
-    def decode(self, data, **kwargs):
+    def _encode_to_stream(self, os, data, options, **kwargs):
+        return json.dump(data, os, cls=LazyDateTimeAwareJSONEncoder, ensure_ascii=False, **options)
+
+    def _decode(self, data, **kwargs):
         return json.loads(data)
 
 
@@ -187,10 +222,13 @@ class GeneratorConverter(Converter):
         return result
 
     def _get_recursive_value_from_row(self, data, key_path):
-        if len(key_path) == 0:
-            return data
+        from pyston.serializer import LazySerializedData
 
-        if isinstance(data, dict):
+        if isinstance(data, LazySerializedData):
+            return self._get_recursive_value_from_row(data.serialize(), key_path)
+        elif len(key_path) == 0:
+            return data
+        elif isinstance(data, dict):
             return self._get_recursive_value_from_row(data.get(key_path[0], ''), key_path[1:])
         elif isinstance(data, (list, tuple, set)):
             return [self._get_recursive_value_from_row(val, key_path) for val in data]
@@ -211,40 +249,28 @@ class GeneratorConverter(Converter):
     def _get_value_from_row(self, data, field):
         return self.render_value(self._get_recursive_value_from_row(data, field.key_path) or '')
 
-    def _render_content(self, field_name_list, converted_data):
-        result = []
+    def _render_row(self, row, field_name_list):
+        return (self._get_value_from_row(row, field) for field in field_name_list)
 
+    def _render_content(self, field_name_list, converted_data):
         constructed_data = converted_data
-        if not isinstance(constructed_data, (list, tuple, set)):
+        if not isinstance(constructed_data, (list, tuple, set, types.GeneratorType)):
             constructed_data = [constructed_data]
 
-        for row in constructed_data:
-            out_row = []
-            for field in field_name_list:
-                out_row.append(self._get_value_from_row(row, field))
-            result.append(out_row)
-        return result
+        return (self._render_row(row, field_name_list) for row in constructed_data)
 
-    def _get_output(self):
-        return BytesIO()
-
-    def encode(self, data, options, resource=None, fields_string=None, **kwargs):
-        output = self._get_output()
-        fieldset = FieldsetGenerator(data, resource, fields_string).generate()
+    def _encode_to_stream(self, os, data, options, resource=None, fields_string=None, **kwargs):
+        fieldset = FieldsetGenerator(resource, fields_string).generate()
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, data),
-            output
+            os
         )
-        return output.getvalue()
 
 
 @register('csv', 'text/csv; charset=utf-8')
 class CSVConverter(GeneratorConverter):
     generator_class = CSVGenerator
-
-    def _get_output(self):
-        return cStringIO()
 
 
 if XLSXGenerator:

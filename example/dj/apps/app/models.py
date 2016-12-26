@@ -12,13 +12,16 @@ class User(models.Model):
     email = models.EmailField(verbose_name=_('email'), null=False, blank=False, unique=True)
     contract = models.FileField(_('file'), null=True, blank=True, upload_to='documents/')
     is_superuser = models.BooleanField(_('is superuser'), default=True)
+    first_name = models.CharField(_('first name'), null=True, blank=True, max_length=100)
+    last_name = models.CharField(_('last name'), null=True, blank=True, max_length=100)
 
     def __str__(self):
         return 'user: %s' % self.email
 
     class RESTMeta:
-        default_detailed_fields = {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue'}
-        default_general_fields = {'id', '_obj_name', 'email'}
+        default_detailed_fields = {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue',
+                                   'first_name', 'last_name'}
+        default_general_fields = {'id', '_obj_name', 'email', 'first_name', 'last_name'}
         extra_fields = {'is_superuser'}
 
 
@@ -35,6 +38,7 @@ class Issue(models.Model):
                                   related_name='solving_issue')
     leader = models.OneToOneField('app.User', verbose_name=_('leader'), null=False, blank=False,
                                   related_name='leading_issue')
+    description = models.TextField(verbose_name=_('description'), null=True, blank=True)
 
     def __str__(self):
         return 'issue: %s' % self.name

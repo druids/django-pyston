@@ -1,6 +1,5 @@
 from six.moves.urllib.parse import urlencode
 
-from germanium.rest import RESTTestCase
 from germanium.anotations import data_provider
 
 from .test_case import PystonTestCase
@@ -8,8 +7,13 @@ from .test_case import PystonTestCase
 
 class StandardOperationsTestCase(PystonTestCase):
 
-    ACCEPT_TYPES = ('application/json', 'text/xml', 'text/csv', 'application/pdf',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    ACCEPT_TYPES = (
+        'application/json',
+        'text/xml',
+        'text/csv',
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
     @data_provider('get_users_data')
     def test_create_user(self, number, data):
@@ -90,7 +94,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
         self.assert_equal(set(output_data.keys()), {'id', 'created_at', '_obj_name', 'email', 'contract',
-                                                    'solving_issue'})
+                                                    'solving_issue', 'first_name', 'last_name'})
 
     @data_provider('get_users_data')
     def test_read_user_general_fields_set_with_metaclass(self, number, data):
@@ -99,7 +103,7 @@ class StandardOperationsTestCase(PystonTestCase):
 
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
-        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email'})
+        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'first_name', 'last_name'})
 
     @data_provider('get_users_data')
     def test_read_user_extra_fields_set_with_metaclass(self, number, data):

@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import sys
 import base64
 import inspect
+import mimetypes
 
 from six import BytesIO
 
@@ -81,24 +82,30 @@ class FileDataPreprocessor(DataProcessor):
             error.update({item: ugettext('This field is required')})
             self.errors[key] = error
 
+    def _get_mimetype_from_filename(self, filename):
+        return mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
+
     def _process_file_data_field(self, data, files, key, data_item):
         try:
             filename = data_item.get('filename')
             file_content = BytesIO(base64.b64decode(data_item.get('content').encode('utf-8')))
-            content_type = data_item.get('content_type')
-            charset = data_item.get('charset')
-            files[key] = InMemoryUploadedFile(
-                file_content, field_name=key, name=filename, content_type=content_type,
-                size=sys.getsizeof(file_content), charset=charset
-            )
-            data[key] = filename
+            content_type = data_item.get('content_type') or self._get_mimetype_from_filename(filename)
+            if content_type:
+                charset = data_item.get('charset')
+                files[key] = InMemoryUploadedFile(
+                    file_content, field_name=key, name=filename, content_type=content_type,
+                    size=sys.getsizeof(file_content), charset=charset
+                )
+                data[key] = filename
+            else:
+                self.errors[key] = ugettext('Content type cannot be evaluated from filename, please specify it')
         except TypeError:
             self.errors[key] = ugettext('File content is not in base64 format')
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
         if field and isinstance(field, FileField) and isinstance(data_item, dict):
-            REQUIRED_ITEMS = {'filename', 'content', 'content_type'}
+            REQUIRED_ITEMS = {'filename', 'content'}
 
             if not REQUIRED_ITEMS.issubset(set(data_item.keys())):
                 self.errors[key] = (ugettext('File data item must contains {}').format(
