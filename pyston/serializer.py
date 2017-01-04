@@ -32,7 +32,7 @@ from .exception import UnsupportedMediaTypeException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
 from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO
-from .converter import get_converter
+from .converters import get_converter
 
 
 default_serializers = []

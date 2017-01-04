@@ -32,7 +32,7 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
 from .forms import RESTModelForm
 from .utils import coerce_put_post, rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer, ModelResourceSerializer
-from .converter import get_converter_name_from_request, get_converter_from_request, get_converter
+from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -208,11 +208,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def get_default_general_fields(self, obj=None):
         return self.get_fields(obj)
 
-    def __getattr__(self, name):
-        if name == 'head':
-            return self.get
-        else:
-            return super(BaseResource, self).__getattr__(name)
+    def head(self):
+        return self.get()
 
     def _get_obj_or_none(self, pk=None):
         """
@@ -256,10 +253,9 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 ACCESS_CONTROL_ALLOW_METHODS: self.request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', 'OPTIONS'),
                 ACCESS_CONTROL_ALLOW_HEADERS: ', '.join(self._get_cors_allowed_headers())
             }
+            return HeadersResponse(None, http_headers=http_headers)
         else:
-            obj = self._get_obj_or_none()
-            http_headers = {'Allowed': ', '.join((method.upper() for method in self.get_allowed_methods(obj)))}
-        return HeadersResponse(None, http_headers=http_headers)
+            return None
 
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
@@ -285,7 +281,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         )
         return converted_dict
 
-    def _serialize(self, os, result):
+    def _serialize(self, os, result, status_code, http_headers):
         requested_fieldset = self._get_requested_fieldset(result)
         converted_dict = self._get_converted_dict(result, requested_fieldset)
         try:
@@ -294,13 +290,13 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             raise UnsupportedMediaTypeException
 
         converter, ct = get_converter(converter_name)
+        http_headers['Content-Type'] = ct
         converter_options = getattr(settings, 'DEFAULT_CONVERTER_OPTIONS',
                                     DEFAULT_CONVERTER_OPTIONS).get(converter_name, {})
 
-        if result is not None:
-            converter().encode_to_stream(os, converted_dict, converter_options, resource=self,
-                                         fields_string=force_text(requested_fieldset))
-        return ct
+        converter().encode_to_stream(os, converted_dict, converter_options, resource=self,
+                                     fields_string=force_text(requested_fieldset), request=self.request,
+                                     status_code=status_code, http_headers=http_headers, result=result)
 
     def _deserialize(self):
         rm = self.request.method.upper()
@@ -363,8 +359,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             result = result._container
         return result, http_headers, status_code, fieldset
 
-    def _set_response_headers(self, response, result, http_headers):
-        for header, value in self._get_headers(result, http_headers).items():
+    def _set_response_headers(self, response, http_headers):
+        for header, value in http_headers.items():
             response[header] = value
 
     def _get_from_cache(self):
@@ -394,14 +390,14 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 del self.request._rest_context['fields']
             response = HttpResponse()
             try:
-                ct = self._serialize(response, result)
+                http_headers = self._get_headers(result, http_headers)
+                self._serialize(response, result, status_code, http_headers)
             except UnsupportedMediaTypeException:
                 status_code = 415
-                ct = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
+                http_headers['Content-Type'] = self.request.get('HTTP_ACCEPT')
 
-            response['Content-Type'] = ct
             response.status_code = status_code
-            self._set_response_headers(response, result, http_headers)
+            self._set_response_headers(response, http_headers)
             return response
 
     def dispatch(self, request, *args, **kwargs):
@@ -414,20 +410,24 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             self._store_to_cache(response)
             return response
 
-    def _get_resource_name(self):
+    def get_name(self):
         return 'resource'
 
     def _get_filename(self):
-        return '%s.%s' % (self._get_resource_name(), get_converter_name_from_request(self.request))
+        return '%s.%s' % (self.get_name(), get_converter_name_from_request(self.request))
 
     def _get_headers(self, result, http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
+
+        obj = self._get_obj_or_none()
 
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
-        http_headers['Content-Disposition'] = 'inline; filename="%s"' % self._get_filename()
+        http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
+        http_headers['Allow'] = ', '.join((method.upper() for method in self.get_allowed_methods(obj)))
+        http_headers['Vary'] = 'Accept'
 
         fields = self.get_fields(obj=result)
         if fields:
@@ -765,7 +765,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def _get_form_class(self, inst):
         return self.form_class
 
-    def _get_resource_name(self):
+    def get_name(self):
         return force_text(remove_accent(force_text(self.model._meta.verbose_name_plural)))
 
     def _get_instance(self, data):

@@ -3,19 +3,18 @@ from __future__ import unicode_literals
 import types
 import json
 
-
 from six.moves import cStringIO
 
 from django.conf import settings
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.utils.encoding import force_text
 from django.utils.xmlutils import SimplerXMLGenerator
+from django.template.loader import get_template
 
-from pyston.file_generator import CSVGenerator, XLSXGenerator, PDFGenerator
 from pyston.utils.helpers import UniversalBytesIO
+from pyston.utils.datastructures import FieldsetGenerator
 
-from .datastructures import Field, FieldsetGenerator
-
+from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator
 
 converters = {}
 
@@ -131,7 +130,6 @@ class Converter(object):
         return os if isinstance(os, UniversalBytesIO) else UniversalBytesIO(os)
 
 
-
 @register('xml', 'text/xml; charset=utf-8')
 class XMLConverter(Converter):
     """
@@ -158,18 +156,21 @@ class XMLConverter(Converter):
             xml.characters(force_text(data))
 
     def _encode(self, data, options, **kwargs):
-        stream = cStringIO()
+        if data:
+            stream = cStringIO()
 
-        xml = SimplerXMLGenerator(stream, 'utf-8')
-        xml.startDocument()
-        xml.startElement('response', {})
+            xml = SimplerXMLGenerator(stream, 'utf-8')
+            xml.startDocument()
+            xml.startElement('response', {})
 
-        self._to_xml(xml, data)
+            self._to_xml(xml, data)
 
-        xml.endElement('response')
-        xml.endDocument()
+            xml.endElement('response')
+            xml.endDocument()
 
-        return stream.getvalue()
+            return stream.getvalue()
+        else:
+            return ''
 
 
 class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
@@ -192,7 +193,8 @@ class JSONConverter(Converter):
     """
 
     def _encode_to_stream(self, os, data, options, **kwargs):
-        return json.dump(data, os, cls=LazyDateTimeAwareJSONEncoder, ensure_ascii=False, **options)
+        if data:
+            json.dump(data, os, cls=LazyDateTimeAwareJSONEncoder, ensure_ascii=False, **options)
 
     def _decode(self, data, **kwargs):
         return json.loads(data)
@@ -283,3 +285,37 @@ if PDFGenerator:
     @register('pdf', 'application/pdf; charset=utf-8')
     class PDFConverter(GeneratorConverter):
         generator_class = PDFGenerator
+
+
+@register('html', 'text/html; charset=utf-8')
+class HTMLConverter(Converter):
+    """
+    Converter for HTML.
+    Supports only output conversion
+    """
+
+    def _encode(self, data, options, http_headers=None, resource=None, result=None, **kwargs):
+        from pyston.resource import BaseObjectResource
+
+        http_headers = {} if http_headers is None else http_headers.copy()
+        http_headers['Content-Type'] = 'application/json; charset=utf-8'
+
+        kwargs.update({
+            'http_headers': http_headers,
+            'resource': resource,
+        })
+
+        is_single_obj_resource = resource._is_single_obj_request(result)
+        inst = result if is_single_obj_resource else None
+
+        if isinstance(resource, BaseObjectResource):
+            form = resource._get_form(inst=inst)
+            form.method = 'put' if is_single_obj_resource else 'post'
+            kwargs['form'] = form
+
+        data_stream = UniversalBytesIO()
+        JSONConverter()._encode_to_stream(data_stream, data, {'indent': 4}, **kwargs)
+
+        kwargs['output'] = data_stream.get_string_value()
+
+        return get_template('pyston/base.html').render(kwargs)
