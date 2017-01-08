@@ -32,9 +32,9 @@ def field_init(self, *args, **kwargs):
             return humanize_func(val, inst, field=self, *args, **kwargs)
         self.humanized = humanize
     else:
-        self.humanized = None
+        self.humanized = self.default_humanized
     self._init_pyston_tmp(*args, **kwargs)
 
-
+Field.default_humanized = None
 Field._init_pyston_tmp = Field.__init__
 Field.__init__ = field_init
