@@ -11,8 +11,8 @@ from six.moves import cStringIO
 from datetime import datetime, date
 from decimal import Decimal
 
+from django.conf import settings as django_settings
 from django.utils.encoding import force_text
-from django.conf import settings
 
 try:
     # xlsxwriter isn't standard with python.  It shouldn't be required if it
@@ -30,6 +30,7 @@ except ImportError:
     pisa = None
     PDFGenerator = None
 
+from pyston.conf import settings
 from pyston.utils.compatibility import render_template
 
 
@@ -157,17 +158,21 @@ if xlsxwriter:
 if pisa:
     class PDFGenerator(object):
 
-        template_name = getattr(settings, 'PDF_EXPORT_TEMPLATE', 'default_pdf_table.html')
         encoding = 'utf-8'
 
         def generate(self, header, data, output_stream):
             def fetch_resources(uri, rel):
-                urls = {settings.MEDIA_ROOT: settings.MEDIA_URL, settings.STATICFILES_ROOT: settings.STATIC_URL}
+                urls = {
+                    django_settings.MEDIA_ROOT: settings.MEDIA_URL,
+                    django_settings.STATICFILES_ROOT: django_settings.STATIC_URL
+                }
                 for k, v in urls.items():
                     if (uri.startswith(v)):
                         return os.path.join(k, uri.replace(v, ""))
                 return ''
             pisa.pisaDocument(
-                force_text(render_template(self.template_name, {'pagesize': 'A4', 'headers': header, 'data': data})),
+                force_text(
+                    render_template(settings.PDF_EXPORT_TEMPLATE, {'pagesize': 'A4', 'headers': header, 'data': data})
+                ),
                 output_stream, encoding=self.encoding, link_callback=fetch_resources
             )

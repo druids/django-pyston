@@ -7,7 +7,7 @@ import six
 
 from six.moves.urllib.parse import urlparse
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
@@ -22,6 +22,8 @@ from chamber.shortcuts import get_object_or_none
 from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
 from chamber.utils import transaction
+
+from pyston.conf import settings
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
@@ -47,13 +49,6 @@ typemapper = {}
 resource_tracker = []
 
 
-DEFAULT_CONVERTER_OPTIONS = {
-    'json': {
-        'indent': 4
-    }
-}
-
-
 class ResourceMetaClass(type):
     """
     Metaclass that keeps a registry of class -> resource
@@ -67,10 +62,9 @@ class ResourceMetaClass(type):
                 return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
-                if already_registered(new_cls.model):
-                    if not getattr(settings, 'PYSTON_IGNORE_DUPE_MODELS', False):
-                        warnings.warn('Resource already registered for model %s, '
-                                      'you may experience inconsistent results.' % new_cls.model.__name__)
+                if already_registered(new_cls.model) and not settings.IGNORE_DUPE_MODELS:
+                    warnings.warn('Resource already registered for model {}, '
+                                  'you may experience inconsistent results.'.format(new_cls.model.__name__))
 
                 typemapper[new_cls.model] = new_cls
 
@@ -105,22 +99,23 @@ class PermissionsResourceMixin(object):
         return allowed_methods
 
     def _check_permission(self, name, *args, **kwargs):
-        if not hasattr(self, 'has_%s_permission' % name):
-            if settings.DEBUG:
-                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+        if not hasattr(self, 'has_{}_permission'.format(name)):
+            if django_settings.DEBUG:
+                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
             else:
                 raise NotAllowedException
-        if not getattr(self, 'has_%s_permission' % name)(*args, **kwargs):
+
+        if not getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs):
             raise NotAllowedException
 
     def _check_call(self, name, *args, **kwargs):
-        if not hasattr(self, 'has_%s_permission' % name):
-            if settings.DEBUG:
-                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+        if not hasattr(self, 'has_{}_permission'.format(name)):
+            if django_settings.DEBUG:
+                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
             else:
                 return False
         try:
-            return getattr(self, 'has_%s_permission' % name)(*args, **kwargs)
+            return getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs)
         except Http404:
             return False
 
@@ -230,10 +225,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options')
 
     def _get_cors_origins_whitelist(self):
-        return getattr(settings, 'PYSTON_CORS_WHITELIST', ())
+        return settings.CORS_WHITELIST
 
     def _get_cors_max_age(self):
-        return getattr(settings, 'PYSTON_CORS_MAX_AGE', 60 * 30)
+        return settings.CORS_MAX_AGE
 
     def _cors_is_origin_in_whitelist(self, origin):
         if not origin:
@@ -248,7 +243,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 return origin
 
     def options(self):
-        if getattr(settings, 'PYSTON_CORS', False) and self.request.META.get('HTTP_ORIGIN'):
+        if settings.CORS and self.request.META.get('HTTP_ORIGIN'):
             http_headers = {
                 ACCESS_CONTROL_ALLOW_METHODS: self.request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', 'OPTIONS'),
                 ACCESS_CONTROL_ALLOW_HEADERS: ', '.join(self._get_cors_allowed_headers())
@@ -289,14 +284,12 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         except ValueError:
             raise UnsupportedMediaTypeException
 
-        converter, ct = get_converter(converter_name)
-        http_headers['Content-Type'] = ct
-        converter_options = getattr(settings, 'DEFAULT_CONVERTER_OPTIONS',
-                                    DEFAULT_CONVERTER_OPTIONS).get(converter_name, {})
+        converter = get_converter(converter_name)
+        http_headers['Content-Type'] = converter.content_type
 
-        converter().encode_to_stream(os, converted_dict, converter_options, resource=self,
-                                     fields_string=force_text(requested_fieldset), request=self.request,
-                                     status_code=status_code, http_headers=http_headers, result=result)
+        converter.encode_to_stream(os, converted_dict, resource=self, fields_string=force_text(requested_fieldset),
+                                   request=self.request, status_code=status_code, http_headers=http_headers,
+                                   result=result)
 
     def _deserialize(self):
         rm = self.request.method.upper()
@@ -307,8 +300,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
 
         if rm in {'POST', 'PUT'}:
             try:
-                converter, _ = get_converter_from_request(self.request, True)
-                self.request.data = self.serializer(self).deserialize(converter().decode(force_text(self.request.body)))
+                converter = get_converter_from_request(self.request, True)
+                self.request.data = self.serializer(self).deserialize(converter.decode(force_text(self.request.body)))
             except (TypeError, ValueError):
                 raise MimerDataException
             except NotImplementedError:
@@ -390,13 +383,13 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 del self.request._rest_context['fields']
             response = HttpResponse()
             try:
+                response.status_code = status_code
                 http_headers = self._get_headers(result, http_headers)
                 self._serialize(response, result, status_code, http_headers)
             except UnsupportedMediaTypeException:
-                status_code = 415
+                response.status_code = 415
                 http_headers['Content-Type'] = self.request.get('HTTP_ACCEPT')
 
-            response.status_code = status_code
             self._set_response_headers(response, http_headers)
             return response
 
@@ -414,7 +407,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return 'resource'
 
     def _get_filename(self):
-        return '%s.%s' % (self.get_name(), get_converter_name_from_request(self.request))
+        return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request))
 
     def _get_headers(self, result, http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
@@ -433,11 +426,11 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         if fields:
             http_headers['X-Fields-Options'] = ','.join(fields.flat())
 
-        if getattr(settings, 'PYSTON_CORS', False):
+        if settings.CORS:
             if origin and self._cors_is_origin_in_whitelist(origin):
                 http_headers[ACCESS_CONTROL_ALLOW_ORIGIN] = origin
             http_headers[ACCESS_CONTROL_ALLOW_CREDENTIALS] = (
-                'true' if getattr(settings, 'PYSTON_CORS_ALLOW_CREDENTIALS', True) else 'false'
+                'true' if settings.CORS_ALLOW_CREDENTIALS else 'false'
             )
             cors_allowed_exposed_headers = self._get_cors_allowed_exposed_headers()
             if cors_allowed_exposed_headers:
@@ -679,7 +672,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         elif not change:
             self._check_post_permission(obj, via)
 
-        return not change or self.has_put_permission(obj, via=via)
+        return not change or self.has_put_permission(obj=obj, via=via)
 
     def _create_or_update(self, data, via=None):
         """

@@ -240,11 +240,11 @@ class StandardOperationsTestCase(PystonTestCase):
 
         resp = self.options(self.USER_API_URL)
         self.assert_equal(resp.content.decode('utf-8'), '')
-        self.assert_equal(set(resp['Allowed'].split(', ')), {'OPTIONS', 'HEAD', 'POST', 'GET'})
+        self.assert_equal(set(resp['Allow'].split(', ')), {'OPTIONS', 'HEAD', 'POST', 'GET'})
 
         resp = self.options('%s%s/' % (self.USER_API_URL, pk))
         self.assert_equal(resp.content.decode('utf-8'), '')
-        self.assert_equal(set(resp['Allowed'].split(', ')), {'PUT', 'HEAD', 'GET', 'OPTIONS', 'DELETE'})
+        self.assert_equal(set(resp['Allow'].split(', ')), {'PUT', 'HEAD', 'GET', 'OPTIONS', 'DELETE'})
 
     @data_provider('get_users_data')
     def test_not_allowed_requests(self, number, data):

@@ -1,10 +1,12 @@
 from __future__ import unicode_literals
 
+import types
 import sys
-
 import six
 
 from six import BytesIO
+
+from collections import OrderedDict
 
 from django.utils.encoding import force_bytes
 from django.conf import settings
@@ -76,3 +78,16 @@ class UniversalBytesIO(object):
     if sys.version_info[0:2] < (3, 5):
         def seek(self, *args, **kwargs):
             pass
+
+
+def serialized_data_to_python(data):
+    from pyston.serializer import LazySerializedData
+
+    if isinstance(data, (types.GeneratorType, list, tuple)):
+        return [serialized_data_to_python(val) for val in data]
+    elif isinstance(data, LazySerializedData):
+        return serialized_data_to_python(data.serialize())
+    elif isinstance(data, dict):
+        return OrderedDict(((key, serialized_data_to_python(val)) for key, val in data.items()))
+    else:
+        return data

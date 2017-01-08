@@ -9,7 +9,6 @@ import mimetypes
 
 from collections import OrderedDict
 
-from django.conf import settings
 from django.db.models import Model
 from django.db.models.query import QuerySet
 from django.db.models.fields.files import FileField
@@ -36,6 +35,10 @@ from .converters import get_converter
 
 
 default_serializers = []
+
+
+class SerializationException(Exception):
+    pass
 
 
 def register(serialized_types):
@@ -248,7 +251,7 @@ class ModelSerializer(Serializer):
 
         method_kwargs = {}
 
-        fun_kwargs = {'request': kwargs.get('request'), 'obj': obj} if 'request' in kwargs else {'obj': obj}
+        fun_kwargs = {'request': self.request, 'obj': obj} if self.request else {'obj': obj}
 
         for arg_name in method_kwargs_names:
             if arg_name in fun_kwargs:
@@ -260,6 +263,8 @@ class ModelSerializer(Serializer):
                                            **{k: v for k, v in method_kwargs.items() if k != 'obj'}),
                 serialization_format, allow_tags=getattr(method, 'allow_tags', False), **kwargs
             )
+        else:
+            raise SerializationException('Invalid method parameters')
 
     def _model_field_to_python(self, field, obj, serialization_format, **kwargs):
         return (self._lazy_data_to_python if field.is_relation else self._data_to_python)(
@@ -467,9 +472,9 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
               converter_name=None, converter_options=None):
-    converter_name = (
-        converter_name if converter_name is not None else getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
-    )
+    from pyston.converters import get_default_converter_name
+
+    converter_name = converter_name if converter_name is not None else get_default_converter_name()
     requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
     converted_dict = get_serializer(data).serialize(
         data, serialization_format, requested_fieldset=requested_fieldset, direct_serialization=True
@@ -478,13 +483,9 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
         return converted_dict
     else:
         try:
-            converter, _ = get_converter(converter_name)
+            converter = get_converter(converter_name)
         except ValueError:
             raise UnsupportedMediaTypeException
-        converter_options = (
-            converter_options if converter_options is not None
-            else getattr(settings, 'DEFAULT_DIRECT_SERIALIZATION_CONVERTER_OPTIONS', {}).get(converter_name, {})
-        )
         os = UniversalBytesIO()
-        converter().encode_to_stream(os, converted_dict, converter_options)
+        converter.encode_to_stream(os, converted_dict)
         return os.get_string_value()

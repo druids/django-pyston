@@ -5,41 +5,52 @@ import json
 
 from six.moves import cStringIO
 
-from django.conf import settings
+from collections import OrderedDict
+
 from django.core.serializers.json import DateTimeAwareJSONEncoder
+from django.http.response import HttpResponseBase
+from django.template.loader import get_template
 from django.utils.encoding import force_text
 from django.utils.xmlutils import SimplerXMLGenerator
-from django.template.loader import get_template
+from django.utils.module_loading import import_string
+from django.utils.html import format_html
 
-from pyston.utils.helpers import UniversalBytesIO
+from pyston.utils.helpers import UniversalBytesIO, serialized_data_to_python
 from pyston.utils.datastructures import FieldsetGenerator
+from pyston.conf import settings
 
 from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator
 
-converters = {}
+
+converters = OrderedDict()
 
 
-def register(name, content_type):
+def register_converters():
     """
-    Register an converter.
-
-    Parameters::
-     - `name`: The name of the converter ('json', 'xml', 'yaml', ...)
-     - `converter_class`: The converter class.
-     - `content_type`: The content type to serve response as.
+    Register all converters from settings configuration.
     """
+    for converter_class_path in settings.CONVERTERS:
+        converter_class = import_string(converter_class_path)()
+        converters[converter_class.format] = converter_class
 
-    def _register(converter_class):
-        if name not in converters:
-            converters[name] = (converter_class, content_type)
-        return converter_class
-    return _register
+
+def get_default_converter_name():
+    """
+    Gets default converter name
+    """
+    if not converters:
+        register_converters()
+
+    return list(converters.keys())[0]
 
 
 def get_converter(result_format):
     """
     Gets an converter, returns the class and a content-type.
     """
+    if not converters:
+        register_converters()
+
     if result_format in converters:
         return converters.get(result_format)
     else:
@@ -51,27 +62,29 @@ def get_converter_name_from_request(request, input_serialization=False):
     Function for determining which converter name to use
     for output.
     """
+    if not converters:
+        register_converters()
+
     try:
         import mimeparse
     except ImportError:
         mimeparse = None
 
-    default_converter_name = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
-
     context_key = 'accept'
     if input_serialization:
         context_key = 'content_type'
+
+    default_converter_name = get_default_converter_name()
 
     if mimeparse and context_key in request._rest_context:
         supported_mime_types = set()
         converter_map = {}
         preferred_content_type = None
-        for name, (_, content_type) in converters.items():
-            content_type_without_encoding = content_type.split(';')[0]
-            if default_converter_name and name == default_converter_name:
-                preferred_content_type = content_type_without_encoding
-            supported_mime_types.add(content_type_without_encoding)
-            converter_map[content_type_without_encoding] = name
+        for name, converter_class in converters.items():
+            if name == default_converter_name:
+                preferred_content_type = converter_class.media_type
+            supported_mime_types.add(converter_class.media_type)
+            converter_map[converter_class.media_type] = name
         supported_mime_types = list(supported_mime_types)
         if preferred_content_type:
             supported_mime_types.append(preferred_content_type)
@@ -94,15 +107,22 @@ def get_converter_from_request(request, input_serialization=False):
 
 
 def get_supported_mime_types():
-    return [content_type for _, (_, content_type) in converters.items()]
+    return [converter.media_type for _, converter in converters.items()]
 
 
 class Converter(object):
     """
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
+    charset = 'utf-8'
+    media_type = None
+    format = None
 
-    def _encode(self, data, options, **kwargs):
+    @property
+    def content_type(self):
+        return '; '.join((self.media_type, self.charset))
+
+    def _encode(self, data, options=None, **kwargs):
         """
         Encodes data to output string. You must implement this method or change implementation encode_to_stream method.
         """
@@ -114,14 +134,14 @@ class Converter(object):
         """
         raise NotImplementedError
 
-    def _encode_to_stream(self, os, data, options, **kwargs):
+    def _encode_to_stream(self, os, data, options=None, **kwargs):
         """
         Encodes data and writes it to the output stream
         """
-        self._get_output_stream(os).write(self._encode(data, options, **kwargs))
+        os.write(self._encode(data, options=options, **kwargs))
 
-    def encode_to_stream(self, os, data, options, **kwargs):
-        self._encode_to_stream(self._get_output_stream(os), data, options, **kwargs)
+    def encode_to_stream(self, os, data, options=None, **kwargs):
+        self._encode_to_stream(self._get_output_stream(os), data, options=options, **kwargs)
 
     def decode(self, data, **kwargs):
         return self._decode(data, **kwargs)
@@ -130,12 +150,13 @@ class Converter(object):
         return os if isinstance(os, UniversalBytesIO) else UniversalBytesIO(os)
 
 
-@register('xml', 'text/xml; charset=utf-8')
 class XMLConverter(Converter):
     """
     Converter for XML.
     Supports only output conversion
     """
+    media_type = 'text/xml'
+    format = 'xml'
 
     def _to_xml(self, xml, data):
         from pyston.serializer import LazySerializedData
@@ -155,8 +176,8 @@ class XMLConverter(Converter):
         else:
             xml.characters(force_text(data))
 
-    def _encode(self, data, options, **kwargs):
-        if data:
+    def _encode(self, data, **kwargs):
+        if data is not None:
             stream = cStringIO()
 
             xml = SimplerXMLGenerator(stream, 'utf-8')
@@ -186,14 +207,16 @@ class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
             return super(LazyDateTimeAwareJSONEncoder, self).default(o)
 
 
-@register('json', 'application/json; charset=utf-8')
 class JSONConverter(Converter):
     """
     JSON emitter, understands timestamps.
     """
+    media_type = 'application/json'
+    format = 'json'
 
-    def _encode_to_stream(self, os, data, options, **kwargs):
-        if data:
+    def _encode_to_stream(self, os, data, options=None, **kwargs):
+        options = settings.JSON_CONVERTER_OPTIONS if options is None else options
+        if data is not None:
             json.dump(data, os, cls=LazyDateTimeAwareJSONEncoder, ensure_ascii=False, **options)
 
     def _decode(self, data, **kwargs):
@@ -261,7 +284,7 @@ class GeneratorConverter(Converter):
 
         return (self._render_row(row, field_name_list) for row in constructed_data)
 
-    def _encode_to_stream(self, os, data, options, resource=None, fields_string=None, **kwargs):
+    def _encode_to_stream(self, os, data, resource=None, fields_string=None, **kwargs):
         fieldset = FieldsetGenerator(resource, fields_string).generate()
         self.generator_class().generate(
             self._render_headers(fieldset),
@@ -270,52 +293,132 @@ class GeneratorConverter(Converter):
         )
 
 
-@register('csv', 'text/csv; charset=utf-8')
 class CSVConverter(GeneratorConverter):
-    generator_class = CSVGenerator
-
-
-if XLSXGenerator:
-    @register('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    class XLSXConverter(GeneratorConverter):
-        generator_class = XLSXGenerator
-
-
-if PDFGenerator:
-    @register('pdf', 'application/pdf; charset=utf-8')
-    class PDFConverter(GeneratorConverter):
-        generator_class = PDFGenerator
-
-
-@register('html', 'text/html; charset=utf-8')
-class HTMLConverter(Converter):
     """
-    Converter for HTML.
+    Converter for CSV response.
     Supports only output conversion
     """
 
-    def _encode(self, data, options, http_headers=None, resource=None, result=None, **kwargs):
+    generator_class = CSVGenerator
+    media_type = 'text/csv'
+    format = 'csv'
+
+
+class XLSXConverter(GeneratorConverter):
+    """
+    Converter for XLSX response.
+    For its use must be installed library xlsxwriter
+    Supports only output conversion
+    """
+
+    generator_class = XLSXGenerator
+    media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    format = 'xlsx'
+
+
+class PDFConverter(GeneratorConverter):
+    """
+    Converter for PDF response.
+    For its use must be installed library pisa
+    Supports only output conversion
+    """
+
+    generator_class = PDFGenerator
+    media_type = 'application/pdf'
+    format = 'pdf'
+
+
+class HTMLConverter(Converter):
+    """
+    Converter for HTML.
+    Supports only output conversion and should be used only for debug
+    """
+
+    media_type = 'text/html'
+    format = 'html'
+    template_name = 'pyston/html_converter.html'
+
+    def _get_put_form(self, resource, obj):
         from pyston.resource import BaseObjectResource
 
+        return (
+            resource._get_form(inst=obj)
+            if isinstance(resource, BaseObjectResource) and resource.has_put_permission(obj=obj)
+            else None
+        )
+
+    def _get_post_form(self, resource, obj):
+        from pyston.resource import BaseObjectResource
+
+        return (
+            resource._get_form(inst=obj)
+            if isinstance(resource, BaseObjectResource) and resource.has_post_permission(obj=obj)
+            else None
+        )
+
+    def _get_forms(self, resource, obj):
+        return {
+            'post': self._get_post_form(resource, obj),
+            'put': self._get_put_form(resource, obj),
+        }
+
+    def _get_converter(self, resource):
+        return JSONConverter()
+
+    def _get_permissions(self, resource, obj):
+        return {
+            'post': resource.has_post_permission(obj=obj),
+            'get': resource.has_get_permission(obj=obj),
+            'put': resource.has_put_permission(obj=obj),
+            'delete': resource.has_delete_permission(obj=obj),
+            'head': resource.has_head_permission(obj=obj),
+            'options': resource.has_options_permission(obj=obj),
+        }
+
+    def _update_headers(self, http_headers, resource, converter):
+        http_headers['Content-Type'] = converter.content_type
+        return http_headers
+
+    def encode_to_stream(self, os, data, options=None, **kwargs):
+        assert os is not HttpResponseBase, 'Output stream must be http response'
+
+        self._get_output_stream(os).write(self._encode(data, response=os, options=options, **kwargs))
+
+    def _convert_url_to_links(self, data):
+        if isinstance(data, list):
+            return [self._convert_url_to_links(val) for val in data]
+        elif isinstance(data, dict):
+            return OrderedDict((
+                (key, format_html('<a href=\'{0}\'>{0}</a>', val) if key == 'url' else self._convert_url_to_links(val))
+                for key, val in data.items()
+            ))
+        else:
+            return data
+
+    def _encode(self, data, response=None, http_headers=None, resource=None, result=None, **kwargs):
+        assert resource is not None, 'HTML converter requires resource and cannot be used as a direct serializer'
+
         http_headers = {} if http_headers is None else http_headers.copy()
-        http_headers['Content-Type'] = 'application/json; charset=utf-8'
+        converter = self._get_converter(resource)
+        http_headers = self._update_headers(http_headers, resource, converter)
+        obj = resource._get_obj_or_none()
 
         kwargs.update({
             'http_headers': http_headers,
             'resource': resource,
         })
 
-        is_single_obj_resource = resource._is_single_obj_request(result)
-        inst = result if is_single_obj_resource else None
-
-        if isinstance(resource, BaseObjectResource):
-            form = resource._get_form(inst=inst)
-            form.method = 'put' if is_single_obj_resource else 'post'
-            kwargs['form'] = form
-
         data_stream = UniversalBytesIO()
-        JSONConverter()._encode_to_stream(data_stream, data, {'indent': 4}, **kwargs)
+        converter._encode_to_stream(data_stream, self._convert_url_to_links(serialized_data_to_python(data)), **kwargs)
 
-        kwargs['output'] = data_stream.get_string_value()
+        context = kwargs.copy()
+        context.update({
+            'permissions': self._get_permissions(resource, obj),
+            'forms': self._get_forms(resource, obj),
+            'output': data_stream.get_string_value(),
+        })
 
-        return get_template('pyston/base.html').render(kwargs)
+        # All responses has set 200 response code, because response can return status code without content (204) and
+        # browser doesn't render it
+        response.status_code = 200
+        return get_template(self.template_name).render(context, request=resource.request)
