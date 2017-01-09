@@ -7,8 +7,8 @@ import six
 
 from six.moves.urllib.parse import urlparse
 
-from django.conf import settings
-from django.http import HttpResponse
+from django.conf import settings as django_settings
+from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
@@ -23,6 +23,8 @@ from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
 from chamber.utils import transaction
 
+from pyston.conf import settings
+
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
                        RESTNoConetentResponse)
@@ -30,9 +32,9 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
-from .utils import rc, set_rest_context_to_request, RFS, rfs
+from .utils import coerce_put_post, rc, set_rest_context_to_request, RFS, rfs
 from .serializer import ResourceSerializer, ModelResourceSerializer
-from .converter import get_converter_name_from_request
+from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -60,10 +62,9 @@ class ResourceMetaClass(type):
                 return typemapper.get(model)
 
             if hasattr(new_cls, 'model'):
-                if already_registered(new_cls.model):
-                    if not getattr(settings, 'PYSTON_IGNORE_DUPE_MODELS', False):
-                        warnings.warn('Resource already registered for model %s, '
-                                      'you may experience inconsistent results.' % new_cls.model.__name__)
+                if already_registered(new_cls.model) and not settings.IGNORE_DUPE_MODELS:
+                    warnings.warn('Resource already registered for model {}, '
+                                  'you may experience inconsistent results.'.format(new_cls.model.__name__))
 
                 typemapper[new_cls.model] = new_cls
 
@@ -98,22 +99,23 @@ class PermissionsResourceMixin(object):
         return allowed_methods
 
     def _check_permission(self, name, *args, **kwargs):
-        if not hasattr(self, 'has_%s_permission' % name):
-            if settings.DEBUG:
-                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+        if not hasattr(self, 'has_{}_permission'.format(name)):
+            if django_settings.DEBUG:
+                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
             else:
                 raise NotAllowedException
-        if not getattr(self, 'has_%s_permission' % name)(*args, **kwargs):
+
+        if not getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs):
             raise NotAllowedException
 
     def _check_call(self, name, *args, **kwargs):
-        if not hasattr(self, 'has_%s_permission' % name):
-            if settings.DEBUG:
-                raise NotImplementedError('Please implement method has_%s_permission to %s' % (name, self.__class__))
+        if not hasattr(self, 'has_{}_permission'.format(name)):
+            if django_settings.DEBUG:
+                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
             else:
                 return False
         try:
-            return getattr(self, 'has_%s_permission' % name)(*args, **kwargs)
+            return getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs)
         except Http404:
             return False
 
@@ -201,11 +203,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def get_default_general_fields(self, obj=None):
         return self.get_fields(obj)
 
-    def __getattr__(self, name):
-        if name == 'head':
-            return self.get
-        else:
-            return super(BaseResource, self).__getattr__(name)
+    def head(self):
+        return self.get()
 
     def _get_obj_or_none(self, pk=None):
         """
@@ -226,10 +225,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options')
 
     def _get_cors_origins_whitelist(self):
-        return getattr(settings, 'PYSTON_CORS_WHITELIST', ())
+        return settings.CORS_WHITELIST
 
     def _get_cors_max_age(self):
-        return getattr(settings, 'PYSTON_CORS_MAX_AGE', 60 * 30)
+        return settings.CORS_MAX_AGE
 
     def _cors_is_origin_in_whitelist(self, origin):
         if not origin:
@@ -244,34 +243,70 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 return origin
 
     def options(self):
-        if getattr(settings, 'PYSTON_CORS', False) and self.request.META.get('HTTP_ORIGIN'):
+        if settings.CORS and self.request.META.get('HTTP_ORIGIN'):
             http_headers = {
                 ACCESS_CONTROL_ALLOW_METHODS: self.request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', 'OPTIONS'),
                 ACCESS_CONTROL_ALLOW_HEADERS: ', '.join(self._get_cors_allowed_headers())
             }
+            return HeadersResponse(None, http_headers=http_headers)
         else:
-            obj = self._get_obj_or_none()
-            http_headers = {'Allowed': ', '.join((method.upper() for method in self.get_allowed_methods(obj)))}
-        return HeadersResponse(None, http_headers=http_headers)
+            return None
 
     def _is_single_obj_request(self, result):
         return isinstance(result, dict)
 
     def _get_requested_fieldset(self, result):
-        return RFS.create_from_string(self.request._rest_context.get('fields', ''))
-
-    def _serialize(self, result):
-        return self.serializer(self).serialize(
-            self.request, result, self._get_requested_fieldset(result),
-            self._get_serialization_format(),
-            direct_serialization=self._is_direct_serialization()
+        return (
+            RFS.create_from_string(self.request._rest_context.get('fields'))
+            if 'fields' in self.request._rest_context
+            else (
+                self.get_default_detailed_fields()
+                if self._is_single_obj_request(result)
+                else self.get_default_general_fields()
+            )
         )
 
     def _is_direct_serialization(self):
         return False
 
+    def _get_converted_dict(self, result, requested_fieldset):
+        converted_dict = self.serializer(self, request=self.request).serialize(
+            result, self._get_serialization_format(), requested_fieldset=requested_fieldset,
+            direct_serialization=self._is_direct_serialization(), lazy=True
+        )
+        return converted_dict
+
+    def _serialize(self, os, result, status_code, http_headers):
+        requested_fieldset = self._get_requested_fieldset(result)
+        converted_dict = self._get_converted_dict(result, requested_fieldset)
+        try:
+            converter_name = get_converter_name_from_request(self.request)
+        except ValueError:
+            raise UnsupportedMediaTypeException
+
+        converter = get_converter(converter_name)
+        http_headers['Content-Type'] = converter.content_type
+
+        converter.encode_to_stream(os, converted_dict, resource=self, fields_string=force_text(requested_fieldset),
+                                   request=self.request, status_code=status_code, http_headers=http_headers,
+                                   result=result)
+
     def _deserialize(self):
-        return self.serializer(self).deserialize(self.request)
+        rm = self.request.method.upper()
+        # Django's internal mechanism doesn't pick up
+        # PUT request, so we trick it a little here.
+        if rm == 'PUT':
+            coerce_put_post(self.request)
+
+        if rm in {'POST', 'PUT'}:
+            try:
+                converter = get_converter_from_request(self.request, True)
+                self.request.data = self.serializer(self).deserialize(converter.decode(force_text(self.request.body)))
+            except (TypeError, ValueError):
+                raise MimerDataException
+            except NotImplementedError:
+                raise UnsupportedMediaTypeException
+        return self.request
 
     def _get_error_response(self, exception):
 
@@ -317,32 +352,9 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             result = result._container
         return result, http_headers, status_code, fieldset
 
-    def _set_response_headers(self, response, result, http_headers):
-        for header, value in self._get_headers(result, http_headers).items():
+    def _set_response_headers(self, response, http_headers):
+        for header, value in http_headers.items():
             response[header] = value
-
-    def _get_response(self):
-        result, http_headers, status_code, fieldset = self._get_response_data()
-
-        if not fieldset and 'fields' in self.request._rest_context:
-            del self.request._rest_context['fields']
-
-        try:
-            content, ct = self._serialize(result)
-        except UnsupportedMediaTypeException:
-            content = ''
-            status_code = 415
-            ct = getattr(settings, 'PYSTON_DEFAULT_CONVERTER', 'json')
-
-        if result is None:
-            content = ''
-
-        response = content
-        if not isinstance(content, HttpResponse):
-            response = HttpResponse(content, content_type=ct, status=status_code)
-
-        self._set_response_headers(response, result, http_headers)
-        return response
 
     def _get_from_cache(self):
         if self.cache:
@@ -363,40 +375,62 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 context[key] = val
         return context
 
+    def render_response(self, result, http_headers, status_code, fieldset):
+        if isinstance(result, HttpResponseBase):
+            return result
+        else:
+            if not fieldset and 'fields' in self.request._rest_context:
+                del self.request._rest_context['fields']
+            response = HttpResponse()
+            try:
+                response.status_code = status_code
+                http_headers = self._get_headers(result, http_headers)
+                self._serialize(response, result, status_code, http_headers)
+            except UnsupportedMediaTypeException:
+                response.status_code = 415
+                http_headers['Content-Type'] = self.request.get('HTTP_ACCEPT')
+
+            self._set_response_headers(response, http_headers)
+            return response
+
     def dispatch(self, request, *args, **kwargs):
         set_rest_context_to_request(request, self._get_headers_queryset_context_mapping())
         response = self._get_from_cache()
         if response:
             return response
         else:
-            response = self._get_response()
+            response = self.render_response(*self._get_response_data())
             self._store_to_cache(response)
             return response
 
-    def _get_resource_name(self):
+    def get_name(self):
         return 'resource'
 
     def _get_filename(self):
-        return '%s.%s' % (self._get_resource_name(), get_converter_name_from_request(self.request))
+        return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request))
 
     def _get_headers(self, result, http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
+
+        obj = self._get_obj_or_none()
 
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
-        http_headers['Content-Disposition'] = 'inline; filename="%s"' % self._get_filename()
+        http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
+        http_headers['Allow'] = ', '.join((method.upper() for method in self.get_allowed_methods(obj)))
+        http_headers['Vary'] = 'Accept'
 
         fields = self.get_fields(obj=result)
         if fields:
             http_headers['X-Fields-Options'] = ','.join(fields.flat())
 
-        if getattr(settings, 'PYSTON_CORS', False):
+        if settings.CORS:
             if origin and self._cors_is_origin_in_whitelist(origin):
                 http_headers[ACCESS_CONTROL_ALLOW_ORIGIN] = origin
             http_headers[ACCESS_CONTROL_ALLOW_CREDENTIALS] = (
-                'true' if getattr(settings, 'PYSTON_CORS_ALLOW_CREDENTIALS', True) else 'false'
+                'true' if settings.CORS_ALLOW_CREDENTIALS else 'false'
             )
             cors_allowed_exposed_headers = self._get_cors_allowed_exposed_headers()
             if cors_allowed_exposed_headers:
@@ -638,7 +672,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         elif not change:
             self._check_post_permission(obj, via)
 
-        return not change or self.has_put_permission(obj, via=via)
+        return not change or self.has_put_permission(obj=obj, via=via)
 
     def _create_or_update(self, data, via=None):
         """
@@ -724,7 +758,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def _get_form_class(self, inst):
         return self.form_class
 
-    def _get_resource_name(self):
+    def get_name(self):
         return force_text(remove_accent(force_text(self.model._meta.verbose_name_plural)))
 
     def _get_instance(self, data):

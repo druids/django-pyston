@@ -43,7 +43,6 @@ class RESTFormMixin(object):
         filt = lambda v: v not in self.data.keys()
         for field_name in filter(filt, self.fields.keys()):
             field = self.fields[field_name]
-
             self.data[field_name] = field.prepare_value(self.initial.get(field_name, field.initial))
 
 

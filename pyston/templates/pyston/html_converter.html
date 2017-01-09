@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script>
+      var originalSerializeArray = $.fn.serializeArray;
+      $.fn.extend({
+          serializeArray: function () {
+              var brokenSerialization = originalSerializeArray.apply(this);
+              var checkboxValues = $(this).find('input[type=checkbox]').map(function () {
+                  return { 'name': this.name, 'value': Boolean(this.checked) };
+              }).get();
+              var checkboxKeys = $.map(checkboxValues, function (element) { return element.name; });
+              var withoutCheckboxes = $.grep(brokenSerialization, function (element) {
+                  return $.inArray(element.name, checkboxKeys) == -1;
+              });
+              return $.merge(withoutCheckboxes, checkboxValues);
+          }
+      });
+
+      $.fn.serializeObject = function () {
+          var result = {};
+          var extend = function (i, element) {
+              var node = result[element.name];
+
+              if ('undefined' !== typeof node && node !== null) {
+                  if ($.isArray(node)) {
+                      node.push(element.value);
+                  } else {
+                      result[element.name] = [node, element.value];
+                  }
+              } else {
+                  result[element.name] = element.value;
+              }
+          };
+
+          $.each(this.serializeArray(), extend);
+          return result;
+      };
+
+      function callMethod(method, output) {
+        $.ajax({
+            headers: {
+                Accept: "text/html; charset=utf-8",
+                "X-CSRFToken": "{{ csrf_token }}",
+            },
+            url: window.location.href,
+            method: method,
+            data: output,
+        }).done(function(data) {
+            $('.request').html($(data).find('.request').html());
+            $('.response').html($(data).find('.response').html());
+            $('.form-fields').html($(data).find('.form-fields').html());
+        })
+      }
+
+      function getFileContent(fileEl, callback) {
+          file = fileEl.files[0];
+          if (file) {
+            var reader = new FileReader();
+            reader.readAsDataURL(file, 'UTF-8');
+            reader.onload = function (evt) {
+                callback(evt.target.result.split(',')[1]);
+            }
+            return true;
+          }
+          else {
+            return false;
+          }
+      }
+
+      function parseFormDataToJson(form, callback) {
+        data = form.serializeObject();
+        count_files = 0;
+        $('input[type="file"]').each(function( index ) {
+          var input_name = $(this).attr('name')
+          var filename = $(this).val().replace(/^.*[\\\/]/, '')
+          if (
+            getFileContent($('input[type="file"]')[index], function(content) {
+            count_files -= 1;
+            data[input_name] = {
+              'content': content,
+              'filename': filename
+            }
+            if (count_files == 0) callback(JSON.stringify(data));
+          }
+        )) count_files += 1
+        });
+        if (count_files == 0) callback(JSON.stringify(data));
+      }
+
+      $( document ).ready(function() {
+          $('.get-btn').click(function() {
+            callMethod('GET');
+          })
+          $('.options-btn').click(function() {
+            callMethod('OPTIONS');
+          })
+          $('.delete-btn').click(function() {
+            callMethod('DELETE');
+          })
+          $('.post-btn').click(function() {
+            parseFormDataToJson($('.form form'), function(data){callMethod('POST', data)});
+          })
+          $('.put-btn').click(function() {
+            parseFormDataToJson($('.form form'), function(data){callMethod('PUT', data)});
+          })
+      });
+    </script>
+    <style>
+      pre {
+        height: auto;
+        max-height: 400px;
+        overflow: auto;
+        background-color: #eeeeee;
+        word-break: normal !important;
+        word-wrap: normal !important;
+        white-space: pre !important;
+      }
+    </style>
+  </head>
+  <div class="container">
+    <h1>API {{ resource.get_name|title }}</h1>
+    <div class="row">
+      {% if permissions.get %}<button type="button" class="btn btn-primary get-btn">GET</button>{% endif %}
+      {% if permissions.options %}<button type="button" class="btn btn-primary options-btn">OPTIONS</button>{% endif %}
+      {% if permissions.delete %}<button type="button" class="btn btn-primary delete-btn">DELETE</button>{% endif %}
+    </div><br>
+    <div class="row">
+      <pre class="prettyprint request"><b>{{ request.method }} {{ request.get_full_path }}</b></pre>
+    </div>
+    <div class="row">
+      {% autoescape off %}
+      <pre class="prettyprint response"><b>HTTP {{ status_code }}</b>
+{% for name, value in http_headers.items %}<b>{{ name }}</b>: {{ value }}
+{% endfor %}
+
+{{ output }}</pre>
+      {% endautoescape %}
+    </div>
+    {% if forms.post %}
+      <div class="container form">
+        <h2>Create {{ resource.get_name|title }}</h2>
+        <form action="" class="form-horizontal">
+          <div class="form-fields">
+            {% for field in forms.post %}
+               <div class="form-group">
+                 <div class="col-sm-2">
+                   {{ field.label }}
+                 </div>
+                 <div class="col-sm-10">
+                   {{ field }}
+                 </div>
+               </div>
+            {% endfor %}
+          </div>
+          <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+              <button type="button" class="btn btn-primary post-btn">CREATE</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+    {% if forms.put %}
+      <div class="container form">
+        <h2>Update {{ resource.get_name|title }}</h2>
+        <form action="" class="form-horizontal">
+          <div class="form-fields">
+            {% for field in forms.put %}
+               <div class="form-group">
+                 <div class="col-sm-2">
+                   {{ field.label }}
+                 </div>
+                 <div class="col-sm-10">
+                   {{ field }}
+                 </div>
+               </div>
+            {% endfor %}
+          </div>
+          <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+              <button type="button" class="btn btn-primary put-btn">UPDATE</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</html>

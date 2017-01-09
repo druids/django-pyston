@@ -16,14 +16,46 @@ class DataProcessorsTestCase(PystonTestCase):
     @data_provider('get_users_data')
     def test_create_user_with_file(self, number, data):
         data['contract'] = {
-            'content_type': 'plain/text', 'filename': 'contract.txt',
+            'content_type': 'text/plain',
+            'filename': 'contract.txt',
             'content': base64.b64encode(
                 ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
             ).decode('utf-8')
         }
         resp = self.post(self.USER_API_URL, data=self.serialize(data))
         self.assert_valid_JSON_created_response(resp)
-        self.assert_not_equal(self.deserialize(resp)['contract'], None)
+        data = self.deserialize(resp)
+        self.assert_not_equal(data['contract'], None)
+        self.assert_in('filename', data['contract'])
+        self.assert_in('url', data['contract'])
+        self.assert_equal(data['contract']['content_type'], 'text/plain')
+
+    @data_provider('get_users_data')
+    def test_create_user_with_file_and_not_defined_content_type(self, number, data):
+        data['contract'] = {
+            'filename': 'contract.txt',
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8')
+        }
+        resp = self.post(self.USER_API_URL, data=self.serialize(data))
+        self.assert_valid_JSON_created_response(resp)
+        data = self.deserialize(resp)
+        self.assert_not_equal(data['contract'], None)
+        self.assert_in('filename', data['contract'])
+        self.assert_in('url', data['contract'])
+        self.assert_equal(data['contract']['content_type'], 'text/plain')
+
+    @data_provider('get_users_data')
+    def test_error_during_creating_user_with_file_and_not_defined_content_type(self, number, data):
+        data['contract'] = {
+            'filename': 'contract',
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8')
+        }
+        resp = self.post(self.USER_API_URL, data=self.serialize(data))
+        self.assert_http_bad_request(resp)
 
     @data_provider('get_issues_and_users_data')
     def test_atomic_create_issue_with_user_id(self, number, issue_data, user_data):

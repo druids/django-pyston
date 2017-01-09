@@ -24,7 +24,7 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
     ],
     install_requires=[
-        'django>=1.6',
+        'django>=1.8',
         'python-mimeparse==0.1.4',
         'django-chamber>=0.1.19'
     ],
