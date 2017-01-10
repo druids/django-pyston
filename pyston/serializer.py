@@ -30,7 +30,7 @@ from chamber.utils import get_class_method
 from .exception import UnsupportedMediaTypeException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
-from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO
+from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python
 from .converters import get_converter
 
 
@@ -474,18 +474,19 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
               converter_name=None, converter_options=None):
     from pyston.converters import get_default_converter_name
 
+    converter_options = {} if converter_options is None else converter_options
     converter_name = converter_name if converter_name is not None else get_default_converter_name()
     requested_fieldset = rfs(requested_fieldset) if requested_fieldset is not None else None
     converted_dict = get_serializer(data).serialize(
         data, serialization_format, requested_fieldset=requested_fieldset, direct_serialization=True
     )
     if converter_name == 'python':
-        return converted_dict
+        return serialized_data_to_python(converted_dict)
     else:
         try:
             converter = get_converter(converter_name)
         except ValueError:
             raise UnsupportedMediaTypeException
         os = UniversalBytesIO()
-        converter.encode_to_stream(os, converted_dict)
+        converter.encode_to_stream(os, converted_dict, options=converter_options)
         return os.get_string_value()
