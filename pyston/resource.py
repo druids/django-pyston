@@ -260,7 +260,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             RFS.create_from_string(self.request._rest_context.get('fields'))
             if 'fields' in self.request._rest_context
             else (
-                self.get_default_detailed_fields()
+                self.get_default_detailed_fields(obj=result)
                 if self._is_single_obj_request(result)
                 else self.get_default_general_fields()
             )
@@ -309,7 +309,6 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return self.request
 
     def _get_error_response(self, exception):
-
         responses = {
             MimerDataException: rc.BAD_REQUEST,
             NotAllowedException: rc.FORBIDDEN,
@@ -337,7 +336,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             else:
                 self._check_permission(rm)
                 result = meth()
-        except (MimerDataException, NotAllowedException, UnsupportedMediaTypeException, Http404) as ex:
+        except (MimerDataException, NotAllowedException, UnsupportedMediaTypeException, Http404, ConflictException) as ex:
             result = self._get_error_response(ex)
             fieldset = False
 
@@ -412,7 +411,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def _get_headers(self, result, http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
 
-        obj = self._get_obj_or_none()
+        obj = result if self._is_single_obj_request(result) else None
 
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
@@ -575,7 +574,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             return RESTCreatedResponse(self._atomic_create_or_update(data))
         except DataInvalidException as ex:
             return RESTErrorsResponse(ex.errors)
-        except NotAllowedException:
+        except (ConflictException, NotAllowedException):
             raise
         except (RESTException, PersistenceException) as ex:
             return RESTErrorResponse(ex.message)
@@ -603,7 +602,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             return self._atomic_create_or_update(data)
         except DataInvalidException as ex:
             return RESTErrorsResponse(ex.errors)
-        except (ConflictException, NotAllowedException):
+        except ConflictException:
+            # If object allready exists and user doesn't have permissions to change it should be returned 404 (the same
+            # response as for GET method)
+            raise Http404
+        except NotAllowedException:
             raise
         except (RESTException, PersistenceException) as ex:
             return RESTErrorResponse(ex.message)
