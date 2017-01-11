@@ -30,7 +30,7 @@ from chamber.utils import get_class_method
 from .exception import UnsupportedMediaTypeException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
-from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO
+from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python
 from .converters import get_converter
 
 
@@ -480,7 +480,7 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
         data, serialization_format, requested_fieldset=requested_fieldset, direct_serialization=True
     )
     if converter_name == 'python':
-        return converted_dict
+        return serialized_data_to_python(converted_dict)
     else:
         try:
             converter = get_converter(converter_name)
