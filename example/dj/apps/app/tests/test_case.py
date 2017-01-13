@@ -5,6 +5,8 @@ class PystonTestCase(RESTTestCase):
     USER_API_URL = '/api/user/'
     ISSUE_API_URL = '/api/issue/'
     EXTRA_API_URL = '/api/extra/'
+    COUNT_ISSUES_PER_USER = '/api/count-issues-per-user/'
+    COUNT_WATCHERS_PER_ISSUE = '/api/count-watchers-per-issue/'
 
     user_id = 0
     issue_id = 0

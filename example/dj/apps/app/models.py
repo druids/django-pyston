@@ -22,6 +22,8 @@ class User(models.Model):
         default_detailed_fields = {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue',
                                    'first_name', 'last_name'}
         default_general_fields = {'id', '_obj_name', 'email', 'first_name', 'last_name'}
+        direct_serialization_fields = {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue',
+                                       'first_name', 'last_name'}
         extra_fields = {'is_superuser'}
 
 

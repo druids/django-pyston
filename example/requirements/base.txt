@@ -9,3 +9,4 @@ https://github.com/LukasRychtecky/germanium/tarball/1.0.12#egg=germanium-1.0.12
 https://github.com/druids/django-chamber/tarball/0.1.19#egg=django-chamber-0.1.19
 https://github.com/matllubos/xhtml2pdf/tarball/develop
 coverage==4.0.2
+factory-boy==2.8.1
