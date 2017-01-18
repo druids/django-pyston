@@ -12,16 +12,17 @@ from app.models import User
 from pyston.serializer import serialize
 
 
-class ExtraResourceTestCase(TestCase):
+class DirectSerializationTestCase(TestCase):
 
     def test_serialization(self):
         for i in range(10):
             User.objects.create(is_superuser=True, email='test{}@test.cz'.format(i))
         assert_true(isinstance(json.loads((serialize(User.objects.all()))), list))
         assert_true(isinstance(json.loads((serialize(User.objects.first()))), dict))
+
         assert_equal(
             set(json.loads((serialize(User.objects.first()))).keys()),
-            {'_obj_name', 'id', 'created_at', 'contract', 'email'}
+            {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name'}
         )
         assert_equal(
             set(json.loads((serialize(User.objects.first(), ('id',)))).keys()),

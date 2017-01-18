@@ -37,6 +37,23 @@ from .converters import get_converter
 default_serializers = []
 
 
+class Serializable(object):
+
+    def serialize(self, serialization_format, **kwargs):
+        raise NotImplementedError
+
+
+class SerializableObj(Serializable):
+
+    def _get_value(self, field, serialization_format, request, **kwargs):
+        val = getattr(self, field)
+        return get_serializer(val, request=request).serialize(val, serialization_format, **kwargs)
+
+    def serialize(self, serialization_format, request=None, **kwargs):
+        return {field_name: self._get_value(field_name, serialization_format, request, **kwargs)
+                for field_name in self.RESTMeta.fields}
+
+
 class SerializationException(Exception):
     pass
 
@@ -200,6 +217,13 @@ class RawVerboseSerializer(Serializer):
 
     def serialize(self, data, serialization_format, lazy=False, **kwargs):
         return self._data_to_python(data.get_value(serialization_format), serialization_format, lazy=False, **kwargs)
+
+
+@register(Serializable)
+class SerializableSerializer(Serializer):
+
+    def serialize(self, data, serialization_format, **kwargs):
+        return data.serialize(serialization_format, request=self.request, **kwargs)
 
 
 @register((Model, QuerySet, QuerysetIteratorHelper))
