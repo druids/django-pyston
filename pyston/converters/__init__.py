@@ -120,7 +120,7 @@ class Converter(object):
 
     @property
     def content_type(self):
-        return '; '.join((self.media_type, self.charset))
+        return '{}; charset={}'.format(self.media_type, self.charset)
 
     def _encode(self, data, options=None, **kwargs):
         """
