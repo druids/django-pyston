@@ -406,7 +406,7 @@ class ModelSerializer(Serializer):
         if not has_get_permission:
             return model_resource.get_guest_fields(obj)
         else:
-            return model_resource.get_default_general_fields(obj)
+            return model_resource.get_default_general_fields()
 
     def _get_allowed_fieldset_from_resource(self, model_resource, obj, via, has_get_permission):
         if not has_get_permission:
@@ -423,18 +423,14 @@ class ModelSerializer(Serializer):
         model_resource = self._get_model_resource(obj)
 
         if model_resource:
-            has_get_permission = (model_resource.has_get_permission(obj, via) or
-                                  model_resource.has_post_permission(obj, via) or
-                                  model_resource.has_put_permission(obj, via))
+            has_get_permission = (model_resource.has_get_permission(obj=obj, via=via) or
+                                  model_resource.has_post_permission(obj=obj, via=via) or
+                                  model_resource.has_put_permission(obj=obj, via=via))
             default_fieldset = self._get_fieldset_from_resource(model_resource, obj, via, has_get_permission)
             allowed_fieldset = self._get_allowed_fieldset_from_resource(model_resource, obj, via, has_get_permission)
         else:
             allowed_fieldset = (
-                (requested_fieldset if requested_fieldset else rfs(
-                    obj._rest_meta.extra_fields
-                 ).join(rfs(obj._rest_meta.default_general_fields)).join(
-                    rfs(obj._rest_meta.default_detailed_fields)
-                 ).join(rfs(obj._rest_meta.direct_serialization_fields)))
+                (requested_fieldset if requested_fieldset else rfs(obj._rest_meta.direct_serialization_fields))
                 if direct_serialization else rfs(obj._rest_meta.guest_fields)
             )
             default_fieldset = (
@@ -495,7 +491,7 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
-              converter_name=None, converter_options=None):
+              converter_name=None):
     from pyston.converters import get_default_converter_name
 
     converter_name = converter_name if converter_name is not None else get_default_converter_name()

@@ -14,6 +14,8 @@ from django.utils.encoding import force_text
 
 from copy import deepcopy
 
+from chamber.utils.decorators import classproperty
+
 from pyston.utils.compatibility import is_related_descriptor, get_model_from_relation_or_none
 
 
