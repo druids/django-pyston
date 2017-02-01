@@ -1,26 +1,23 @@
 from __future__ import unicode_literals
 
-import types
 import json
-
-from six.moves import cStringIO
-
+import types
 from collections import OrderedDict
 
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.http.response import HttpResponseBase
 from django.template.loader import get_template
 from django.utils.encoding import force_text
-from django.utils.xmlutils import SimplerXMLGenerator
-from django.utils.module_loading import import_string
 from django.utils.html import format_html
+from django.utils.module_loading import import_string
+from django.utils.xmlutils import SimplerXMLGenerator
 
-from pyston.utils.helpers import UniversalBytesIO, serialized_data_to_python
-from pyston.utils.datastructures import FieldsetGenerator
 from pyston.conf import settings
+from pyston.utils.datastructures import FieldsetGenerator
+from pyston.utils.helpers import UniversalBytesIO, serialized_data_to_python
+from six.moves import cStringIO
 
-from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator
-
+from .file_generators import CSVGenerator, PDFGenerator, XLSXGenerator
 
 converters = OrderedDict()
 
@@ -163,7 +160,7 @@ class XMLConverter(Converter):
 
         if isinstance(data, LazySerializedData):
             self._to_xml(xml, data.serialize())
-        elif isinstance(data, (list, tuple, set, types.GeneratorType)):
+        elif is_serializable_collection(data):
             for item in data:
                 xml.startElement('resource', {})
                 self._to_xml(xml, item)
@@ -263,7 +260,7 @@ class GeneratorConverter(Converter):
     def render_value(self, value, first=True):
         if isinstance(value, dict):
             return '(%s)' % ', '.join(['%s: %s' % (key, self.render_value(val, False)) for key, val in value.items()])
-        elif isinstance(value, (list, tuple, set)):
+        elif is_serializable_collection(value):
             if first:
                 return '\n'.join([self.render_value(val, False) for val in value])
             else:
@@ -279,7 +276,7 @@ class GeneratorConverter(Converter):
 
     def _render_content(self, field_name_list, converted_data):
         constructed_data = converted_data
-        if not isinstance(constructed_data, (list, tuple, set, types.GeneratorType)):
+        if not is_serializable_collection(constructed_data):
             constructed_data = [constructed_data]
 
         return (self._render_row(row, field_name_list) for row in constructed_data)
@@ -422,3 +419,10 @@ class HTMLConverter(Converter):
         # browser doesn't render it
         response.status_code = 200
         return get_template(self.template_name).render(context, request=resource.request)
+
+
+def is_serializable_collection(coll):
+    """
+    Returns `True` is a given `coll` is a list, a tuple, a set or a generator, otherwise `False`.
+    """
+    return isinstance(coll, (list, tuple, set, types.GeneratorType))
