@@ -19,13 +19,10 @@ class User(models.Model):
         return 'user: %s' % self.email
 
     class RESTMeta:
-        fields = ('id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
-                  'is_superuser')
-        default_detailed_fields = ('id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue',
-                                   'first_name', 'last_name')
-        default_general_fields = ('id', '_obj_name', 'email', 'first_name', 'last_name')
-        direct_serialization_fields = ('id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue',
-                                       'first_name', 'last_name')
+        fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser')
+        detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
+        general_fields = ('email', 'first_name', 'last_name')
+        direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
 
 
 @python_2_unicode_compatible

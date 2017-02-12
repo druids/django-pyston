@@ -239,18 +239,32 @@ class RESTFieldset(object):
         return RESTFieldset(*fields)
 
     @classmethod
-    def create_from_list(cls, fields_list):
+    def _create_field_from_list(cls, field):
+        field_name, subfield_list = field
+
+        return RESTField(field_name, cls.create_from_list(subfield_list))
+
+    @classmethod
+    def _create_field_from_string(cls, field):
+        if '__' in field:
+            field_name, field_child = field.split('__', 1)
+            return RESTField(field_name, cls.create_from_list((field_child,)))
+        else:
+            return RESTField(field)
+
+    @classmethod
+    def create_from_list(cls, fields_list=None):
         if isinstance(fields_list, RESTFieldset):
             return deepcopy(fields_list)
 
         fields = []
-        for field in fields_list:
+        for field in fields_list or ():
             if isinstance(field, (list, tuple)):
-                field_name, subfield_list = field
-
-                fields.append(RESTField(field_name, cls.create_from_list(subfield_list)))
+                fields.append(cls._create_field_from_list(field))
+            elif isinstance(field, six.string_types):
+                fields.append(cls._create_field_from_string(field))
             else:
-                fields.append(field)
+                raise ValueError('field can be only list, tuple or string ({} [{}])'.format(field, type(field)))
 
         return RESTFieldset(*fields)
 
@@ -266,6 +280,9 @@ class RESTFieldset(object):
         return self.fields_map.values()
 
     def join(self, rest_fieldset):
+        if isinstance(rest_fieldset, (list, tuple, set)):
+            rest_fieldset = self.create_from_list(rest_fieldset)
+
         assert isinstance(rest_fieldset, RESTFieldset)
 
         for rf in rest_fieldset.fields:
@@ -285,15 +302,6 @@ class RESTFieldset(object):
         for name, rf in fields_map.items():
             if name in rest_fieldset.fields_map:
                 self.append(rf.intersection(rest_fieldset.fields_map[name]))
-
-        return self
-
-    def extend_fields_fieldsets(self, rest_fieldset):
-        assert isinstance(rest_fieldset, RESTFieldset)
-
-        for rf in rest_fieldset.fields:
-            if rf.subfieldset and rf.name in self.fields_map and not self.fields_map[rf.name].subfieldset:
-                self.fields_map[rf.name].join(rf)
 
         return self
 
@@ -322,19 +330,6 @@ class RESTFieldset(object):
         a_rfs = deepcopy(self)
         return a_rfs.join(rest_fieldset)
 
-    def __sub__(self, rest_fieldset):
-        if isinstance(rest_fieldset, (list, tuple, set)):
-            rest_fieldset = RFS(*rest_fieldset)
-
-        assert isinstance(rest_fieldset, RESTFieldset)
-
-        values = []
-        for rf in self.fields:
-            if rf.name not in rest_fieldset.fields_map:
-                values.append(deepcopy(rf))
-
-        return self.__class__(*values)
-
     def __bool__(self):
         return bool(self.fields_map)
     __nonzero__ = __bool__
@@ -345,18 +340,22 @@ class RESTFieldset(object):
     def append(self, field):
         if isinstance(field, RESTField):
             rest_field = field
+        elif isinstance(field, six.string_types):
+            rest_field = self._create_field_from_string(field)
+        elif isinstance(field, (list, tuple)):
+            rest_field = self._create_field_from_list(field)
         else:
-            rest_field = RESTField(field)
+            raise ValueError('field can be only list, tuple or string ({} [{}])'.format(field, type(field)))
 
         if rest_field.name in self.fields_map:
-            rest_field = rest_field.join(self.fields_map[rest_field.name])
+            rest_field = self.fields_map[rest_field.name].join(rest_field)
 
         self.fields_map[rest_field.name] = rest_field
         return self
 
     def update(self, rest_fieldset):
         if isinstance(rest_fieldset, (list, tuple, set)):
-            rest_fieldset = RFS(*rest_fieldset)
+            rest_fieldset = self.create_from_list(rest_fieldset)
 
         assert isinstance(rest_fieldset, RESTFieldset)
 

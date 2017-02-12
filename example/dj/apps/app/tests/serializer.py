@@ -28,4 +28,5 @@ class DirectSerializationTestCase(TestCase):
             set(json.loads((serialize(User.objects.first(), ('id',)))).keys()),
             {'id'}
         )
+
         xml.dom.minidom.parseString(serialize(User.objects.first(), converter_name='xml'))

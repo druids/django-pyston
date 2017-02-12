@@ -5,6 +5,7 @@ import warnings
 
 import six
 
+from six.moves import reduce
 from six.moves.urllib.parse import urlparse
 
 from django.conf import settings as django_settings
@@ -414,59 +415,103 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return view
 
 
+def join_rfs(*iterable):
+    return reduce(lambda a, b: a.join(b), iterable, rfs())
+
+
 class DefaultRESTObjectResource(PermissionsResourceMixin):
 
-    fields = ()
-    default_detailed_fields = ()
-    default_general_fields = ()
-    guest_fields = ()
-    allowed_methods = ()
+    fields = None
+    allowed_fields = None
+    detailed_fields = None
+    general_fields = None
+    guest_fields = None
+    allowed_methods = None
+    default_fields = None
+    extra_fields = None
 
-    def get_fields(self, obj=None):
-        return rfs(self.fields)
+    def get_allowed_fields_rfs(self, obj=None):
+        return rfs(self.allowed_fields) if self.allowed_fields is not None else join_rfs(
+            self.get_fields_rfs(),
+            self.get_detailed_fields_rfs(),
+            self.get_general_fields_rfs(),
+            self.get_extra_fields_rfs(),
+            self.get_default_fields_rfs()
+        )
 
-    def get_default_detailed_fields(self):
-        return rfs(self.default_detailed_fields)
+    def get_fields(self):
+        return list(self.fields) if self.fields is not None else None
 
-    def get_default_general_fields(self):
-        return rfs(self.default_general_fields)
+    def get_default_fields(self):
+        return list(self.default_fields) if self.default_fields is not None else None
+
+    def get_detailed_fields(self):
+        return list(self.detailed_fields) if self.detailed_fields is not None else self.get_fields()
+
+    def get_general_fields(self):
+        return list(self.general_fields) if self.general_fields is not None else self.get_fields()
 
     def get_guest_fields(self, obj=None):
-        return rfs(self.guest_fields)
+        return list(self.guest_fields) if self.guest_fields is not None else None
+
+    def get_extra_fields(self):
+        return list(self.extra_fields) if self.extra_fields is not None else None
+
+    def get_fields_rfs(self):
+        fields = self.get_fields()
+
+        return rfs(fields) if fields is not None else rfs()
+
+    def get_default_fields_rfs(self):
+        default_fields = self.get_default_fields()
+
+        return rfs(default_fields) if default_fields is not None else rfs()
+
+    def get_detailed_fields_rfs(self):
+        detailed_fields = self.get_detailed_fields()
+
+        return (rfs(detailed_fields) if detailed_fields is not None else rfs()).join(self.get_default_fields_rfs())
+
+    def get_general_fields_rfs(self):
+        general_fields = self.get_general_fields()
+
+        return (rfs(general_fields) if general_fields is not None else rfs()).join(self.get_default_fields_rfs())
+
+    def get_guest_fields_rfs(self, obj=None):
+        guest_fields = self.get_guest_fields()
+
+        return rfs(guest_fields) if guest_fields is not None else rfs()
+
+    def get_extra_fields_rfs(self):
+        extra_fields = self.get_extra_fields()
+
+        return rfs(extra_fields) if extra_fields is not None else rfs()
 
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):
 
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
-    fields = None
-    default_detailed_fields = None
-    default_general_fields = None
-    guest_fields = None
     model = None
 
-    def get_default_detailed_fields(self):
-        return rfs(
-            self.default_detailed_fields if self.default_detailed_fields is not None
-            else self.model._rest_meta.default_detailed_fields
-        )
+    def get_detailed_fields(self):
+        detailed_fields = super(DefaultRESTModelResource, self).get_detailed_fields()
+        return list(self.model._rest_meta.detailed_fields) if detailed_fields is None else detailed_fields
 
-    def get_default_general_fields(self):
-        return rfs(
-            self.default_general_fields if self.default_general_fields is not None
-            else self.model._rest_meta.default_general_fields
-        )
-
-    def get_fields(self, obj=None):
-        return rfs(
-            self.fields if self.fields is not None
-            else self.model._rest_meta.fields
-        )
+    def get_general_fields(self):
+        general_fields = super(DefaultRESTModelResource, self).get_general_fields()
+        return list(self.model._rest_meta.general_fields) if general_fields is None else general_fields
 
     def get_guest_fields(self, obj=None):
-        return rfs(
-            self.guest_fields if self.guest_fields is not None
-            else self.model._rest_meta.guest_fields
-        )
+        guest_fields = super(DefaultRESTModelResource, self).get_guest_fields()
+        return list(self.model._rest_meta.guest_fields) if guest_fields is None else guest_fields
+
+    def get_extra_fields(self):
+        extra_fields = super(DefaultRESTModelResource, self).get_extra_fields()
+        return list(self.model._rest_meta.extra_fields) if extra_fields is None else extra_fields
+
+    def get_default_fields(self):
+        default_fields = super(DefaultRESTModelResource, self).get_default_fields()
+        return list(self.model._rest_meta.default_fields) if default_fields is None else default_fields
 
 
 class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
@@ -498,9 +543,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         if requested_fields:
             return RFS.create_from_string(requested_fields)
         elif isinstance(result, Model):
-            return self.get_default_detailed_fields()
+            return self.get_detailed_fields_rfs()
         elif isinstance(result, QuerySet):
-            return self.get_default_general_fields()
+            return self.get_general_fields_rfs()
         else:
             return None
 
@@ -516,15 +561,15 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def render_response(self, result, http_headers, status_code, fieldset):
         return super(BaseObjectResource, self).render_response(result, http_headers, status_code, fieldset)
 
-    def _get_fields_options_header(self):
-        return ','.join(self.get_fields(self._get_obj_or_none()).flat())
+    def _get_allowed_fields_options_header(self):
+        return ','.join(self.get_allowed_fields_rfs(self._get_obj_or_none()).flat())
 
     def _get_allow_header(self):
         return ','.join((method.upper() for method in self.get_allowed_methods(obj=self._get_obj_or_none())))
 
     def _get_headers(self, default_http_headers):
         http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
-        http_headers['X-Fields-Options'] = self._get_fields_options_header()
+        http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
         return http_headers
 
     def _get_queryset(self):
