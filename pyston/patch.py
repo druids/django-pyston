@@ -1,9 +1,7 @@
 from __future__ import unicode_literals
 
-from django.db import models
-from django.db.models.fields import Field
-
 from chamber.patch import Options
+from django.db import models
 
 from pyston.utils.compatibility import get_last_parent_pk_field_name
 
@@ -35,19 +33,3 @@ class RESTOptions(Options):
             set(fields) - set(self.detailed_fields) - set(self.general_fields) - set(self.default_fields)
         )
         self.guest_fields = self._getattr('guest_fields', (pk_field_name, '_obj_name'))
-
-
-def field_init(self, *args, **kwargs):
-    humanize_func = kwargs.pop('humanized', None)
-    if humanize_func:
-        def humanize(val, inst, *args, **kwargs):
-            return humanize_func(val, inst, field=self, *args, **kwargs)
-        self.humanized = humanize
-    else:
-        self.humanized = self.default_humanized
-    self._init_pyston_tmp(*args, **kwargs)
-
-
-Field.default_humanized = None
-Field._init_pyston_tmp = Field.__init__
-Field.__init__ = field_init
