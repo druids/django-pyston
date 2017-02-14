@@ -45,7 +45,7 @@ class FieldsetGenerator(object):
     def _get_resource_class(self, obj):
         from pyston.resource import typemapper
 
-        resource_class = typemapper.get(type(obj))
+        resource_class = typemapper.get(obj)
         if resource_class:
             return resource_class
 
