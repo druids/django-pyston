@@ -45,7 +45,7 @@ class Settings(object):
 
     def __getattr__(self, attr):
         if attr not in DEFAULTS:
-            raise AttributeError("Invalid API setting: '{}'".format(attr))
+            raise AttributeError('Invalid Pyston setting: "{}"'.format(attr))
 
         return getattr(django_settings, 'PYSTON_{}'.format(attr), DEFAULTS[attr])
 

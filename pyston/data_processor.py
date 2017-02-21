@@ -362,7 +362,6 @@ class ReverseMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProces
             self._append_errors(key, 'add', self.INVALID_COLLECTION_EXCEPTION)
 
     def _create_or_update_reverse_related_objects(self, data, key, data_item):
-        model_descriptor = getattr(self.model, key, None)
         model = get_model_from_relation(self.model, key)
         field_name = get_reverse_field_name(self.model, key)
         resource = self._get_resource(model)

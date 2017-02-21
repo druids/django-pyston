@@ -31,4 +31,5 @@ Content
    installation
    serializers
    converters
+   rest_meta
 

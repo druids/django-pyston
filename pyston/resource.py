@@ -5,6 +5,7 @@ import warnings
 
 import six
 
+from six.moves import reduce
 from six.moves.urllib.parse import urlparse
 
 from django.conf import settings as django_settings
@@ -12,6 +13,7 @@ from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
+from django.db.models.query import QuerySet
 from django.http.response import Http404
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
@@ -83,7 +85,7 @@ class PermissionsResourceMixin(object):
         via.append(self)
         return via
 
-    def get_allowed_methods(self, obj=None, restricted_methods=None):
+    def get_allowed_methods(self, restricted_methods=None, **kwargs):
         allowed_methods = []
 
         tested_methods = set(self.allowed_methods)
@@ -92,7 +94,7 @@ class PermissionsResourceMixin(object):
 
         for method in tested_methods:
             try:
-                self._check_permission(method, obj=obj)
+                self._check_permission(method, **kwargs)
                 allowed_methods.append(method)
             except (NotImplementedError, NotAllowedException):
                 pass
@@ -130,22 +132,22 @@ class PermissionsResourceMixin(object):
                 return _call
         raise AttributeError('%r object has no attribute %r' % (self.__class__, name))
 
-    def has_get_permission(self, obj=None, via=None):
+    def has_get_permission(self, **kwargs):
         return 'get' in self.allowed_methods and hasattr(self, 'get')
 
-    def has_post_permission(self, obj=None, via=None):
+    def has_post_permission(self, **kwargs):
         return 'post' in self.allowed_methods and hasattr(self, 'post')
 
-    def has_put_permission(self, obj=None, via=None):
+    def has_put_permission(self, **kwargs):
         return 'put' in self.allowed_methods and hasattr(self, 'put')
 
-    def has_delete_permission(self, obj=None, via=None):
+    def has_delete_permission(self, **kwargs):
         return 'delete' in self.allowed_methods and hasattr(self, 'delete')
 
-    def has_head_permission(self, obj=None, via=None):
-        return 'head' in self.allowed_methods and (hasattr(self, 'head') or self.has_get_permission(obj, via))
+    def has_head_permission(self, **kwargs):
+        return 'head' in self.allowed_methods and (hasattr(self, 'head') or self.has_get_permission(**kwargs))
 
-    def has_options_permission(self, obj=None, via=None):
+    def has_options_permission(self, **kwargs):
         return 'options' in self.allowed_methods and hasattr(self, 'options')
 
 
@@ -194,29 +196,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             return self.serializer.SERIALIZATION_TYPES.RAW
         return serialization_format
 
-    def get_fields(self, obj=None):
-        return None
-
-    def get_default_detailed_fields(self, obj=None):
-        return self.get_fields(obj)
-
-    def get_default_general_fields(self, obj=None):
-        return self.get_fields(obj)
-
     def head(self):
         return self.get()
-
-    def _get_obj_or_none(self, pk=None):
-        """
-        Should return one object
-        """
-        return None
-
-    def _get_obj_or_404(self, pk=None):
-        obj = self._get_obj_or_none(pk)
-        if not obj:
-            raise Http404
-        return obj
 
     def _get_cors_allowed_headers(self):
         return ('X-Base', 'X-Offset', 'X-Fields', 'origin', 'content-type', 'accept')
@@ -252,44 +233,20 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         else:
             return None
 
-    def _is_single_obj_request(self, result):
-        return isinstance(result, dict)
-
-    def _get_requested_fieldset(self, result):
-        return (
-            RFS.create_from_string(self.request._rest_context.get('fields'))
-            if 'fields' in self.request._rest_context
-            else (
-                self.get_default_detailed_fields(obj=result)
-                if self._is_single_obj_request(result)
-                else self.get_default_general_fields()
-            )
+    def _get_converted_dict(self, result):
+        return self.serializer(self, request=self.request).serialize(
+            result, self._get_serialization_format(), lazy=True
         )
-
-    def _is_direct_serialization(self):
-        return False
-
-    def _get_converted_dict(self, result, requested_fieldset):
-        converted_dict = self.serializer(self, request=self.request).serialize(
-            result, self._get_serialization_format(), requested_fieldset=requested_fieldset,
-            direct_serialization=self._is_direct_serialization(), lazy=True
-        )
-        return converted_dict
 
     def _serialize(self, os, result, status_code, http_headers):
-        requested_fieldset = self._get_requested_fieldset(result)
-        converted_dict = self._get_converted_dict(result, requested_fieldset)
         try:
-            converter_name = get_converter_name_from_request(self.request)
+            converter = get_converter_from_request(self.request)
+            http_headers['Content-Type'] = converter.content_type
+
+            converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
+                                       status_code=status_code, http_headers=http_headers, result=result)
         except ValueError:
             raise UnsupportedMediaTypeException
-
-        converter = get_converter(converter_name)
-        http_headers['Content-Type'] = converter.content_type
-
-        converter.encode_to_stream(os, converted_dict, resource=self, fields_string=force_text(requested_fieldset),
-                                   request=self.request, status_code=status_code, http_headers=http_headers,
-                                   result=result)
 
     def _deserialize(self):
         rm = self.request.method.upper()
@@ -383,7 +340,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             response = HttpResponse()
             try:
                 response.status_code = status_code
-                http_headers = self._get_headers(result, http_headers)
+                http_headers = self._get_headers(http_headers)
                 self._serialize(response, result, status_code, http_headers)
             except UnsupportedMediaTypeException:
                 response.status_code = 415
@@ -408,22 +365,20 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def _get_filename(self):
         return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request))
 
-    def _get_headers(self, result, http_headers):
+    def _get_allow_header(self):
+        return ','.join((method.upper() for method in self.get_allowed_methods()))
+
+    def _get_headers(self, default_http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
 
-        obj = result if self._is_single_obj_request(result) else None
-
+        http_headers = default_http_headers.copy()
         http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
         http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
-        http_headers['Allow'] = ', '.join((method.upper() for method in self.get_allowed_methods(obj)))
+        http_headers['Allow'] = self._get_allow_header()
         http_headers['Vary'] = 'Accept'
-
-        fields = self.get_fields(obj=result)
-        if fields:
-            http_headers['X-Fields-Options'] = ','.join(fields.flat())
 
         if settings.CORS:
             if origin and self._cors_is_origin_in_whitelist(origin):
@@ -460,63 +415,103 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         return view
 
 
+def join_rfs(*iterable):
+    return reduce(lambda a, b: a.join(b), iterable, rfs())
+
+
 class DefaultRESTObjectResource(PermissionsResourceMixin):
 
-    default_detailed_fields = ()
-    default_general_fields = ()
-    extra_fields = ()
-    guest_fields = ()
-    allowed_methods = ()
+    fields = None
+    allowed_fields = None
+    detailed_fields = None
+    general_fields = None
+    guest_fields = None
+    allowed_methods = None
+    default_fields = None
+    extra_fields = None
 
-    def get_fields(self, obj=None):
-        return self.get_default_detailed_fields(obj).join(
-            self.get_default_general_fields(obj)).join(self.get_extra_fields(obj))
+    def get_allowed_fields_rfs(self, obj=None):
+        return rfs(self.allowed_fields) if self.allowed_fields is not None else join_rfs(
+            self.get_fields_rfs(),
+            self.get_detailed_fields_rfs(),
+            self.get_general_fields_rfs(),
+            self.get_extra_fields_rfs(),
+            self.get_default_fields_rfs()
+        )
 
-    def get_default_detailed_fields(self, obj=None):
-        return rfs(self.default_detailed_fields)
+    def get_fields(self):
+        return list(self.fields) if self.fields is not None else None
 
-    def get_default_general_fields(self, obj=None):
-        return rfs(self.default_general_fields)
+    def get_default_fields(self):
+        return list(self.default_fields) if self.default_fields is not None else None
 
-    def get_extra_fields(self, obj=None):
-        return rfs(self.extra_fields)
+    def get_detailed_fields(self):
+        return list(self.detailed_fields) if self.detailed_fields is not None else self.get_fields()
+
+    def get_general_fields(self):
+        return list(self.general_fields) if self.general_fields is not None else self.get_fields()
 
     def get_guest_fields(self, obj=None):
-        return rfs(self.guest_fields)
+        return list(self.guest_fields) if self.guest_fields is not None else None
+
+    def get_extra_fields(self):
+        return list(self.extra_fields) if self.extra_fields is not None else None
+
+    def get_fields_rfs(self):
+        fields = self.get_fields()
+
+        return rfs(fields) if fields is not None else rfs()
+
+    def get_default_fields_rfs(self):
+        default_fields = self.get_default_fields()
+
+        return rfs(default_fields) if default_fields is not None else rfs()
+
+    def get_detailed_fields_rfs(self):
+        detailed_fields = self.get_detailed_fields()
+
+        return (rfs(detailed_fields) if detailed_fields is not None else rfs()).join(self.get_default_fields_rfs())
+
+    def get_general_fields_rfs(self):
+        general_fields = self.get_general_fields()
+
+        return (rfs(general_fields) if general_fields is not None else rfs()).join(self.get_default_fields_rfs())
+
+    def get_guest_fields_rfs(self, obj=None):
+        guest_fields = self.get_guest_fields()
+
+        return rfs(guest_fields) if guest_fields is not None else rfs()
+
+    def get_extra_fields_rfs(self):
+        extra_fields = self.get_extra_fields()
+
+        return rfs(extra_fields) if extra_fields is not None else rfs()
 
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):
 
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
-    default_detailed_fields = None
-    default_general_fields = None
-    extra_fields = None
-    guest_fields = None
     model = None
 
-    def get_default_detailed_fields(self, obj=None):
-        return rfs(
-            self.default_detailed_fields if self.default_detailed_fields is not None
-            else self.model._rest_meta.default_detailed_fields
-        )
+    def get_detailed_fields(self):
+        detailed_fields = super(DefaultRESTModelResource, self).get_detailed_fields()
+        return list(self.model._rest_meta.detailed_fields) if detailed_fields is None else detailed_fields
 
-    def get_default_general_fields(self, obj=None):
-        return rfs(
-            self.default_general_fields if self.default_general_fields is not None
-            else self.model._rest_meta.default_general_fields
-        )
-
-    def get_extra_fields(self, obj=None):
-        return rfs(
-            self.extra_fields if self.extra_fields is not None
-            else self.model._rest_meta.extra_fields
-        )
+    def get_general_fields(self):
+        general_fields = super(DefaultRESTModelResource, self).get_general_fields()
+        return list(self.model._rest_meta.general_fields) if general_fields is None else general_fields
 
     def get_guest_fields(self, obj=None):
-        return rfs(
-            self.guest_fields if self.guest_fields is not None
-            else self.model._rest_meta.guest_fields
-        )
+        guest_fields = super(DefaultRESTModelResource, self).get_guest_fields()
+        return list(self.model._rest_meta.guest_fields) if guest_fields is None else guest_fields
+
+    def get_extra_fields(self):
+        extra_fields = super(DefaultRESTModelResource, self).get_extra_fields()
+        return list(self.model._rest_meta.extra_fields) if extra_fields is None else extra_fields
+
+    def get_default_fields(self):
+        default_fields = super(DefaultRESTModelResource, self).get_default_fields()
+        return list(self.model._rest_meta.default_fields) if default_fields is None else default_fields
 
 
 class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
@@ -525,6 +520,57 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     pk_name = 'pk'
     pk_field_name = 'id'
     abstract = True
+
+    def _serialize(self, os, result, status_code, http_headers):
+        try:
+            converter = get_converter_from_request(self.request)
+            http_headers['Content-Type'] = converter.content_type
+
+            converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
+                                       status_code=status_code, http_headers=http_headers, result=result,
+                                       requested_fields=force_text(self._get_requested_fieldset(result)))
+        except ValueError:
+            raise UnsupportedMediaTypeException
+
+    def _get_converted_dict(self, result):
+        return self.serializer(self, request=self.request).serialize(
+            result, self._get_serialization_format(), requested_fieldset=self._get_requested_fieldset(result),
+            lazy=True
+        )
+
+    def _get_requested_fieldset(self, result):
+        requested_fields = self.request._rest_context.get('fields')
+        if requested_fields:
+            return RFS.create_from_string(requested_fields)
+        elif isinstance(result, Model):
+            return self.get_detailed_fields_rfs()
+        elif isinstance(result, QuerySet):
+            return self.get_general_fields_rfs()
+        else:
+            return None
+
+    def _get_obj_or_none(self, pk=None):
+        raise NotImplementedError
+
+    def _get_obj_or_404(self, pk=None):
+        obj = self._get_obj_or_none(pk)
+        if not obj:
+            raise Http404
+        return obj
+
+    def render_response(self, result, http_headers, status_code, fieldset):
+        return super(BaseObjectResource, self).render_response(result, http_headers, status_code, fieldset)
+
+    def _get_allowed_fields_options_header(self):
+        return ','.join(self.get_allowed_fields_rfs(self._get_obj_or_none()).flat())
+
+    def _get_allow_header(self):
+        return ','.join((method.upper() for method in self.get_allowed_methods(obj=self._get_obj_or_none())))
+
+    def _get_headers(self, default_http_headers):
+        http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
+        http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
+        return http_headers
 
     def _get_queryset(self):
         """
@@ -622,7 +668,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def _delete(self, pk, via=None):
         via = via or []
         obj = self._get_obj_or_404(pk)
-        self._check_delete_permission(obj, via)
+        self._check_delete_permission(obj=obj, via=via)
         self._pre_delete_obj(obj)
         self._delete_obj(obj)
         self._post_delete_obj(obj)
@@ -671,9 +717,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _can_save_obj(self, change, obj, form, via):
         if change and (not via or form.has_changed()):
-            self._check_put_permission(obj, via)
+            self._check_put_permission(obj=obj, via=via)
         elif not change:
-            self._check_post_permission(obj, via)
+            self._check_post_permission(obj=obj, via=via)
 
         return not change or self.has_put_permission(obj=obj, via=via)
 
@@ -741,13 +787,13 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         return self.model.objects.all()
 
     def _get_obj_or_none(self, pk=None):
-        return get_object_or_none(self._get_queryset(), pk=(pk or self.kwargs.get(self.pk_name)))
+        if pk or self._get_pk():
+            return get_object_or_none(self._get_queryset(), pk=(pk or self._get_pk()))
+        else:
+            return None
 
     def _exists_obj(self, **kwargs):
         return self.model.objects.filter(**kwargs).exists()
-
-    def _is_single_obj_request(self, result):
-        return isinstance(result, Model)
 
     def _delete_obj(self, obj):
         obj.delete()
