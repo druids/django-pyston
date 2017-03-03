@@ -25,6 +25,10 @@ from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator
 converters = OrderedDict()
 
 
+def is_collection(data):
+    return isinstance(data, (list, tuple, set, types.GeneratorType))
+
+
 def register_converters():
     """
     Register all converters from settings configuration.
@@ -163,7 +167,7 @@ class XMLConverter(Converter):
 
         if isinstance(data, LazySerializedData):
             self._to_xml(xml, data.serialize())
-        elif isinstance(data, (list, tuple, set, types.GeneratorType)):
+        elif is_collection(data):
             for item in data:
                 xml.startElement('resource', {})
                 self._to_xml(xml, item)
@@ -255,19 +259,30 @@ class GeneratorConverter(Converter):
             return data
         elif isinstance(data, dict):
             return self._get_recursive_value_from_row(data.get(key_path[0], ''), key_path[1:])
-        elif isinstance(data, (list, tuple, set)):
+        elif is_collection(value):
             return [self._get_recursive_value_from_row(val, key_path) for val in data]
         else:
             return ''
 
+    def _render_dict(self, value, first):
+        if first:
+            return '\n'.join(('{}: {}'.format(key, self.render_value(val, False)) for key, val in value.items()))
+        else:
+            return '({})'.format(
+                ', '.join(('{}: {}'.format(key, self.render_value(val, False)) for key, val in value.items()))
+            )
+
+    def _render_iterable(self, value, first):
+        if first:
+            return '\n'.join((self.render_value(val, False) for val in value))
+        else:
+            return '({})'.format(', '.join((self.render_value(val, False) for val in value)))
+
     def render_value(self, value, first=True):
         if isinstance(value, dict):
-            return '(%s)' % ', '.join(['%s: %s' % (key, self.render_value(val, False)) for key, val in value.items()])
-        elif isinstance(value, (list, tuple, set)):
-            if first:
-                return '\n'.join([self.render_value(val, False) for val in value])
-            else:
-                return '(%s)' % ', '.join([self.render_value(val, False) for val in value])
+            return self._render_dict(value, first)
+        elif is_collection(value):
+            return self._render_iterable(value, first)
         else:
             return force_text(value)
 
@@ -279,13 +294,16 @@ class GeneratorConverter(Converter):
 
     def _render_content(self, field_name_list, converted_data):
         constructed_data = converted_data
-        if not isinstance(constructed_data, (list, tuple, set, types.GeneratorType)):
+        if not is_collection(constructed_data):
             constructed_data = [constructed_data]
 
         return (self._render_row(row, field_name_list) for row in constructed_data)
 
-    def _encode_to_stream(self, os, data, resource=None, fields_string=None, **kwargs):
-        fieldset = FieldsetGenerator(resource, fields_string).generate()
+    def _encode_to_stream(self, os, data, resource=None, requested_fields=None, **kwargs):
+        fieldset = FieldsetGenerator(
+            resource,
+            force_text(requested_fields) if requested_fields is not None else ''
+        ).generate()
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, data),
