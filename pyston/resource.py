@@ -528,7 +528,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
             converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
                                        status_code=status_code, http_headers=http_headers, result=result,
-                                       requested_fields=force_text(self._get_requested_fieldset(result)))
+                                       requested_fields=self._get_requested_fieldset(result))
         except ValueError:
             raise UnsupportedMediaTypeException
 
