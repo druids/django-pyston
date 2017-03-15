@@ -432,58 +432,58 @@ class DefaultRESTObjectResource(PermissionsResourceMixin):
 
     def get_allowed_fields_rfs(self, obj=None):
         return rfs(self.allowed_fields) if self.allowed_fields is not None else join_rfs(
-            self.get_fields_rfs(),
-            self.get_detailed_fields_rfs(),
-            self.get_general_fields_rfs(),
-            self.get_extra_fields_rfs(),
-            self.get_default_fields_rfs()
+            self.get_fields_rfs(obj),
+            self.get_detailed_fields_rfs(obj),
+            self.get_general_fields_rfs(obj),
+            self.get_extra_fields_rfs(obj),
+            self.get_default_fields_rfs(obj)
         )
 
-    def get_fields(self):
+    def get_fields(self, obj=None):
         return list(self.fields) if self.fields is not None else None
 
-    def get_default_fields(self):
+    def get_default_fields(self, obj=None):
         return list(self.default_fields) if self.default_fields is not None else None
 
-    def get_detailed_fields(self):
+    def get_detailed_fields(self, obj=None):
         return list(self.detailed_fields) if self.detailed_fields is not None else self.get_fields()
 
-    def get_general_fields(self):
+    def get_general_fields(self, obj=None):
         return list(self.general_fields) if self.general_fields is not None else self.get_fields()
 
     def get_guest_fields(self, obj=None):
         return list(self.guest_fields) if self.guest_fields is not None else None
 
-    def get_extra_fields(self):
+    def get_extra_fields(self, obj=None):
         return list(self.extra_fields) if self.extra_fields is not None else None
 
-    def get_fields_rfs(self):
-        fields = self.get_fields()
+    def get_fields_rfs(self, obj=None):
+        fields = self.get_fields(obj=obj)
 
         return rfs(fields) if fields is not None else rfs()
 
-    def get_default_fields_rfs(self):
-        default_fields = self.get_default_fields()
+    def get_default_fields_rfs(self, obj=None):
+        default_fields = self.get_default_fields(obj=obj)
 
         return rfs(default_fields) if default_fields is not None else rfs()
 
-    def get_detailed_fields_rfs(self):
-        detailed_fields = self.get_detailed_fields()
+    def get_detailed_fields_rfs(self, obj=None):
+        detailed_fields = self.get_detailed_fields(obj=obj)
 
         return (rfs(detailed_fields) if detailed_fields is not None else rfs()).join(self.get_default_fields_rfs())
 
-    def get_general_fields_rfs(self):
-        general_fields = self.get_general_fields()
+    def get_general_fields_rfs(self, obj=None):
+        general_fields = self.get_general_fields(obj=obj)
 
         return (rfs(general_fields) if general_fields is not None else rfs()).join(self.get_default_fields_rfs())
 
     def get_guest_fields_rfs(self, obj=None):
-        guest_fields = self.get_guest_fields()
+        guest_fields = self.get_guest_fields(obj=obj)
 
         return rfs(guest_fields) if guest_fields is not None else rfs()
 
-    def get_extra_fields_rfs(self):
-        extra_fields = self.get_extra_fields()
+    def get_extra_fields_rfs(self, obj=None):
+        extra_fields = self.get_extra_fields(obj=obj)
 
         return rfs(extra_fields) if extra_fields is not None else rfs()
 
@@ -493,24 +493,24 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
     allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
     model = None
 
-    def get_detailed_fields(self):
-        detailed_fields = super(DefaultRESTModelResource, self).get_detailed_fields()
+    def get_detailed_fields(self, obj=None):
+        detailed_fields = super(DefaultRESTModelResource, self).get_detailed_fields(obj=obj)
         return list(self.model._rest_meta.detailed_fields) if detailed_fields is None else detailed_fields
 
-    def get_general_fields(self):
-        general_fields = super(DefaultRESTModelResource, self).get_general_fields()
+    def get_general_fields(self, obj=None):
+        general_fields = super(DefaultRESTModelResource, self).get_general_fields(obj=obj)
         return list(self.model._rest_meta.general_fields) if general_fields is None else general_fields
 
     def get_guest_fields(self, obj=None):
-        guest_fields = super(DefaultRESTModelResource, self).get_guest_fields()
+        guest_fields = super(DefaultRESTModelResource, self).get_guest_fields(obj=obj)
         return list(self.model._rest_meta.guest_fields) if guest_fields is None else guest_fields
 
-    def get_extra_fields(self):
-        extra_fields = super(DefaultRESTModelResource, self).get_extra_fields()
+    def get_extra_fields(self, obj=None):
+        extra_fields = super(DefaultRESTModelResource, self).get_extra_fields(obj=obj)
         return list(self.model._rest_meta.extra_fields) if extra_fields is None else extra_fields
 
-    def get_default_fields(self):
-        default_fields = super(DefaultRESTModelResource, self).get_default_fields()
+    def get_default_fields(self, obj=None):
+        default_fields = super(DefaultRESTModelResource, self).get_default_fields(obj=obj)
         return list(self.model._rest_meta.default_fields) if default_fields is None else default_fields
 
 
@@ -543,7 +543,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         if requested_fields:
             return RFS.create_from_string(requested_fields)
         elif isinstance(result, Model):
-            return self.get_detailed_fields_rfs()
+            return self.get_detailed_fields_rfs(obj=result)
         elif isinstance(result, QuerySet):
             return self.get_general_fields_rfs()
         else:

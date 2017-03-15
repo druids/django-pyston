@@ -406,7 +406,7 @@ class ModelSerializer(Serializer):
         if not has_get_permission:
             return model_resource.get_guest_fields_rfs(obj)
         else:
-            return model_resource.get_general_fields_rfs()
+            return model_resource.get_general_fields_rfs(obj)
 
     def _get_allowed_fieldset_from_resource(self, model_resource, obj, via, has_get_permission):
         if not has_get_permission:
