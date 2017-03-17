@@ -695,11 +695,12 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         """
         raise NotImplementedError
 
-    def _generate_form_class(self, inst, exclude=[]):
+    def _generate_form_class(self, inst, exclude=None):
         return self.form_class
 
-    def _get_form(self, fields=None, inst=None, data=None, files=None, initial={}):
+    def _get_form(self, fields=None, inst=None, data=None, files=None, initial=None):
         # When is send PUT (resource instance exists), it is possible send only changed values.
+        initial = {} if initial is None else initial
         exclude = []
 
         kwargs = {}
@@ -828,7 +829,8 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def _get_form_fields(self, obj=None):
         return None
 
-    def _generate_form_class(self, inst, exclude=[]):
+    def _generate_form_class(self, inst, exclude=None):
+        exclude = [] if exclude is None else exclude
         exclude = list(self._get_exclude(inst)) + exclude
         form_class = self._get_form_class(inst)
         fields = self._get_form_fields(inst)
