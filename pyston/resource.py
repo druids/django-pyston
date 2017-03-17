@@ -168,6 +168,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     abstract = True
     csrf_exempt = True
     cache = None
+    paginator = Paginator
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -633,8 +634,8 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             qs = self._preload_queryset(self._get_queryset().all())
             qs = self._filter_queryset(qs)
             qs = self._order_queryset(qs)
-            paginator = Paginator(qs, self.request)
-            return HeadersResponse(paginator.page_qs, {'X-Total': paginator.total})
+            paginator = self.paginator(qs, self.request)
+            return HeadersResponse(paginator.page_qs, paginator.headers)
         except (RESTException, PersistenceException) as ex:
             return RESTErrorResponse(ex.message)
         except Http404:
