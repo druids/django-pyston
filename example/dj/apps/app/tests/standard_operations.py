@@ -2,6 +2,7 @@ from six.moves.urllib.parse import urlencode
 
 from germanium.anotations import data_provider
 
+from .factories import UserFactory, IssueFactory
 from .test_case import PystonTestCase
 
 
@@ -12,7 +13,7 @@ class StandardOperationsTestCase(PystonTestCase):
         'text/xml',
         'text/csv',
         'application/pdf',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
 
     @data_provider('get_users_data')
@@ -94,7 +95,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
         self.assert_equal(set(output_data.keys()), {'id', 'created_at', '_obj_name', 'email', 'contract',
-                                                    'solving_issue', 'first_name', 'last_name'})
+                                                    'solving_issue', 'first_name', 'last_name', 'watched_issues'})
 
     @data_provider('get_users_data')
     def test_read_user_general_fields_set_with_metaclass(self, number, data):
@@ -103,7 +104,8 @@ class StandardOperationsTestCase(PystonTestCase):
 
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
-        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'first_name', 'last_name'})
+        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'first_name', 'last_name',
+                                                       'watched_issues'})
 
     @data_provider('get_users_data')
     def test_read_user_extra_fields_set_with_metaclass(self, number, data):
@@ -208,13 +210,13 @@ class StandardOperationsTestCase(PystonTestCase):
 
     @data_provider('get_users_data')
     def test_read_user_with_more_querystring_accept_types(self, number, data):
-        resp = self.post(self.USER_API_URL, data=self.serialize(data))
-        self.assert_valid_JSON_created_response(resp)
-        pk = self.get_pk(resp)
+        user = UserFactory()
+        [issue.watched_by.add(user) for issue in (IssueFactory() for _ in range(10))]
+
         for accept_type in self.ACCEPT_TYPES:
             resp = self.get('%s?_accept=%s' % (self.USER_API_URL, accept_type))
             self.assert_in(accept_type, resp['Content-Type'])
-            resp = self.get('%s%s/?_accept=%s' % (self.USER_API_URL, pk, accept_type),
+            resp = self.get('%s%s/?_accept=%s' % (self.USER_API_URL, user.pk, accept_type),
                             headers={'HTTP_ACCEPT': accept_type})
             self.assert_true(accept_type in resp['Content-Type'])
             resp = self.get('%s1050/?_accept=%s' % (self.USER_API_URL, accept_type),
