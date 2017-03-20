@@ -259,7 +259,7 @@ class GeneratorConverter(Converter):
             return data
         elif isinstance(data, dict):
             return self._get_recursive_value_from_row(data.get(key_path[0], ''), key_path[1:])
-        elif is_collection(value):
+        elif is_collection(data):
             return [self._get_recursive_value_from_row(val, key_path) for val in data]
         else:
             return ''
