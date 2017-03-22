@@ -6,7 +6,18 @@ from django.db.models.query import QuerySet
 from .exception import RESTException
 
 
-class Paginator(object):
+class BasePaginator(object):
+
+    @property
+    def page_qs(self):
+        raise NotImplementedError
+
+    @property
+    def headers(self):
+        return {}
+
+
+class Paginator(BasePaginator):
     """
     REST paginator for list and querysets
     """
@@ -55,3 +66,7 @@ class Paginator(object):
             return self.qs[self.offset:(self.offset + self.base)]
         else:
             return self.qs[self.offset:]
+
+    @property
+    def headers(self):
+        return {'X-Total': self.total}
