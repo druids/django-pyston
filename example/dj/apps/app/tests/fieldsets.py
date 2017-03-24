@@ -41,9 +41,6 @@ class FieldsetsTestCase(TestCase):
     def test_rfs_flat(self):
         assert_equal(rfs(('a', 'b', 'b__c', 'b__g', ('d', ('e__f',)))).flat(), {'a', 'b', 'd'})
 
-    def test_rfs_flat(self):
-        assert_equal(rfs(('a', 'b', 'b__c', 'b__g', ('d', ('e__f',)))).flat(), {'a', 'b', 'd'})
-
     def test_rfs_bool(self):
         assert_true(rfs(('a', 'b', 'b__c', 'b__g', ('d', ('e__f',)))))
         assert_false(rfs())

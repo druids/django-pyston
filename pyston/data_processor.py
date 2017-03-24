@@ -17,10 +17,12 @@ from django.utils.encoding import force_text
 
 from chamber.shortcuts import get_object_or_none
 
+from pyston.conf import settings as pyston_settings
 from pyston.utils.compatibility import (
     is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
     get_reverse_field_name, get_model_from_relation
 )
+from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
 
 from .exception import DataInvalidException, RESTException
 from .resource import BaseObjectResource, typemapper, BaseModelResource
@@ -85,37 +87,62 @@ class FileDataPreprocessor(DataProcessor):
     def _get_mimetype_from_filename(self, filename):
         return mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
 
+    def _get_content_type(self, data_item, filename):
+        return data_item.get('content_type') or self._get_mimetype_from_filename(filename)
+
+    def _process_file_data(self, data, files, key, data_item, file_content):
+        filename = data_item.get('filename')
+        content_type = self._get_content_type(data_item, filename)
+        if content_type:
+            charset = data_item.get('charset')
+            files[key] = InMemoryUploadedFile(
+                file_content, field_name=key, name=filename, content_type=content_type,
+                size=sys.getsizeof(file_content), charset=charset
+            )
+            data[key] = filename
+        else:
+            self.errors[key] = ugettext('Content type cannot be evaluated from filename, please specify it')
+
     def _process_file_data_field(self, data, files, key, data_item):
         try:
-            filename = data_item.get('filename')
             file_content = BytesIO(base64.b64decode(data_item.get('content').encode('utf-8')))
-            content_type = data_item.get('content_type') or self._get_mimetype_from_filename(filename)
-            if content_type:
-                charset = data_item.get('charset')
-                files[key] = InMemoryUploadedFile(
-                    file_content, field_name=key, name=filename, content_type=content_type,
-                    size=sys.getsizeof(file_content), charset=charset
-                )
-                data[key] = filename
-            else:
-                self.errors[key] = ugettext('Content type cannot be evaluated from filename, please specify it')
+            self._process_file_data(data, files, key, data_item, file_content)
         except TypeError:
             self.errors[key] = ugettext('File content is not in base64 format')
+
+    def _process_file_data_url_field(self, data, files, key, data_item):
+        url = data_item.get('url')
+        try:
+            file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
+        except RequestDataTooBig:
+            self.errors[key] = ugettext('Response too large, maximum size is {} bytes').format(
+                pyston_settings.FILE_SIZE_LIMIT
+            )
+            return
+
+        self._process_file_data(data, files, key, data_item, file_content)
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
         if field and isinstance(field, FileField) and isinstance(data_item, dict):
             REQUIRED_ITEMS = {'filename', 'content'}
+            REQUIRED_URL_ITEMS = {'filename', 'url'}
 
-            if not REQUIRED_ITEMS.issubset(set(data_item.keys())):
-                self.errors[key] = (ugettext('File data item must contains {}').format(
-                                    ', '.join(REQUIRED_ITEMS)))
-            else:
+            if REQUIRED_ITEMS.issubset(set(data_item.keys())):
                 for item in REQUIRED_ITEMS:
                     self._validate_not_empty(data_item, key, item)
 
                 if not self.errors:
                     self._process_file_data_field(data, files, key, data_item)
+            elif REQUIRED_URL_ITEMS.issubset(set(data_item.keys())):
+                for item in REQUIRED_URL_ITEMS:
+                    self._validate_not_empty(data_item, key, item)
+
+                if not self.errors:
+                    self._process_file_data_url_field(data, files, key, data_item)
+            else:
+                self.errors[key] = (ugettext('File data item must contains {} or {}').format(
+                                    ', '.join(REQUIRED_ITEMS), ', '.join(REQUIRED_URL_ITEMS)))
 
 
 class ModelResourceDataProcessor(DataProcessor):

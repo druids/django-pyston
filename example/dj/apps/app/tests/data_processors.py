@@ -2,9 +2,14 @@
 from __future__ import unicode_literals
 
 import base64
+import os
 
-from germanium.rest import RESTTestCase
+from django.conf import settings
+from django.test.utils import override_settings
+
 from germanium.anotations import data_provider
+
+import responses
 
 from .test_case import PystonTestCase
 
@@ -56,6 +61,42 @@ class DataProcessorsTestCase(PystonTestCase):
         }
         resp = self.post(self.USER_API_URL, data=self.serialize(data))
         self.assert_http_bad_request(resp)
+
+    def serve_file(self, rsps, url, body, status=200):
+        rsps.add(responses.GET, url, body=body, status=status, match_querystring=True)
+
+    def get_file_url_response(self, data):
+        url = 'http://foo.bar/testfile.pdf'
+        data['contract'] = {
+            'filename': 'testfile.pdf',
+            'url': url,
+        }
+        with responses.RequestsMock(assert_all_requests_are_fired=True) as rsps:
+            with open(os.path.join(settings.PROJECT_DIR, 'data', 'tests', 'pdf-sample.pdf'), 'rb') as f:
+                content = f.read()
+
+            self.serve_file(rsps, url, content)
+            return self.post(self.USER_API_URL, data=self.serialize(data))
+
+    @data_provider('get_users_data')
+    def test_create_user_with_file_url(self, number, data):
+        resp = self.get_file_url_response(data)
+
+        self.assert_valid_JSON_created_response(resp)
+        data = self.deserialize(resp)
+
+        self.assert_not_equal(data['contract'], None)
+        self.assert_in('filename', data['contract'])
+        self.assert_in('url', data['contract'])
+        self.assert_equal(data['contract']['content_type'], 'application/pdf')
+
+    @override_settings(PYSTON_FILE_SIZE_LIMIT=7000)
+    @data_provider('get_users_data')
+    def test_create_user_with_file_url_too_large(self, number, data):
+        resp = self.get_file_url_response(data)
+
+        self.assert_http_bad_request(resp)
+        self.assert_in('contract', self.deserialize(resp).get('messages', {}).get('errors', {}))
 
     @data_provider('get_issues_and_users_data')
     def test_atomic_create_issue_with_user_id(self, number, issue_data, user_data):
