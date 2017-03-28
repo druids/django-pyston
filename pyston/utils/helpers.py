@@ -81,11 +81,11 @@ class UniversalBytesIO(object):
 
 
 def serialized_data_to_python(data):
-    from pyston.serializer import LazySerializedData
+    from pyston.serializer import LAZY_SERIALIZERS
 
     if isinstance(data, (types.GeneratorType, list, tuple)):
         return [serialized_data_to_python(val) for val in data]
-    elif isinstance(data, LazySerializedData):
+    elif isinstance(data, LAZY_SERIALIZERS):
         return serialized_data_to_python(data.serialize())
     elif isinstance(data, dict):
         return OrderedDict(((key, serialized_data_to_python(val)) for key, val in data.items()))

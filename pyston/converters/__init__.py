@@ -163,9 +163,9 @@ class XMLConverter(Converter):
     format = 'xml'
 
     def _to_xml(self, xml, data):
-        from pyston.serializer import LazySerializedData
+        from pyston.serializer import LAZY_SERIALIZERS
 
-        if isinstance(data, LazySerializedData):
+        if isinstance(data, LAZY_SERIALIZERS):
             self._to_xml(xml, data.serialize())
         elif is_collection(data):
             for item in data:
@@ -201,11 +201,11 @@ class XMLConverter(Converter):
 class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
 
     def default(self, o):
-        from pyston.serializer import LazySerializedData
+        from pyston.serializer import LAZY_SERIALIZERS
 
         if isinstance(o, types.GeneratorType):
             return tuple(o)
-        elif isinstance(o, LazySerializedData):
+        elif isinstance(o, LAZY_SERIALIZERS):
             return o.serialize()
         else:
             return super(LazyDateTimeAwareJSONEncoder, self).default(o)
@@ -251,9 +251,9 @@ class GeneratorConverter(Converter):
         return result
 
     def _get_recursive_value_from_row(self, data, key_path):
-        from pyston.serializer import LazySerializedData
+        from pyston.serializer import LAZY_SERIALIZERS
 
-        if isinstance(data, LazySerializedData):
+        if isinstance(data, LAZY_SERIALIZERS):
             return self._get_recursive_value_from_row(data.serialize(), key_path)
         elif len(key_path) == 0:
             return data

@@ -4,11 +4,12 @@ import django
 from django.conf.urls import url
 
 from app.resource import (IssueResource, UserResource, ExtraResource, CountIssuesPerUserResource,
-                          CountWatchersPerIssueResource)
+                          CountWatchersPerIssueResource, TestCamelCaseResource)
 
 urlpatterns = [
     url(r'^api/user/$', UserResource.as_view(allowed_methods=('get', 'post', 'head', 'options'))),
     url(r'^api/user/(?P<pk>\d+)/$', UserResource.as_view(allowed_methods=('get', 'put', 'delete', 'head', 'options'))),
+    url(r'^api/test-cc/$', TestCamelCaseResource.as_view(allowed_methods=('get', 'post',))),
     url(r'^api/issue/$', IssueResource.as_view(allowed_methods=('get', 'post', 'head', 'options'))),
     url(r'^api/issue/(?P<pk>\d+)/$', IssueResource.as_view(allowed_methods=('get', 'put', 'delete', 'head', 'options'))),
     url(r'^api/extra/$', ExtraResource.as_view()),
