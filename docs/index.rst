@@ -30,6 +30,7 @@ Content
 
    installation
    serializers
+   reverse_fields
    converters
    rest_meta
 

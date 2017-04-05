@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
 from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
+from pyston.forms import RESTModelForm, ReverseOneToOneField, ReverseManyField
 
 from .models import Issue, User
 from .serializable import CountIssuesPerUserTable, CountWatchersPerIssue
@@ -77,3 +78,19 @@ class TestCamelCaseResource(BaseResource):
     def post(self):
         data = self.get_dict_data()
         return RESTCreatedResponse({'bar_baz': data.get('bar_baz')})
+
+
+class UserForm(RESTModelForm):
+
+    watched_issues = ReverseManyField('watched_issues')
+    created_issues_renamed = ReverseManyField('created_issues')
+    solving_issue_renamed = ReverseOneToOneField('solving_issue')
+    leading_issue_renamed = ReverseOneToOneField('leading_issue')
+
+
+class UserWithFormResource(BaseModelResource):
+
+    register = False
+    model = User
+    form_class = UserForm
+
