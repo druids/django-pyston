@@ -26,6 +26,7 @@ from chamber.utils import remove_accent
 from chamber.utils import transaction
 
 from pyston.conf import settings
+from pyston.utils.helpers import serialized_data_to_python
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
@@ -35,7 +36,7 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
 from .utils import coerce_put_post, rc, set_rest_context_to_request, RFS, rfs
-from .serializer import ResourceSerializer, ModelResourceSerializer
+from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 
 
@@ -179,13 +180,18 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         'content_type': ('CONTENT_TYPE', '_content_type'),
     }
 
+    DATA_KEY_MAPPING = {}
+
     def __init__(self, request):
         self.request = request
         self.args = []
         self.kwargs = {}
 
+    def _demap_key(self, lookup_key):
+        return {v: k for k, v in self.DATA_KEY_MAPPING.items()}.get(lookup_key, lookup_key)
+
     def _flatten_dict(self, dct):
-        return {str(k): dct.get(k) for k in dct.keys()} if isinstance(dct, dict) else {}
+        return {self._demap_key(str(k)): dct.get(k) for k in dct.keys()} if isinstance(dct, dict) else {}
 
     def get_dict_data(self):
         return self._flatten_dict(self.request.data) if hasattr(self.request, 'data') else {}
@@ -235,6 +241,12 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             return None
 
     def _get_converted_dict(self, result):
+        serialized_data = self._get_converted_serialized_data(result)
+        if self.DATA_KEY_MAPPING:
+            serialized_data = LazyMappedSerializedData(serialized_data, self.DATA_KEY_MAPPING)
+        return serialized_data
+
+    def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
             result, self._get_serialization_format(), lazy=True
         )
@@ -533,7 +545,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         except ValueError:
             raise UnsupportedMediaTypeException
 
-    def _get_converted_dict(self, result):
+    def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
             result, self._get_serialization_format(), requested_fieldset=self._get_requested_fieldset(result),
             lazy=True
@@ -549,9 +561,6 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             return self.get_general_fields_rfs()
         else:
             return None
-
-    def _get_obj_or_none(self, pk=None):
-        raise NotImplementedError
 
     def _get_obj_or_404(self, pk=None):
         obj = self._get_obj_or_none(pk)

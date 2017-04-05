@@ -7,6 +7,7 @@ class PystonTestCase(RESTTestCase):
     EXTRA_API_URL = '/api/extra/'
     COUNT_ISSUES_PER_USER = '/api/count-issues-per-user/'
     COUNT_WATCHERS_PER_ISSUE = '/api/count-watchers-per-issue/'
+    TEST_CC_API_URL = '/api/test-cc/'
 
     user_id = 0
     issue_id = 0

@@ -270,3 +270,19 @@ class StandardOperationsTestCase(PystonTestCase):
     def test_not_valid_input_media_type(self):
         resp = self.post(self.USER_API_URL, data=self.serialize('string_data'), content_type='text/xml')
         return self.assertEqual(resp.status_code, 415)
+
+    def test_camel_snake_case_transformation(self):
+        data = {'barBaz': 'testing data'}
+        resp = self.post(self.TEST_CC_API_URL, data=self.serialize(data))
+        self.assert_valid_JSON_created_response(resp)
+        self.assert_equals(data, self.deserialize(resp))
+
+    def test_camel_snake_case_nested(self):
+        resp = self.get(self.TEST_CC_API_URL)
+        self.assert_valid_JSON_response(resp)
+
+        data = {
+            'fooBar': 'foo bar',
+            'connected': {'fizBaz': 'test object property content'}
+        }
+        self.assert_equals(data, self.deserialize(resp)['messages']['success'])

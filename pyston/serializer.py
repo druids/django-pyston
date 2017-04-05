@@ -6,6 +6,7 @@ import datetime
 import inspect
 import six
 import mimetypes
+import types
 
 from collections import OrderedDict
 
@@ -120,6 +121,29 @@ class LazySerializedData(object):
         return self.serializer.serialize(self.data, self.serialization_format, **self.kwargs)
 
 
+class LazyMappedSerializedData(object):
+
+    def __init__(self, data, data_mapping):
+        self.data = data
+        self.data_mapping = data_mapping
+
+    def serialize(self):
+        if isinstance(self.data, (types.GeneratorType, list, tuple)):
+            return [LazyMappedSerializedData(val, self.data_mapping) for val in self.data]
+        elif isinstance(self.data, LazySerializedData):
+            return LazyMappedSerializedData(self.data.serialize(), self.data_mapping)
+        elif isinstance(self.data, dict):
+            def _map_key(lookup_key):
+                return self.data_mapping.get(lookup_key, lookup_key)
+            return OrderedDict(((_map_key(key), LazyMappedSerializedData(val, self.data_mapping))
+                                for key, val in self.data.items()))
+        else:
+            return self.data
+
+
+LAZY_SERIALIZERS = (LazySerializedData, LazyMappedSerializedData)
+
+
 class Serializer(object):
     """
     REST serializer and deserializer, firstly is data serialized to standard python data types and after that is
@@ -161,11 +185,19 @@ class ResourceSerializerMixin(object):
 
 class ResourceSerializer(ResourceSerializerMixin, Serializer):
     """
-    Default resource serializer perform serialization to th client format
+    Default resource serializer perform serialization to the client format
     """
 
     def serialize(self, data, serialization_format, **kwargs):
-        return self._data_to_python(data, serialization_format, **kwargs)
+        if hasattr(data, 'serialize'):
+            data = data.serialize(serialization_format, request=self.request, **kwargs)
+        else:
+            data = self._data_to_python(data, serialization_format, **kwargs)
+
+        if getattr(self.resource, 'DATA_KEY_MAPPING', {}):
+            data = LazyMappedSerializedData(data, self.resource.DATA_KEY_MAPPING)
+
+        return data
 
 
 @register(six.string_types)
@@ -487,9 +519,14 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
     def serialize(self, data, serialization_format, **kwargs):
         if isinstance(data, (QuerysetIteratorHelper, QuerySet, Model)):
-            return super(ModelResourceSerializer, self).serialize(data, serialization_format, **kwargs)
+            data = super(ModelResourceSerializer, self).serialize(data, serialization_format, **kwargs)
         else:
-            return self._data_to_python(data, serialization_format, **kwargs)
+            data = self._data_to_python(data, serialization_format, **kwargs)
+
+        if getattr(self.resource, 'DATA_KEY_MAPPING', {}):
+            data = LazyMappedSerializedData(data, self.resource.DATA_KEY_MAPPING)
+
+        return data
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,

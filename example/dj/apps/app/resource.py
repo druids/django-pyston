@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
-from pyston.resource import BaseModelResource, BaseResource
+from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
+from pyston.response import RESTCreatedResponse, RESTOkResponse
+from pyston.serializer import SerializableObj
 
 from .models import Issue, User
 from .serializable import CountIssuesPerUserTable, CountWatchersPerIssue
@@ -37,3 +39,41 @@ class CountWatchersPerIssueResource(BaseResource):
 
     def get(self):
         return [CountWatchersPerIssue(issue) for issue in Issue.objects.all()]
+
+
+class TestTextObject(SerializableObj):
+
+    def __init__(self, fiz_baz):
+        self.fiz_baz = fiz_baz
+
+    class RESTMeta:
+        fields = ('fiz_baz',)
+
+
+class TestTextObjectCamelCaseResource(BaseObjectResource):
+
+    model = TestTextObject
+    register = True
+
+    DATA_KEY_MAPPING = {
+        'fiz_baz': 'fizBaz',
+    }
+
+
+class TestCamelCaseResource(BaseResource):
+
+    DATA_KEY_MAPPING = {
+        'bar_baz': 'barBaz',
+        'foo_bar': 'fooBar',
+    }
+
+    def get(self):
+        connected = TestTextObject('test object property content')
+        return RESTOkResponse({
+            'foo_bar': 'foo bar',
+            'connected': connected,
+        })
+
+    def post(self):
+        data = self.get_dict_data()
+        return RESTCreatedResponse({'bar_baz': data.get('bar_baz')})
