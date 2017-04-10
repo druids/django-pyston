@@ -187,6 +187,18 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         self.args = []
         self.kwargs = {}
 
+    @property
+    def is_allowed_cors(self):
+        return settings.CORS
+
+    @property
+    def cors_whitelist(self):
+        return settings.CORS_WHITELIST
+
+    @property
+    def cors_max_age(self):
+        return settings.CORS_MAX_AGE
+
     def _demap_key(self, lookup_key):
         return {v: k for k, v in self.DATA_KEY_MAPPING.items()}.get(lookup_key, lookup_key)
 
@@ -212,26 +224,25 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def _get_cors_allowed_exposed_headers(self):
         return ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options')
 
-    def _get_cors_origins_whitelist(self):
-        return settings.CORS_WHITELIST
-
-    def _get_cors_max_age(self):
-        return settings.CORS_MAX_AGE
-
-    def _cors_is_origin_in_whitelist(self, origin):
+    def _cors_is_origin_allowed(self, origin):
         if not origin:
             return False
+        elif self.cors_whitelist == '__all__':
+            return True
         else:
             url = urlparse(origin)
-            return url.netloc in self._get_cors_origins_whitelist() or self._regex_domain_match(origin)
+            return url.netloc in self.cors_whitelist or self._regex_domain_match(origin)
 
     def _regex_domain_match(self, origin):
-        for domain_pattern in self._get_cors_origins_whitelist():
+        for domain_pattern in self.cors_whitelist:
             if re.match(domain_pattern, origin):
                 return origin
 
+    def _is_cors_options_request(self):
+        return self.is_allowed_cors and self.request.META.get('HTTP_ORIGIN')
+
     def options(self):
-        if settings.CORS and self.request.META.get('HTTP_ORIGIN'):
+        if self._is_cors_options_request():
             http_headers = {
                 ACCESS_CONTROL_ALLOW_METHODS: self.request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', 'OPTIONS'),
                 ACCESS_CONTROL_ALLOW_HEADERS: ', '.join(self._get_cors_allowed_headers())
@@ -393,8 +404,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         http_headers['Allow'] = self._get_allow_header()
         http_headers['Vary'] = 'Accept'
 
-        if settings.CORS:
-            if origin and self._cors_is_origin_in_whitelist(origin):
+        if self.is_allowed_cors:
+            if origin and self._cors_is_origin_allowed(origin):
                 http_headers[ACCESS_CONTROL_ALLOW_ORIGIN] = origin
             http_headers[ACCESS_CONTROL_ALLOW_CREDENTIALS] = (
                 'true' if settings.CORS_ALLOW_CREDENTIALS else 'false'
@@ -402,7 +413,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             cors_allowed_exposed_headers = self._get_cors_allowed_exposed_headers()
             if cors_allowed_exposed_headers:
                 http_headers[ACCESS_CONTROL_EXPOSE_HEADERS] = ', '.join(cors_allowed_exposed_headers)
-            http_headers[ACCESS_CONTROL_MAX_AGE] = str(self._get_cors_max_age())
+            http_headers[ACCESS_CONTROL_MAX_AGE] = str(self.cors_max_age)
         return http_headers
 
     @classonlymethod
