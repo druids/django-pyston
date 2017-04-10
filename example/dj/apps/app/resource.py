@@ -93,4 +93,3 @@ class UserWithFormResource(BaseModelResource):
     register = False
     model = User
     form_class = UserForm
-
