@@ -2,7 +2,9 @@ from germanium.rest import RESTTestCase
 
 
 class PystonTestCase(RESTTestCase):
+
     USER_API_URL = '/api/user/'
+    USER_WITH_FORM_API_URL = '/api/user-form/'
     ISSUE_API_URL = '/api/issue/'
     EXTRA_API_URL = '/api/extra/'
     COUNT_ISSUES_PER_USER = '/api/count-issues-per-user/'

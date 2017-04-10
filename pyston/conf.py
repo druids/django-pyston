@@ -39,6 +39,7 @@ DEFAULTS = {
     },
     'PDF_EXPORT_TEMPLATE': 'default_pdf_table.html',
     'FILE_SIZE_LIMIT': 5000000,
+    'AUTO_REVERSE': True,
 }
 
 

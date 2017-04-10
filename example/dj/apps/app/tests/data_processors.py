@@ -154,6 +154,22 @@ class DataProcessorsTestCase(PystonTestCase):
         self.assert_valid_JSON_response(resp)
         self.assert_equal(issues_before_count, Issue.objects.all().count())
 
+        user_data['created_issues'] = (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())
+        resp = self.put('%s%s/' % (self.USER_API_URL, user_pk), data=self.serialize(user_data))
+        self.assert_equal(issues_before_count + 3, Issue.objects.all().count())
+        self.assert_valid_JSON_response(resp)
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_REVERSE=False)
+    def test_atomic_add_and_delete_issues_with_auto_reverse_turned_off(self, number, issue_data, user_data):
+        issues_before_count = Issue.objects.all().count()
+
+        user_data['created_issues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
+        resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
+
+        self.assert_valid_JSON_created_response(resp)
+        self.assert_equal(issues_before_count, Issue.objects.all().count())
+
     @data_provider('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issues_with_errors(self, number, issue_data, user_data):
         user_data['created_issues'] = {'set': (None, "", None, {}, [None])}
@@ -173,6 +189,13 @@ class DataProcessorsTestCase(PystonTestCase):
         self.assert_http_bad_request(resp)
         self.assert_in('add', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
         self.assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
+
+        user_data['created_issues'] = (self.get_issue_data(), self.get_issue_data(), 'invalid')
+        resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
+        self.assert_equal(
+            self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues')[0]['_index'], 2
+        )
+        self.assert_http_bad_request(resp)
 
     @data_provider('get_issues_and_users_data')
     def test_atomic_set_issue_with_watchers(self, number, issue_data, user_data):
@@ -208,6 +231,12 @@ class DataProcessorsTestCase(PystonTestCase):
         resp = self.put('%s%s/' % (self.ISSUE_API_URL, pk), data=self.serialize(issue_data))
         self.assert_equal(len(self.deserialize(resp).get('watched_by')), 15)
 
+        issue_data['watched_by'] = self.get_users_data(flat=True)
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        resp = self.put('%s%s/' % (self.ISSUE_API_URL, pk), data=self.serialize(issue_data))
+        self.assert_equal(len(self.deserialize(resp).get('watched_by')), 10)
+
     @data_provider('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issue_with_watchers_with_errors(self, number, issue_data, user_data):
         issue_data['created_by'] = user_data
@@ -240,6 +269,12 @@ class DataProcessorsTestCase(PystonTestCase):
         resp = self.post(self.ISSUE_API_URL, data=self.serialize(issue_data))
         self.assert_http_bad_request(resp)
         self.assert_in('set', self.deserialize(resp).get('messages', {}).get('errors').get('watched_by'))
+
+        issue_data['created_by'] = user_data
+        issue_data['watched_by'] = [{'invalid': 'invalid2'}]
+        resp = self.post(self.ISSUE_API_URL, data=self.serialize(issue_data))
+        self.assert_http_bad_request(resp)
+        self.assert_equal(self.deserialize(resp).get('messages', {}).get('errors')['watched_by'][0]['_index'], 0)
 
     @data_provider('get_issues_and_users_data')
     def test_create_issue_via_user_one_to_one(self, number, issue_data, user_data):
@@ -278,3 +313,40 @@ class DataProcessorsTestCase(PystonTestCase):
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_http_bad_request(resp)
         self.assert_in('leading_issue', self.deserialize(resp).get('messages', {}).get('errors'))
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_REVERSE=False)
+    def test_reverse_with_defined_field_created_issues_renamed(self, number, issue_data, user_data):
+        issues_before_count = Issue.objects.all().count()
+        user_data['created_issues_renamed'] = (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())
+        resp = self.post(self.USER_WITH_FORM_API_URL, data=self.serialize(user_data))
+
+        self.assert_valid_JSON_created_response(resp)
+        self.assert_equal(issues_before_count + 3, Issue.objects.all().count())
+
+    @data_provider('get_issues_and_users_data')
+    def test_reverse_with_defined_field_created_issues_renamed_fail(self, number, issue_data, user_data):
+        issues_before_count = Issue.objects.all().count()
+        user_data['created_issues_renamed'] = {'add': (self.get_issue_data(),
+                                                       self.get_issue_data(), self.get_issue_data())}
+        resp = self.post(self.USER_WITH_FORM_API_URL, data=self.serialize(user_data))
+        self.assert_http_bad_request(resp)
+        self.assert_in('created_issues_renamed', self.deserialize(resp).get('messages', {}).get('errors'))
+        self.assert_equal(issues_before_count + 0, Issue.objects.all().count())
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_REVERSE=False)
+    def test_create_issue_via_user_one_to_one_renamed(self, number, issue_data, user_data):
+        issues_before_count = Issue.objects.all().count()
+        user_data['leading_issue_renamed'] = self.get_issue_data()
+        resp = self.post(self.USER_WITH_FORM_API_URL, data=self.serialize(user_data))
+        self.assert_valid_JSON_created_response(resp)
+        self.assert_equal(issues_before_count + 1, Issue.objects.all().count())
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_REVERSE=False)
+    def test_create_issue_via_user_one_to_one_renamed_fail(self, number, issue_data, user_data):
+        user_data['leading_issue_renamed'] = {}
+        resp = self.post(self.USER_WITH_FORM_API_URL, data=self.serialize(user_data))
+        self.assert_http_bad_request(resp)
+        self.assert_in('leading_issue_renamed', self.deserialize(resp).get('messages', {}).get('errors'))
