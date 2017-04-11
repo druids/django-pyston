@@ -94,8 +94,8 @@ class StandardOperationsTestCase(PystonTestCase):
         pk = self.get_pk(resp)
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
-        self.assert_equal(set(output_data.keys()), {'id', 'created_at', '_obj_name', 'email', 'contract',
-                                                    'solving_issue', 'first_name', 'last_name', 'watched_issues'})
+        self.assert_equal(set(output_data.keys()), {'id', 'createdAt', '_obj_name', 'email', 'contract',
+                                                    'solvingIssue', 'firstName', 'lastName', 'watchedIssues'})
 
     @data_provider('get_users_data')
     def test_read_user_general_fields_set_with_metaclass(self, number, data):
@@ -104,8 +104,8 @@ class StandardOperationsTestCase(PystonTestCase):
 
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
-        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'first_name', 'last_name',
-                                                       'watched_issues'})
+        self.assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'firstName', 'lastName',
+                                                       'watchedIssues'})
 
     @data_provider('get_users_data')
     def test_read_user_extra_fields_set_with_metaclass(self, number, data):
@@ -116,7 +116,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get(self.USER_API_URL, headers=headers)
 
         output_data = self.deserialize(resp)
-        self.assert_equal(set(output_data[0].keys()), {'is_superuser'})
+        self.assert_equal(set(output_data[0].keys()), {'isSuperuser'})
 
     @data_provider('get_users_data')
     def test_read_field_header_user(self, number, data):
@@ -285,4 +285,4 @@ class StandardOperationsTestCase(PystonTestCase):
             'fooBar': 'foo bar',
             'connected': {'fizBaz': 'test object property content'}
         }
-        self.assert_equals(data, self.deserialize(resp)['messages']['success'])
+        self.assert_equals(data, self.deserialize(resp))

@@ -128,7 +128,7 @@ class DataProcessorsTestCase(PystonTestCase):
     @data_provider('get_issues_and_users_data')
     def test_atomic_set_issue_with_user_reverse(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
-        user_data['created_issues'] = {'set': (issue_data,)}
+        user_data['createdIssues'] = {'set': (issue_data,)}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_valid_JSON_created_response(resp)
         self.assert_equal(issues_before_count + 1, Issue.objects.all().count())
@@ -137,26 +137,29 @@ class DataProcessorsTestCase(PystonTestCase):
     def test_atomic_add_and_delete_issues_with_reverse(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
 
-        user_data['created_issues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
+        user_data['createdIssues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
 
         self.assert_valid_JSON_created_response(resp)
         self.assert_equal(issues_before_count + 3, Issue.objects.all().count())
         user_pk = self.get_pk(resp)
 
-        user_data['created_issues'] = {'set': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
+        first_issue_data = self.get_issue_data()
+        first_issue_data['solver'] = {'email': 'solver@email.cz', 'createdIssues': [self.get_issue_data()]}
+
+        user_data['createdIssues'] = {'set': (first_issue_data, self.get_issue_data(), self.get_issue_data())}
         resp = self.put('%s%s/' % (self.USER_API_URL, user_pk), data=self.serialize(user_data))
-        self.assert_equal(issues_before_count + 3, Issue.objects.all().count())
+        self.assert_equal(issues_before_count + 4, Issue.objects.all().count())
         self.assert_valid_JSON_response(resp)
-        user_data['created_issues'] = {'remove': list(Issue.objects.filter(created_by=user_pk).
-                                                      values_list('pk', flat=True))}
+        user_data['createdIssues'] = {'remove': list(Issue.objects.filter(created_by=user_pk).
+                                                     values_list('pk', flat=True))}
         resp = self.put('%s%s/' % (self.USER_API_URL, self.get_pk(resp)), data=self.serialize(user_data))
         self.assert_valid_JSON_response(resp)
-        self.assert_equal(issues_before_count, Issue.objects.all().count())
+        self.assert_equal(issues_before_count + 1, Issue.objects.all().count())
 
-        user_data['created_issues'] = (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())
+        user_data['createdIssues'] = (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())
         resp = self.put('%s%s/' % (self.USER_API_URL, user_pk), data=self.serialize(user_data))
-        self.assert_equal(issues_before_count + 3, Issue.objects.all().count())
+        self.assert_equal(issues_before_count + 4, Issue.objects.all().count())
         self.assert_valid_JSON_response(resp)
 
     @data_provider('get_issues_and_users_data')
@@ -164,7 +167,7 @@ class DataProcessorsTestCase(PystonTestCase):
     def test_atomic_add_and_delete_issues_with_auto_reverse_turned_off(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
 
-        user_data['created_issues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
+        user_data['createdIssues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
 
         self.assert_valid_JSON_created_response(resp)
@@ -172,28 +175,28 @@ class DataProcessorsTestCase(PystonTestCase):
 
     @data_provider('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issues_with_errors(self, number, issue_data, user_data):
-        user_data['created_issues'] = {'set': (None, "", None, {}, [None])}
+        user_data['createdIssues'] = {'set': (None, '', None, {}, [None])}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_http_bad_request(resp)
-        self.assert_in('set', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
+        self.assert_in('set', self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues', {}))
 
-        user_data['created_issues'] = {'add': (None, "", None, [], {}, {"id": 500}),
-                                       'remove': (None, "", None, {}, {"id": 500}, [])}
+        user_data['createdIssues'] = {'add': (None, '', None, [], {}, {'id': 500}),
+                                      'remove': (None, '', None, {}, {'id': 500}, [])}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_http_bad_request(resp)
-        self.assert_in('add', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
-        self.assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
+        self.assert_in('add', self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues', {}))
+        self.assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues', {}))
 
-        user_data['created_issues'] = {'add': None, 'remove': None}
+        user_data['createdIssues'] = {'add': None, 'remove': None}
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_http_bad_request(resp)
-        self.assert_in('add', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
-        self.assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues', {}))
+        self.assert_in('add', self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues', {}))
+        self.assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues', {}))
 
-        user_data['created_issues'] = (self.get_issue_data(), self.get_issue_data(), 'invalid')
+        user_data['createdIssues'] = (self.get_issue_data(), self.get_issue_data(), 'invalid')
         resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
         self.assert_equal(
-            self.deserialize(resp).get('messages', {}).get('errors', {}).get('created_issues')[0]['_index'], 2
+            self.deserialize(resp).get('messages', {}).get('errors', {}).get('createdIssues')[0]['_index'], 2
         )
         self.assert_http_bad_request(resp)
 

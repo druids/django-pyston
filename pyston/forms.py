@@ -88,9 +88,9 @@ class RelatedField(object):
         else:
             return data
 
-    def _delete_reverse_object(self, resource, data, via):
+    def _delete_related_object(self, resource, data, via):
         try:
-            resource._delete(self._flat_object_to_pk(resource.pk_field_name, data), via)
+             resource.delete_obj_with_pk(self._flat_object_to_pk(resource.pk_field_name, data), via)
         except (DataInvalidException, RESTException) as ex:
             raise DataInvalidException(ex.errors if isinstance(ex.errors, dict) else {'error': ex.errors})
         except Http404:
@@ -101,7 +101,7 @@ class RelatedField(object):
             raise DataInvalidException({'error': ugettext('Data must be object')})
 
         try:
-            return resource._create_or_update(data, via)
+            return resource.create_or_update(resource.update_deserialized_data(data), via)
         except (DataInvalidException, RESTException) as ex:
             raise DataInvalidException(ex.errors)
 
@@ -248,7 +248,7 @@ class ReverseSingleField(ReverseField):
         return None
 
     def _remove(self, resource, parent_inst, related_obj, field_name, via):
-        self._delete_reverse_object(
+        self._delete_related_object(
             resource, {resource.pk_field_name: related_obj.pk}, via
         )
 
@@ -300,7 +300,11 @@ class ReverseManyField(ReverseField):
         errors = []
         for i, obj_data in enumerate(data):
             try:
-                self._delete_reverse_object(resource, obj_data, via)
+                self._delete_related_object(
+                    resource,
+                    resource.update_deserialized_data(obj_data) if isinstance(obj_data, dict) else obj_data,
+                    via
+                )
             except DataInvalidException as ex:
                 rel_obj_errors = ex.errors
                 rel_obj_errors['_index'] = i
