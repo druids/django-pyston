@@ -414,12 +414,14 @@ class HTMLConverter(Converter):
             return data
 
     def _encode(self, data, response=None, http_headers=None, resource=None, result=None, **kwargs):
+        from pyston.resource import BaseObjectResource
+
         assert resource is not None, 'HTML converter requires resource and cannot be used as a direct serializer'
 
         http_headers = {} if http_headers is None else http_headers.copy()
         converter = self._get_converter(resource)
         http_headers = self._update_headers(http_headers, resource, converter)
-        obj = resource._get_obj_or_none()
+        obj = resource._get_obj_or_none() if isinstance(resource, BaseObjectResource) else None
 
         kwargs.update({
             'http_headers': http_headers,
