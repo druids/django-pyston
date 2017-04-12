@@ -163,6 +163,30 @@ class DataProcessorsTestCase(PystonTestCase):
         self.assert_valid_JSON_response(resp)
 
     @data_provider('get_issues_and_users_data')
+    def test_atomic_add_issues_by_m2m_reverse(self, number, issue_data, user_data):
+        user_data['watchedIssues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
+        resp = self.post(self.USER_API_URL, data=self.serialize(user_data))
+        self.assert_valid_JSON_created_response(resp)
+        watched_issues = self.deserialize(resp)['watchedIssues']
+        self.assert_equal(len(watched_issues), 3)
+        self.assert_equal(Issue.objects.all().count(), 3)
+        watched_issues_ids = [watched_issue['id'] for watched_issue in watched_issues]
+
+        for issue in Issue.objects.all():
+            self.assert_equal(list(issue.watched_by.values_list('email', flat=True)), [user_data['email']])
+
+        user_data2 = self.get_user_data()
+        user_data2['watchedIssues'] = watched_issues_ids
+        resp = self.post(self.USER_API_URL, data=self.serialize(user_data2))
+        self.assert_valid_JSON_created_response(resp)
+        watched_issues = self.deserialize(resp)['watchedIssues']
+        self.assert_equal(len(watched_issues), 3)
+        self.assert_equal(Issue.objects.all().count(), 3)
+        for issue in Issue.objects.all():
+            self.assert_equal(list(issue.watched_by.values_list('email', flat=True)),
+                              [user_data['email'], user_data2['email']])
+
+    @data_provider('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_REVERSE=False)
     def test_atomic_add_and_delete_issues_with_auto_reverse_turned_off(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
