@@ -202,11 +202,19 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     def _demap_key(self, lookup_key):
         return {v: k for k, v in self.DATA_KEY_MAPPING.items()}.get(lookup_key, lookup_key)
 
-    def _flatten_dict(self, dct):
-        return {self._demap_key(str(k)): dct.get(k) for k in dct.keys()} if isinstance(dct, dict) else {}
+    def update_serialized_data(self, data):
+        if data and self.DATA_KEY_MAPPING:
+            data = LazyMappedSerializedData(data, self.DATA_KEY_MAPPING).serialize()
+        return data
+
+    def update_deserialized_data(self, data):
+        return (
+            {self._demap_key(k): v for k, v in data.items() if k not in self.DATA_KEY_MAPPING}
+            if isinstance(data,dict) else {}
+        )
 
     def get_dict_data(self):
-        return self._flatten_dict(self.request.data) if hasattr(self.request, 'data') else {}
+        return self.update_deserialized_data(self.request.data if hasattr(self.request, 'data') else {})
 
     def _get_serialization_format(self):
         serialization_format = self.request._rest_context.get('serialization_format',
@@ -252,10 +260,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             return None
 
     def _get_converted_dict(self, result):
-        serialized_data = self._get_converted_serialized_data(result)
-        if self.DATA_KEY_MAPPING:
-            serialized_data = LazyMappedSerializedData(serialized_data, self.DATA_KEY_MAPPING)
-        return serialized_data
+        return self._get_converted_serialized_data(result)
 
     def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
@@ -638,7 +643,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         if pk and self._exists_obj(pk=pk):
             raise DuplicateEntryException
         try:
-            return RESTCreatedResponse(self._atomic_create_or_update(data))
+            return RESTCreatedResponse(self.atomic_create_or_update(data))
         except DataInvalidException as ex:
             return RESTErrorsResponse(ex.errors)
         except (ConflictException, NotAllowedException):
@@ -666,7 +671,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         data = self.get_dict_data()
         data[self.pk_field_name] = pk
         try:
-            return self._atomic_create_or_update(data)
+            return self.atomic_create_or_update(data)
         except DataInvalidException as ex:
             return RESTErrorsResponse(ex.errors)
         except ConflictException:
@@ -681,12 +686,12 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def delete(self):
         try:
             pk = self.kwargs.get(self.pk_name)
-            self._delete(pk)
+            self.delete_obj_with_pk(pk)
             return RESTNoConetentResponse()
         except (RESTException, PersistenceException) as ex:
             return RESTErrorResponse(ex.message)
 
-    def _delete(self, pk, via=None):
+    def delete_obj_with_pk(self, pk, via=None):
         via = via or []
         obj = self._get_obj_or_404(pk)
         self._check_delete_permission(obj=obj, via=via)
@@ -704,11 +709,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         pass
 
     @transaction.atomic
-    def _atomic_create_or_update(self, data):
+    def atomic_create_or_update(self, data):
         """
         Atomic object creation
         """
-        return self._create_or_update(data)
+        return self.create_or_update(data)
 
     def _get_instance(self, data):
         """
@@ -745,15 +750,19 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
         return not change or self.has_put_permission(obj=obj, via=via)
 
+    def create_or_update(self, data, via=None):
+        try:
+            return self._create_or_update(data, via)
+        except DataInvalidException as ex:
+            raise DataInvalidException(self.update_serialized_data(ex.errors))
+
     def _create_or_update(self, data, via=None):
         """
         Helper for creating or updating resource
         """
         from pyston.data_processor import data_preprocessors, data_postprocessors
 
-        if via is None:
-            via = []
-
+        via = [] if via is None else via
         inst = self._get_instance(data)
         change = inst and True or False
 

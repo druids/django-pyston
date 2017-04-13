@@ -22,6 +22,15 @@ class IssueResource(BaseModelResource):
 class UserResource(BaseModelResource):
 
     model = User
+    DATA_KEY_MAPPING = {
+        'created_at': 'createdAt',
+        'solving_issue': 'solvingIssue',
+        'first_name': 'firstName',
+        'last_name': 'lastName',
+        'is_superuser': 'isSuperuser',
+        'watched_issues': 'watchedIssues',
+        'created_issues': 'createdIssues',
+    }
 
 
 class ExtraResource(BaseResource):
@@ -70,10 +79,10 @@ class TestCamelCaseResource(BaseResource):
 
     def get(self):
         connected = TestTextObject('test object property content')
-        return RESTOkResponse({
+        return {
             'foo_bar': 'foo bar',
             'connected': connected,
-        })
+        }
 
     def post(self):
         data = self.get_dict_data()

@@ -127,16 +127,14 @@ class LazyMappedSerializedData(object):
         self.data = data
         self.data_mapping = data_mapping
 
+    def _map_key(self, lookup_key):
+        return self.data_mapping.get(lookup_key, lookup_key)
+
     def serialize(self):
         if isinstance(self.data, (types.GeneratorType, list, tuple)):
             return [LazyMappedSerializedData(val, self.data_mapping) for val in self.data]
-        elif isinstance(self.data, LazySerializedData):
-            return LazyMappedSerializedData(self.data.serialize(), self.data_mapping)
         elif isinstance(self.data, dict):
-            def _map_key(lookup_key):
-                return self.data_mapping.get(lookup_key, lookup_key)
-            return OrderedDict(((_map_key(key), LazyMappedSerializedData(val, self.data_mapping))
-                                for key, val in self.data.items()))
+            return OrderedDict(((self._map_key(key), val) for key, val in self.data.items()))
         else:
             return self.data
 
@@ -194,10 +192,7 @@ class ResourceSerializer(ResourceSerializerMixin, Serializer):
         else:
             data = self._data_to_python(data, serialization_format, **kwargs)
 
-        if getattr(self.resource, 'DATA_KEY_MAPPING', {}):
-            data = LazyMappedSerializedData(data, self.resource.DATA_KEY_MAPPING)
-
-        return data
+        return self.resource.update_serialized_data(data)
 
 
 @register(six.string_types)
@@ -523,10 +518,7 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
         else:
             data = self._data_to_python(data, serialization_format, **kwargs)
 
-        if getattr(self.resource, 'DATA_KEY_MAPPING', {}):
-            data = LazyMappedSerializedData(data, self.resource.DATA_KEY_MAPPING)
-
-        return data
+        return self.resource.update_serialized_data(data)
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
