@@ -21,8 +21,8 @@ class User(models.Model):
     class RESTMeta:
         fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser')
         detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
-                           'watched_issues__name')
-        general_fields = ('email', 'first_name', 'last_name', 'watched_issues__name')
+                           'watched_issues__name', 'watched_issues__id')
+        general_fields = ('email', 'first_name', 'last_name', 'watched_issues__name', 'watched_issues__id')
         direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
 
 

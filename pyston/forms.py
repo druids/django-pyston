@@ -9,7 +9,7 @@ from django.http.response import Http404
 from chamber.shortcuts import get_object_or_none
 
 from .exception import DataInvalidException, RESTException
-from .utils.compatibility import get_reverse_field_name, get_model_from_relation
+from .utils.compatibility import get_reverse_field_name, get_model_from_relation, is_reverse_many_to_many
 
 
 class RESTFormMixin(object):
@@ -108,6 +108,11 @@ class RelatedField(object):
     def create_update_or_remove(self, parent_inst, data, via, request):
         raise NotImplementedError
 
+    def _add_parent_inst_to_obj_data(self, parent_inst, field_name, data):
+        data = data.copy()
+        data[field_name] = parent_inst.pk
+        return data
+
     def _create_and_return_new_object_pk_list(self, resource, parent_inst, via, data, created_via_field_name=None):
         errors = []
         result = []
@@ -117,7 +122,7 @@ class RelatedField(object):
 
             try:
                 if created_via_field_name:
-                    obj_data[created_via_field_name] = parent_inst.pk
+                    obj_data = self._add_parent_inst_to_obj_data(parent_inst, created_via_field_name, obj_data)
 
                 if set(obj_data.keys()) ^ {resource.pk_field_name}:
                     result.append(self._create_or_update_related_object(resource, obj_data, via).pk)
@@ -194,6 +199,26 @@ class MultipleStructuredRelatedField(MultipleRelatedField):
         else:
             raise DataInvalidException(ugettext('Data must be a collection'))
 
+    def _add_and_remove_structured_objects(self, resource, parent_inst, via, data):
+        errors = {}
+        values = self.form_field.prepare_value(
+            self.form.initial.get(self.field_name, self.form_field.initial)
+        ) or []
+        if 'remove' in data:
+            try:
+                values = self._remove_related_objects(resource, parent_inst, via, data.get('remove'), values)
+            except DataInvalidException as ex:
+                errors['remove'] = ex.errors
+        if 'add' in data:
+            try:
+                values = self._add_related_objects(resource, parent_inst, via, data.get('add'), values)
+            except DataInvalidException as ex:
+                errors['add'] = ex.errors
+        if errors:
+            raise DataInvalidException(errors)
+        else:
+            return values
+
     def _update_structured_object(self, resource, parent_inst, via, data):
         if 'set' in data:
             if {'remove', 'add'} & set(data.keys()):
@@ -205,24 +230,7 @@ class MultipleStructuredRelatedField(MultipleRelatedField):
             except DataInvalidException as ex:
                 raise DataInvalidException({'set': ex.errors})
         else:
-            errors = {}
-            values = self.form_field.prepare_value(
-                self.form.initial.get(self.field_name, self.form_field.initial)
-            ) or []
-            if 'remove' in data:
-                try:
-                    values = self._remove_related_objects(resource, parent_inst, via, data.get('remove'), values)
-                except DataInvalidException as ex:
-                    errors['remove'] = ex.errors
-            if 'add' in data:
-                try:
-                    values = self._add_related_objects(resource, parent_inst, via, data.get('add'), values)
-                except DataInvalidException as ex:
-                    errors['add'] = ex.errors
-            if errors:
-                raise DataInvalidException(errors)
-            else:
-                return values
+            return self._add_and_remove_structured_objects(resource, parent_inst, via, data)
 
     def _update_related_objects(self, resource, parent_inst, via, data):
         if isinstance(data, dict):
@@ -296,6 +304,14 @@ class ReverseOneToOneField(ReverseSingleField):
 
 class ReverseManyField(ReverseField):
 
+    def _add_parent_inst_to_obj_data(self, parent_inst, field_name, data):
+        if is_reverse_many_to_many(parent_inst, self.reverse_field_name):
+            data = data.copy()
+            data[field_name] = {'add': [parent_inst.pk]}
+            return data
+        else:
+            return super(ReverseManyField, self)._add_parent_inst_to_obj_data(parent_inst, field_name, data)
+
     def _delete_reverse_objects(self, resource, data, via):
         errors = []
         for i, obj_data in enumerate(data):
@@ -347,17 +363,8 @@ class ReverseStructuredManyField(ReverseManyField):
         else:
             raise DataInvalidException(ugettext('Data must be a collection'))
 
-    def _update_structured_object(self, resource, parent_inst, field_name, via, data):
+    def _add_and_remove_structured_objects(self, resource, parent_inst, field_name, via, data):
         errors = {}
-        if 'set' in data:
-            if {'remove', 'add'} & set(data.keys()):
-                raise DataInvalidException(ugettext('set cannot be together with add or remove'))
-            try:
-                super(ReverseStructuredManyField, self)._update_reverse_related_objects(
-                    resource, parent_inst, field_name, via, data.get('set')
-                )
-            except DataInvalidException as ex:
-                errors['set'] = ex.errors
         if 'remove' in data:
             try:
                 self._remove_reverse_related_objects(resource, parent_inst, via, data.get('remove'), field_name)
@@ -370,6 +377,21 @@ class ReverseStructuredManyField(ReverseManyField):
                 errors['add'] = ex.errors
         if errors:
             raise DataInvalidException(errors)
+
+    def _update_structured_object(self, resource, parent_inst, field_name, via, data):
+        errors = {}
+        if 'set' in data:
+            if {'remove', 'add'} & set(data.keys()):
+                raise DataInvalidException(ugettext('set cannot be together with add or remove'))
+            try:
+                super(ReverseStructuredManyField, self)._update_reverse_related_objects(
+                    resource, parent_inst, field_name, via, data.get('set')
+                )
+            except DataInvalidException as ex:
+                errors['set'] = ex.errors
+                raise DataInvalidException({'set': ex.errors})
+        else:
+            self._add_and_remove_structured_objects(resource, parent_inst, field_name, via, data)
 
     def _update_reverse_related_objects(self, resource, parent_inst, field_name, via, data):
         if isinstance(data, dict):
