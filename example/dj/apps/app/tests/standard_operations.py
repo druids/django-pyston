@@ -39,11 +39,14 @@ class StandardOperationsTestCase(PystonTestCase):
         self.assert_valid_JSON_created_response(resp)
         pk = self.get_pk(resp)
 
-        resp = self.put('%s%s/' % (self.USER_API_URL, pk), data=self.serialize({}))
-        self.assert_valid_JSON_response(resp)
+        self.assert_valid_JSON_response(self.put('{}{}/'.format(self.USER_API_URL, pk), data=self.serialize({})))
 
-        resp = self.put('%s%s/' % (self.USER_API_URL, pk), data=self.serialize({'email': 'invalid_email'}))
-        self.assert_http_bad_request(resp)
+        self.assert_http_bad_request(
+            self.put('{}{}/'.format(self.USER_API_URL, pk), data=self.serialize({'email': 'invalid_email'}))
+        )
+
+        self.assert_http_not_found(self.put('{}{}/'.format(self.USER_API_URL, 0), data=self.serialize({})))
+
 
     @data_provider('get_users_data')
     def test_update_user(self, number, data):

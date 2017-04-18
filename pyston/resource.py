@@ -669,7 +669,8 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def put(self):
         pk = self._get_pk()
         data = self.get_dict_data()
-        data[self.pk_field_name] = pk
+        obj = self._get_obj_or_404(pk=pk)
+        data[self.pk_field_name] = obj.pk
         try:
             return self.atomic_create_or_update(data)
         except DataInvalidException as ex:
@@ -729,7 +730,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         initial = {} if initial is None else initial
         exclude = []
 
-        kwargs = {}
+        kwargs = self._get_form_kwargs()
         if inst:
             kwargs['instance'] = inst
         if data is not None:
@@ -738,6 +739,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
         form_class = self._generate_form_class(inst, exclude)
         return form_class(initial=initial, **kwargs)
+
+    def _get_form_kwargs(self):
+        return {}
 
     def _get_form_initial(self, obj):
         return {}
