@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import six
+
 from django import forms
 from django.core.exceptions import ValidationError, ImproperlyConfigured
 from django.utils.translation import ugettext
@@ -8,11 +10,16 @@ from django.http.response import Http404
 
 from chamber.shortcuts import get_object_or_none
 
+from .conf import settings as pyston_settings
 from .exception import DataInvalidException, RESTException
 from .utils.compatibility import get_reverse_field_name, get_model_from_relation, is_reverse_many_to_many
+from .utils.helpers import str_to_class
 
 
 class RESTFormMixin(object):
+
+    def is_allowed_incomplete_update(self):
+        return pyston_settings.ALLOWED_INCOMPLETE_UPDATE
 
     def is_invalid(self):
         '''
@@ -35,7 +42,9 @@ class RESTFormMixin(object):
         return False
 
     def is_valid(self):
-        self._merge_from_initial()
+        print(pyston_settings.ALLOWED_INCOMPLETE_UPDATE)
+        if self.is_allowed_incomplete_update():
+            self._merge_from_initial()
         return super(RESTFormMixin, self).is_valid()
 
     """
@@ -76,6 +85,10 @@ class RelatedField(object):
         from .resource import typemapper
 
         resource_class = self.resource_class or typemapper.get(model)
+
+        if isinstance(resource_class, six.string_types):
+            resource_class = str_to_class(resource_class)
+
         assert resource_class, 'Missing resource for model {}'.format(model)
         return resource_class(request)
 

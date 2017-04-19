@@ -230,6 +230,7 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ResourceProce
 class ReverseDataPostprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
+        print(key)
         rest_field = getattr(self.form, key, None)
         if pyston_settings.AUTO_REVERSE and not rest_field and is_reverse_one_to_one(self.model, key):
             resource_class = self._get_resource_class(get_model_from_relation(self.model, key))

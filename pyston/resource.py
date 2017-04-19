@@ -817,6 +817,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     abstract = True
     form_class = RESTModelForm
     serializer = ModelResourceSerializer
+    form_fields = None
 
     def _get_queryset(self):
         return self.model.objects.all()
@@ -861,7 +862,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         return inst
 
     def _get_form_fields(self, obj=None):
-        return None
+        return self.form_fields
 
     def _generate_form_class(self, inst, exclude=None):
         exclude = [] if exclude is None else exclude
