@@ -9,6 +9,7 @@ from django.utils.encoding import force_text
 from django.http.response import Http404
 
 from chamber.shortcuts import get_object_or_none
+from chamber.utils.decorators import classproperty
 
 from .conf import settings as pyston_settings
 from .exception import DataInvalidException, RESTException
@@ -16,15 +17,34 @@ from .utils.compatibility import get_reverse_field_name, get_model_from_relation
 from .utils.helpers import str_to_class
 
 
+class RESTMetaOptions(object):
+
+    def __init__(self, **kwargs):
+        rest_meta_kwargs = {
+            'allowed_incomplete_update': pyston_settings.ALLOWED_INCOMPLETE_UPDATE,
+            'auto_reverse': pyston_settings.AUTO_REVERSE,
+        }
+        rest_meta_kwargs.update(kwargs)
+        for k, v in rest_meta_kwargs.items():
+            setattr(self, k, v)
+
+
+def get_rest_meta_dict(form_cls):
+    rest_meta_dict = {}
+    for base in form_cls.__bases__[:-1]:
+        if isinstance(base, RESTFormMixin):
+            rest_meta_dict.update(base._get_rest_meta_dict())
+    if hasattr(form_cls, 'RESTMeta'):
+        rest_meta_dict.update({k: v for k, v in form_cls.RESTMeta.__dict__.items() if not k.startswith('_')})
+    return rest_meta_dict
+
+
 class RESTFormMixin(object):
 
-    def is_allowed_incomplete_update(self):
-        return pyston_settings.ALLOWED_INCOMPLETE_UPDATE
-
     def is_invalid(self):
-        '''
+        """
         Validate input data. It uses django forms
-        '''
+        """
         errors = {}
         if not self.is_valid():
             errors = dict([(k, v[0]) for k, v in self.errors.items()])
@@ -41,9 +61,13 @@ class RESTFormMixin(object):
 
         return False
 
+    @classproperty
+    @classmethod
+    def _rest_meta(cls):
+        return RESTMetaOptions(**get_rest_meta_dict(cls))
+
     def is_valid(self):
-        print(pyston_settings.ALLOWED_INCOMPLETE_UPDATE)
-        if self.is_allowed_incomplete_update():
+        if self._rest_meta.allowed_incomplete_update:
             self._merge_from_initial()
         return super(RESTFormMixin, self).is_valid()
 
@@ -317,6 +341,8 @@ class ReverseOneToOneField(ReverseSingleField):
 
 class ReverseManyField(ReverseField):
 
+    is_deleted_not_selected_objects = True
+
     def _add_parent_inst_to_obj_data(self, parent_inst, field_name, data):
         if is_reverse_many_to_many(parent_inst, self.reverse_field_name):
             data = data.copy()
@@ -352,12 +378,13 @@ class ReverseManyField(ReverseField):
         if isinstance(data, (tuple, list)):
             new_object_pks = self._create_and_return_new_object_pk_list(resource, parent_inst, via, data, field_name)
             # This is not optimal solution but is the most universal
-            self._delete_reverse_objects(
-                resource, resource._get_queryset().filter(**{field_name: parent_inst}).exclude(
-                    pk__in=new_object_pks
-                ).values_list('pk', flat=True),
-                via
-            )
+            if self.is_deleted_not_selected_objects:
+                self._delete_reverse_objects(
+                    resource, resource._get_queryset().filter(**{field_name: parent_inst}).exclude(
+                        pk__in=new_object_pks
+                    ).values_list('pk', flat=True),
+                    via
+                )
         else:
             raise DataInvalidException(ugettext('Data must be a collection'))
 
