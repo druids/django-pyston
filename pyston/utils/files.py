@@ -22,4 +22,6 @@ def get_file_content_from_url(url, limit, timeout=1):
             resp.close()
             raise RequestDataTooBig('Requested file is too big')
 
+    content.seek(0)
+
     return content

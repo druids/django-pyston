@@ -17,6 +17,8 @@ from django.utils.encoding import force_text
 
 from chamber.shortcuts import get_object_or_none
 
+from requests.exceptions import RequestException
+
 from pyston.conf import settings as pyston_settings
 from pyston.utils.compatibility import (
     is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
@@ -27,7 +29,7 @@ from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
 from .exception import DataInvalidException, RESTException
 from .resource import BaseObjectResource, typemapper, BaseModelResource
 from .forms import (ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
-                    MultipleStructuredRelatedField, ReverseManyField)
+                    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin)
 
 
 class DataProcessorCollection(object):
@@ -116,13 +118,13 @@ class FileDataPreprocessor(DataProcessor):
         url = data_item.get('url')
         try:
             file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
+            self._process_file_data(data, files, key, data_item, file_content)
         except RequestDataTooBig:
             self.errors[key] = ugettext('Response too large, maximum size is {} bytes').format(
                 pyston_settings.FILE_SIZE_LIMIT
             )
-            return
-
-        self._process_file_data(data, files, key, data_item, file_content)
+        except RequestException:
+            self.errors[key] = ugettext('File is unreachable')
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
@@ -215,7 +217,7 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ResourceProce
 
     def _process_field(self, data, files, key, data_item):
         rest_field = getattr(self.form, key, None)
-        if (pyston_settings.AUTO_REVERSE and not rest_field and (
+        if (not rest_field and isinstance(self.form, RESTFormMixin) and self.form._rest_meta.auto_reverse and (
                 is_reverse_many_to_many(self.model, key) or is_reverse_many_to_one(self.model, key))):
             resource_class = self._get_resource_class(get_model_from_relation(self.model, key))
             rest_field = ReverseStructuredManyField(key, resource_class=resource_class) if resource_class else None
@@ -231,7 +233,8 @@ class ReverseDataPostprocessor(ResourceProcessorMixin, ModelResourceDataProcesso
 
     def _process_field(self, data, files, key, data_item):
         rest_field = getattr(self.form, key, None)
-        if pyston_settings.AUTO_REVERSE and not rest_field and is_reverse_one_to_one(self.model, key):
+        if (not rest_field and isinstance(self.form, RESTFormMixin) and self.form._rest_meta.auto_reverse and
+                is_reverse_one_to_one(self.model, key)):
             resource_class = self._get_resource_class(get_model_from_relation(self.model, key))
             rest_field = ReverseOneToOneField(key, resource_class=resource_class) if resource_class else None
 

@@ -475,10 +475,10 @@ class DefaultRESTObjectResource(PermissionsResourceMixin):
         return list(self.default_fields) if self.default_fields is not None else None
 
     def get_detailed_fields(self, obj=None):
-        return list(self.detailed_fields) if self.detailed_fields is not None else self.get_fields()
+        return list(self.detailed_fields) if self.detailed_fields is not None else self.get_fields(obj=obj)
 
     def get_general_fields(self, obj=None):
-        return list(self.general_fields) if self.general_fields is not None else self.get_fields()
+        return list(self.general_fields) if self.general_fields is not None else self.get_fields(obj=obj)
 
     def get_guest_fields(self, obj=None):
         return list(self.guest_fields) if self.guest_fields is not None else None
@@ -790,14 +790,14 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         if can_save_obj:
             self._pre_save_obj(inst, form, change)
             self._save_obj(inst, form, change)
-            if hasattr(form, 'save_m2m'):
-                form.save_m2m()
 
         if inst.pk:
             for preprocessor in data_postprocessors.get_processors(type(self)):
                 data, files = preprocessor(self, form, inst, via).process_data(data, files)
 
         if can_save_obj:
+            if hasattr(form, 'save_m2m'):
+                form.save_m2m()
             self._post_save_obj(inst, form, change)
         return inst
 
@@ -817,6 +817,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     abstract = True
     form_class = RESTModelForm
     serializer = ModelResourceSerializer
+    form_fields = None
 
     def _get_queryset(self):
         return self.model.objects.all()
@@ -861,7 +862,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         return inst
 
     def _get_form_fields(self, obj=None):
-        return None
+        return self.form_fields
 
     def _generate_form_class(self, inst, exclude=None):
         exclude = [] if exclude is None else exclude
