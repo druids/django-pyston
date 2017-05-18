@@ -41,6 +41,8 @@ DEFAULTS = {
     'FILE_SIZE_LIMIT': 5000000,
     'AUTO_REVERSE': True,
     'ALLOWED_INCOMPLETE_UPDATE': True,
+    'ERRORS_RESPONSE_CLASS': 'pyston.response.RESTErrorsResponse',
+    'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
 }
 
 
