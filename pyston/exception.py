@@ -50,4 +50,5 @@ class ConflictException(RESTException):
 class DataInvalidException(Exception):
 
     def __init__(self, errors):
+        self.message = errors
         self.errors = errors

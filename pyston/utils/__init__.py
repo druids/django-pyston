@@ -19,64 +19,6 @@ from chamber.utils.decorators import classproperty
 from pyston.utils.compatibility import is_related_descriptor, get_model_from_relation_or_none
 
 
-class rc_factory(object):
-    """
-    Status codes.
-    """
-    CODES = dict(
-        ALL_OK=({'success': _('OK')}, 200),
-        CREATED=({'success': _('The record was created')}, 201),
-        DELETED=('', 204),  # 204 says "Don't send a body!"
-        BAD_REQUEST=({'error': _('Bad Request')}, 400),
-        FORBIDDEN=({'error': _('Forbidden')}, 403),
-        NOT_FOUND=({'error': _('Not Found')}, 404),
-        METHOD_NOT_ALLOWED=({'error': _('Method Not Allowed')}, 405),
-        DUPLICATE_ENTRY=({'error': _('Conflict/Duplicate')}, 409),
-        NOT_HERE=({'error': _('Gone')}, 410),
-        UNSUPPORTED_MEDIA_TYPE=({'error': _('Unsupported Media Type')}, 415),
-        INTERNAL_ERROR=({'error': _('Internal server error')}, 500),
-        NOT_IMPLEMENTED=({'error': _('Not implemented')}, 501),
-        THROTTLED=({'error': _('The resource was throttled')}, 503)
-    )
-
-    def __getattr__(self, attr):
-        """
-        Returns a fresh `HttpResponse` when getting
-        an "attribute". This is backwards compatible
-        with 0.2, which is important.
-        """
-        try:
-            (r, c) = self.CODES.get(attr)
-        except TypeError:
-            raise AttributeError(attr)
-
-        class HttpResponseWrapper(HttpResponse):
-            """
-            Wrap HttpResponse and make sure that the internal_base_content_is_iter
-            flag is updated when the _set_content method (via the content
-            property) is called
-            """
-            def _set_content(self, content):
-                """
-                type of the value parameter. This logic is in the construtor
-                for HttpResponse, but doesn't get repeated when setting
-                HttpResponse.content although this bug report (feature request)
-                suggests that it should: http://code.djangoproject.com/ticket/9403
-                """
-                if not isinstance(content, six.string_types) and hasattr(content, '__iter__'):
-                    self._container = {'messages': content}
-                    self._base_content_is_iter = True
-                else:
-                    self._container = [content]
-                    self._base_content_is_iter = False
-
-            content = property(HttpResponse.content.getter, _set_content)
-
-        return HttpResponseWrapper(r, content_type='text/plain', status=c)
-
-rc = rc_factory()
-
-
 def coerce_put_post(request):
     """
     Django doesn't particularly understand REST.

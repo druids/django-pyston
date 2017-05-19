@@ -17,6 +17,7 @@ from django.db.models.query import QuerySet
 from django.http.response import Http404
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import ugettext_lazy as _
 
 from functools import update_wrapper
 
@@ -29,13 +30,14 @@ from pyston.conf import settings
 from pyston.utils.helpers import serialized_data_to_python
 
 from .paginator import Paginator
-from .response import (HeadersResponse, RESTErrorResponse, RESTErrorsResponse, RESTCreatedResponse,
-                       RESTNoConetentResponse)
+from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
+                       ResponseExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
-from .utils import coerce_put_post, rc, set_rest_context_to_request, RFS, rfs
+from .utils import coerce_put_post, set_rest_context_to_request, RFS, rfs
+from .utils.helpers import str_to_class
 from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 
@@ -188,6 +190,25 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         self.kwargs = {}
 
     @property
+    def exception_responses(self):
+        errors_response_class = str_to_class(settings.ERRORS_RESPONSE_CLASS)
+        error_response_class = str_to_class(settings.ERROR_RESPONSE_CLASS)
+        return (
+            (MimerDataException, ResponseErrorFactory(_('Bad Request'), 400, error_response_class)),
+            (NotAllowedException, ResponseErrorFactory(_('Forbidden'), 403, error_response_class)),
+            (UnsupportedMediaTypeException, ResponseErrorFactory(_('Unsupported Media Type'), 415,
+                                                                 error_response_class)),
+            (Http404, ResponseErrorFactory(_('Not Found'), 404, error_response_class)),
+            (ResourceNotFoundException, ResponseErrorFactory(_('Not Found'), 404, error_response_class)),
+            (NotAllowedMethodException, ResponseErrorFactory(_('Method Not Allowed'), 405, error_response_class)),
+            (DuplicateEntryException, ResponseErrorFactory(_('Conflict/Duplicate'), 409, error_response_class)),
+            (ConflictException, ResponseErrorFactory(_('Conflict/Duplicate'), 409, error_response_class)),
+            (DataInvalidException, ResponseExceptionFactory(errors_response_class)),
+            (RESTException, ResponseExceptionFactory(error_response_class)),
+            (PersistenceException, ResponseExceptionFactory(error_response_class)),
+        )
+
+    @property
     def is_allowed_cors(self):
         return settings.CORS
 
@@ -294,18 +315,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
                 raise UnsupportedMediaTypeException
         return self.request
 
-    def _get_error_response(self, exception):
-        responses = {
-            MimerDataException: rc.BAD_REQUEST,
-            NotAllowedException: rc.FORBIDDEN,
-            UnsupportedMediaTypeException: rc.UNSUPPORTED_MEDIA_TYPE,
-            Http404: rc.NOT_FOUND,
-            ResourceNotFoundException: rc.NOT_FOUND,
-            NotAllowedMethodException: rc.METHOD_NOT_ALLOWED,
-            DuplicateEntryException: rc.DUPLICATE_ENTRY,
-            ConflictException: rc.DUPLICATE_ENTRY,
-        }
-        return responses.get(type(exception))
+    def _get_error_response_from_exception(self, exception):
+        for exception_class, response_factory in self.exception_responses:
+            if isinstance(exception, exception_class):
+                return response_factory.get_response(exception)
 
     def _get_response_data(self):
         status_code = 200
@@ -318,12 +331,14 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
             rm = self.request.method.lower()
             meth = getattr(self, rm, None)
             if not meth or rm not in self.allowed_methods:
-                result = self._get_error_response(NotAllowedMethodException())
+                raise NotAllowedMethodException
             else:
                 self._check_permission(rm)
                 result = meth()
-        except (MimerDataException, NotAllowedException, UnsupportedMediaTypeException, Http404, ConflictException) as ex:
-            result = self._get_error_response(ex)
+        except Exception as ex:
+            result = self._get_error_response_from_exception(ex)
+            if result is None:
+                raise ex
             fieldset = False
 
         if isinstance(result, HeadersResponse):
@@ -642,29 +657,17 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         data = self.get_dict_data()
         if pk and self._exists_obj(pk=pk):
             raise DuplicateEntryException
-        try:
-            return RESTCreatedResponse(self.atomic_create_or_update(data))
-        except DataInvalidException as ex:
-            return RESTErrorsResponse(ex.errors)
-        except (ConflictException, NotAllowedException):
-            raise
-        except (RESTException, PersistenceException) as ex:
-            return RESTErrorResponse(ex.message)
+        return RESTCreatedResponse(self.atomic_create_or_update(data))
 
     def get(self):
         pk = self._get_pk()
         if pk:
             return self._get_obj_or_404(pk=pk)
-        try:
-            qs = self._preload_queryset(self._get_queryset().all())
-            qs = self._filter_queryset(qs)
-            qs = self._order_queryset(qs)
-            paginator = self.paginator(qs, self.request)
-            return HeadersResponse(paginator.page_qs, paginator.headers)
-        except (RESTException, PersistenceException) as ex:
-            return RESTErrorResponse(ex.message)
-        except Http404:
-            raise
+        qs = self._preload_queryset(self._get_queryset().all())
+        qs = self._filter_queryset(qs)
+        qs = self._order_queryset(qs)
+        paginator = self.paginator(qs, self.request)
+        return HeadersResponse(paginator.page_qs, paginator.headers)
 
     def put(self):
         pk = self._get_pk()
@@ -673,24 +676,15 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         data[self.pk_field_name] = obj.pk
         try:
             return self.atomic_create_or_update(data)
-        except DataInvalidException as ex:
-            return RESTErrorsResponse(ex.errors)
         except ConflictException:
             # If object allready exists and user doesn't have permissions to change it should be returned 404 (the same
             # response as for GET method)
             raise Http404
-        except NotAllowedException:
-            raise
-        except (RESTException, PersistenceException) as ex:
-            return RESTErrorResponse(ex.message)
 
     def delete(self):
-        try:
-            pk = self.kwargs.get(self.pk_name)
-            self.delete_obj_with_pk(pk)
-            return RESTNoConetentResponse()
-        except (RESTException, PersistenceException) as ex:
-            return RESTErrorResponse(ex.message)
+        pk = self.kwargs.get(self.pk_name)
+        self.delete_obj_with_pk(pk)
+        return RESTNoContentResponse()
 
     def delete_obj_with_pk(self, pk, via=None):
         via = via or []
