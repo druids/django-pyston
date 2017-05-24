@@ -187,6 +187,7 @@ class ResourceSerializer(ResourceSerializerMixin, Serializer):
     """
 
     def serialize(self, data, serialization_format, **kwargs):
+        kwargs['via'] = self.resource._get_via(kwargs.get('via'))
         if hasattr(data, 'serialize'):
             data = data.serialize(serialization_format, request=self.request, **kwargs)
         else:
