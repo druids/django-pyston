@@ -81,7 +81,7 @@ class ResourceMetaClass(type):
 
 class PermissionsResourceMixin(object):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'patch', 'put', 'delete', 'head', 'options')
 
     def _get_via(self, via=None):
         via = list(via) if via is not None else []
@@ -141,6 +141,9 @@ class PermissionsResourceMixin(object):
     def has_post_permission(self, **kwargs):
         return 'post' in self.allowed_methods and hasattr(self, 'post')
 
+    def has_patch_permission(self, **kwargs):
+        return 'patch' in self.allowed_methods and hasattr(self, 'patch')
+
     def has_put_permission(self, **kwargs):
         return 'put' in self.allowed_methods and hasattr(self, 'put')
 
@@ -165,7 +168,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     resource. Use this for checking `request.user`, etc.
     """
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'patch', 'put', 'delete', 'head', 'options')
     serializer = ResourceSerializer
     register = False
     abstract = True
@@ -534,7 +537,7 @@ class DefaultRESTObjectResource(PermissionsResourceMixin):
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'patch', 'put', 'delete', 'head', 'options')
     model = None
 
     def get_detailed_fields(self, obj=None):
@@ -560,7 +563,7 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
 
 class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'patch', 'put', 'delete', 'head', 'options')
     pk_name = 'pk'
     pk_field_name = 'id'
     abstract = True
@@ -670,6 +673,18 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         return HeadersResponse(paginator.page_qs, paginator.headers)
 
     def put(self):
+        pk = self._get_pk()
+        data = self.get_dict_data()
+        obj = self._get_obj_or_404(pk=pk)
+        data[self.pk_field_name] = obj.pk
+        try:
+            return self.atomic_create_or_update(data)
+        except ConflictException:
+            # If object allready exists and user doesn't have permissions to change it should be returned 404 (the same
+            # response as for GET method)
+            raise Http404
+
+    def patch(self):
         pk = self._get_pk()
         data = self.get_dict_data()
         obj = self._get_obj_or_404(pk=pk)
