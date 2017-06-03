@@ -178,3 +178,4 @@ PYSTON_CONVERTERS = (
     'pyston.converters.PDFConverter',
     'pyston.converters.HTMLConverter',
 )
+PYSTON_PARTIAL_RELATED_UPDATE = True

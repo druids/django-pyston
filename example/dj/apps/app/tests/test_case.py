@@ -1,4 +1,4 @@
-from germanium.rest import RESTTestCase
+from germanium.test_cases.rest import RESTTestCase
 
 
 class PystonTestCase(RESTTestCase):

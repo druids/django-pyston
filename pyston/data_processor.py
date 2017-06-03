@@ -56,6 +56,7 @@ data_postprocessors = DataProcessorCollection()
 
 
 class DataProcessor(object):
+
     def __init__(self, resource, form, *args, **kwargs):
         self.resource = resource
         self.request = resource.request
@@ -151,11 +152,12 @@ class FileDataPreprocessor(DataProcessor):
 
 class ModelResourceDataProcessor(DataProcessor):
 
-    def __init__(self, resource, form, inst, via):
+    def __init__(self, resource, form, inst, via, partial_update):
         super(ModelResourceDataProcessor, self).__init__(resource, form)
         self.model = resource.model
         self.inst = inst
         self.via = resource._get_via(via)
+        self.partial_update = partial_update
 
 
 class ResourceProcessorMixin(object):
@@ -188,7 +190,8 @@ class ModelDataPreprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
 
         if rest_field:
             try:
-                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request)
+                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
+                                                               self.partial_update)
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -207,7 +210,8 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcesso
 
         if rest_field:
             try:
-                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request)
+                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
+                                                               self.partial_update)
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -223,7 +227,8 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ResourceProce
             rest_field = ReverseStructuredManyField(key, resource_class=resource_class) if resource_class else None
         if isinstance(rest_field, ReverseManyField):
             try:
-                 rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request)
+                 rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
+                                                    self.partial_update)
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -240,6 +245,6 @@ class ReverseDataPostprocessor(ResourceProcessorMixin, ModelResourceDataProcesso
 
         if isinstance(rest_field, ReverseSingleField):
             try:
-                rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request)
+                rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request, self.partial_update)
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors

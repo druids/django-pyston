@@ -40,7 +40,8 @@ DEFAULTS = {
     'PDF_EXPORT_TEMPLATE': 'default_pdf_table.html',
     'FILE_SIZE_LIMIT': 5000000,
     'AUTO_REVERSE': True,
-    'ALLOWED_INCOMPLETE_UPDATE': True,
+    'PARTIAL_PUT_UPDATE': False,
+    'PARTIAL_RELATED_UPDATE': False,
     'ERRORS_RESPONSE_CLASS': 'pyston.response.RESTErrorsResponse',
     'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
 }
