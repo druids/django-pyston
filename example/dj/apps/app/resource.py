@@ -71,7 +71,6 @@ class TestTextObjectCamelCaseResource(BaseObjectResource):
 
 
 class TestCamelCaseResource(BaseResource):
-
     DATA_KEY_MAPPING = {
         'bar_baz': 'barBaz',
         'foo_bar': 'fooBar',

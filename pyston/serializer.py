@@ -31,7 +31,7 @@ from chamber.utils import get_class_method
 from .exception import UnsupportedMediaTypeException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
-from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python
+from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
 from .converters import get_converter
 
 
@@ -46,9 +46,13 @@ class Serializable(object):
 
 class SerializableObj(Serializable):
 
+    resource_typemapper = {}
+
     def _get_value(self, field, serialization_format, request, **kwargs):
         val = getattr(self, field)
-        return get_serializer(val, request=request).serialize(val, serialization_format, **kwargs)
+        return get_serializer(
+            val, request=request, resource_typemapper=self.resource_typemapper
+        ).serialize(val, serialization_format, **kwargs)
 
     def serialize(self, serialization_format, request=None, **kwargs):
         return {field_name: self._get_value(field_name, serialization_format, request, **kwargs)
@@ -70,16 +74,27 @@ def register(serialized_types):
     return _register
 
 
-def get_resource_or_none(request, thing):
-    from .resource import typemapper
+def get_resource_class_or_none(thing, resource_typemapper=None):
+    from .resource import typemapper as global_resource_typemapper
 
-    resource_class = typemapper.get(thing.model if isinstance(thing, QuerySet) else type(thing))
+    resource_typemapper = {} if resource_typemapper is None else resource_typemapper
+    resource_class = resource_typemapper.get(thing) or global_resource_typemapper.get(thing)
+    if isinstance(resource_class, six.string_types):
+        resource_class = str_to_class(resource_class)
+    return resource_class
+
+
+def get_resource_or_none(request, thing, resource_typemapper=None):
+    from .resource import typemapper as global_resource_typemapper
+
+    resource_class = get_resource_class_or_none(thing, resource_typemapper)
     return resource_class(request) if resource_class else None
 
 
-def get_serializer(thing, request=None):
+def get_serializer(thing, request=None, resource_typemapper=None):
     if request:
-        resource = get_resource_or_none(request, thing)
+        thing_class = thing.model if isinstance(thing, QuerySet) else type(thing)
+        resource = get_resource_or_none(request, thing_class, resource_typemapper)
         if resource:
             return resource.serializer(resource, request=request)
 
@@ -153,13 +168,16 @@ class Serializer(object):
     def __init__(self, request=None):
         self.request = request
 
+    def _get_serializer(self, data):
+        return get_serializer(data, request=self.request)
+
     def _data_to_python(self, data, serialization_format, lazy=False, **kwargs):
-        return get_serializer(data, request=self.request).serialize(data, serialization_format, **kwargs)
+        return self._get_serializer(data).serialize(data, serialization_format, **kwargs)
 
     def _lazy_data_to_python(self, data, serialization_format, lazy=False, **kwargs):
         if lazy:
             return LazySerializedData(
-                get_serializer(data, request=self.request), data, serialization_format, lazy=lazy, **kwargs
+                self._get_serializer(data), data, serialization_format, lazy=lazy, **kwargs
             )
         else:
             return self._data_to_python(data, serialization_format, lazy=lazy, **kwargs)
@@ -177,23 +195,53 @@ class ResourceSerializerMixin(object):
         self.resource = resource
         super(ResourceSerializerMixin, self).__init__(request=request)
 
+    def _get_serializer(self, data):
+        return get_serializer(data, request=self.request, resource_typemapper=self.resource.resource_typemapper)
+
     def deserialize(self, data):
         return data
 
+    def _serialize_recursive(self, data, serialization_format, **kwargs):
+        if isinstance(data, dict):
+            return dict(
+                [
+                    (k, self._serialize_recursive(v, serialization_format, **kwargs)) for k, v in data.items()
+                ]
+            )
+        elif isinstance(data, (list, tuple, set)):
+            return (self._serialize_recursive(v, serialization_format, **kwargs) for v in data)
+        else:
+            return self._serialize_other(data, serialization_format, **kwargs)
 
-class ResourceSerializer(ResourceSerializerMixin, Serializer):
-    """
-    Default resource serializer perform serialization to the client format
-    """
+    def _serialize_other(self, data, serialization_format, **kwargs):
+        copy_kwargs = kwargs.copy()
+        copy_kwargs['via'] = self.resource._get_via(copy_kwargs.get('via'))
+        return self._data_to_python(data, serialization_format, **copy_kwargs)
 
     def serialize(self, data, serialization_format, **kwargs):
-        kwargs['via'] = self.resource._get_via(kwargs.get('via'))
-        if hasattr(data, 'serialize'):
-            data = data.serialize(serialization_format, request=self.request, **kwargs)
-        else:
-            data = self._data_to_python(data, serialization_format, **kwargs)
+        return self._serialize_recursive(data, serialization_format, **kwargs)
 
-        return self.resource.update_serialized_data(data)
+
+class ResourceSerializer(ResourceSerializerMixin, Serializer):
+
+    def _serialize_recursive(self, data, serialization_format, **kwargs):
+        if isinstance(data, dict):
+            return self.resource.update_serialized_data(
+                super(ResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
+            )
+        else:
+            return super(ResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
+
+
+class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
+
+    def _serialize_recursive(self, data, serialization_format, **kwargs):
+        if isinstance(data, self.resource.model):
+            return self.resource.update_serialized_data(
+                data.serialize(serialization_format, request=self.request, **kwargs)
+            )
+        else:
+            return super(ObjectResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
 
 
 @register(six.string_types)
@@ -424,7 +472,6 @@ class ModelSerializer(Serializer):
             out[field_name] = self._field_to_python(
                 field_name, resource_method_fields, model_fields, m2m_fields, obj, serialization_format, **subkwargs
             )
-
         return out
 
     def _get_model_resource(self, obj):
@@ -513,13 +560,14 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
     def _get_model_resource(self, obj):
         return self.resource
 
-    def serialize(self, data, serialization_format, **kwargs):
-        if isinstance(data, (QuerysetIteratorHelper, QuerySet, Model)):
-            data = super(ModelResourceSerializer, self).serialize(data, serialization_format, **kwargs)
+    def _serialize_recursive(self, data, serialization_format, **kwargs):
+        if (isinstance(data, self.resource.model) or
+              isinstance(data, (QuerysetIteratorHelper, QuerySet)) and issubclass(data.model, self.resource.model)):
+            return self.resource.update_serialized_data(
+                ModelSerializer.serialize(self, data, serialization_format, **kwargs)
+            )
         else:
-            data = self._data_to_python(data, serialization_format, **kwargs)
-
-        return self.resource.update_serialized_data(data)
+            return super(ModelResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
