@@ -19,7 +19,7 @@ from chamber.utils.decorators import classproperty
 from pyston.utils.compatibility import is_related_descriptor, get_model_from_relation_or_none
 
 
-def coerce_put_post(request):
+def coerce_rest_request_method(request):
     """
     Django doesn't particularly understand REST.
     In case we send data over PUT, Django won't
@@ -29,7 +29,7 @@ def coerce_put_post(request):
     The try/except abominiation here is due to a bug
     in mod_python. This should fix it.
     """
-    if request.method == 'PUT':
+    if request.method in {'PUT', 'PATCH'}:
         # Bug fix: if _load_post_and_files has already been called, for
         # example by middleware accessing request.POST, the below code to
         # pretend the request is a POST instead of a PUT will be too late
@@ -44,16 +44,17 @@ def coerce_put_post(request):
             del request._post
             del request._files
 
+        tmp_request_method = request.method
         try:
             request.method = 'POST'
             request._load_post_and_files()
-            request.method = 'PUT'
+            request.method = tmp_request_method
         except AttributeError:
             request.META['REQUEST_METHOD'] = 'POST'
             request._load_post_and_files()
-            request.META['REQUEST_METHOD'] = 'PUT'
+            request.META['REQUEST_METHOD'] = tmp_request_method
 
-        request.PUT = request.POST
+        setattr(request, tmp_request_method, request.POST)
 
 
 def model_all_available_fields(model):

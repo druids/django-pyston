@@ -36,7 +36,7 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
 from .forms import RESTModelForm
-from .utils import coerce_put_post, set_rest_context_to_request, RFS, rfs
+from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
 from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
@@ -81,7 +81,7 @@ class ResourceMetaClass(type):
 
 class PermissionsResourceMixin(object):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
 
     def _get_via(self, via=None):
         via = list(via) if via is not None else []
@@ -144,6 +144,9 @@ class PermissionsResourceMixin(object):
     def has_put_permission(self, **kwargs):
         return 'put' in self.allowed_methods and hasattr(self, 'put')
 
+    def has_patch_permission(self, **kwargs):
+        return 'patch' in self.allowed_methods and hasattr(self, 'patch')
+
     def has_delete_permission(self, **kwargs):
         return 'delete' in self.allowed_methods and hasattr(self, 'delete')
 
@@ -165,7 +168,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     resource. Use this for checking `request.user`, etc.
     """
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
     serializer = ResourceSerializer
     register = False
     abstract = True
@@ -302,10 +305,10 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         rm = self.request.method.upper()
         # Django's internal mechanism doesn't pick up
         # PUT request, so we trick it a little here.
-        if rm == 'PUT':
-            coerce_put_post(self.request)
+        if rm in {'PUT', 'PATCH'}:
+            coerce_rest_request_method(self.request)
 
-        if rm in {'POST', 'PUT'}:
+        if rm in {'POST', 'PUT', 'PATCH'}:
             try:
                 converter = get_converter_from_request(self.request, True)
                 self.request.data = self.serializer(self).deserialize(converter.decode(force_text(self.request.body)))
@@ -534,7 +537,7 @@ class DefaultRESTObjectResource(PermissionsResourceMixin):
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
     model = None
 
     def get_detailed_fields(self, obj=None):
@@ -560,10 +563,12 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
 
 class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
-    allowed_methods = ('get', 'post', 'put', 'delete', 'head', 'options')
+    allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
     pk_name = 'pk'
     pk_field_name = 'id'
     abstract = True
+    partial_put_update = None
+    partial_related_update = None
 
     def _serialize(self, os, result, status_code, http_headers):
         try:
@@ -675,7 +680,21 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         obj = self._get_obj_or_404(pk=pk)
         data[self.pk_field_name] = obj.pk
         try:
-            return self.atomic_create_or_update(data)
+            # Backward compatibility
+            partial_update = settings.PARTIAL_PUT_UPDATE if self.partial_put_update is None else self.partial_put_update
+            return self.atomic_create_or_update(data, partial_update=partial_update)
+        except ConflictException:
+            # If object allready exists and user doesn't have permissions to change it should be returned 404 (the same
+            # response as for GET method)
+            raise Http404
+
+    def patch(self):
+        pk = self._get_pk()
+        data = self.get_dict_data()
+        obj = self._get_obj_or_404(pk=pk)
+        data[self.pk_field_name] = obj.pk
+        try:
+            return self.atomic_create_or_update(data, partial_update=True)
         except ConflictException:
             # If object allready exists and user doesn't have permissions to change it should be returned 404 (the same
             # response as for GET method)
@@ -704,11 +723,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         pass
 
     @transaction.atomic
-    def atomic_create_or_update(self, data):
+    def atomic_create_or_update(self, data, partial_update=False):
         """
         Atomic object creation
         """
-        return self.create_or_update(data)
+        return self.create_or_update(data, partial_update=partial_update)
 
     def _get_instance(self, data):
         """
@@ -719,7 +738,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def _generate_form_class(self, inst, exclude=None):
         return self.form_class
 
-    def _get_form(self, fields=None, inst=None, data=None, files=None, initial=None):
+    def _get_form(self, fields=None, inst=None, data=None, files=None, initial=None, partial_update=False):
         # When is send PUT (resource instance exists), it is possible send only changed values.
         initial = {} if initial is None else initial
         exclude = []
@@ -732,7 +751,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             kwargs['files'] = files
 
         form_class = self._generate_form_class(inst, exclude)
-        return form_class(initial=initial, **kwargs)
+        return form_class(initial=initial, partial_update=partial_update, **kwargs)
 
     def _get_form_kwargs(self):
         return {}
@@ -748,13 +767,13 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
         return not change or self.has_put_permission(obj=obj, via=via)
 
-    def create_or_update(self, data, via=None):
+    def create_or_update(self, data, via=None, partial_update=False):
         try:
-            return self._create_or_update(data, via)
+            return self._create_or_update(data, via, partial_update=partial_update)
         except DataInvalidException as ex:
             raise DataInvalidException(self.update_serialized_data(ex.errors))
 
-    def _create_or_update(self, data, via=None):
+    def _create_or_update(self, data, via=None, partial_update=False):
         """
         Helper for creating or updating resource
         """
@@ -768,11 +787,16 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
         form = self._get_form(inst=inst, data=data, initial=self._get_form_initial(inst))
 
+        # Backward compatibility
+        partial_related_update = (
+            settings.PARTIAL_RELATED_UPDATE if self.partial_related_update is None else self.partial_related_update
+        ) or partial_update
+
         for preprocessor in data_preprocessors.get_processors(type(self)):
-            data, files = preprocessor(self, form, inst, via).process_data(data, files)
+            data, files = preprocessor(self, form, inst, via, partial_related_update).process_data(data, files)
 
         form = self._get_form(fields=form.fields.keys(), inst=inst, data=data, files=files,
-                              initial=self._get_form_initial(inst))
+                              initial=self._get_form_initial(inst), partial_update=partial_update)
 
         errors = form.is_invalid()
         if errors:
@@ -787,7 +811,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
         if inst.pk:
             for preprocessor in data_postprocessors.get_processors(type(self)):
-                data, files = preprocessor(self, form, inst, via).process_data(data, files)
+                data, files = preprocessor(self, form, inst, via, partial_related_update).process_data(data, files)
 
         if can_save_obj:
             if hasattr(form, 'save_m2m'):
