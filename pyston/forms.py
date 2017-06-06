@@ -111,13 +111,14 @@ class RelatedField(object):
         self.resource_class = resource_class
 
     def _get_resource(self, model, request):
-        from .resource import typemapper
+        from .serializer import get_resource_class_or_none
 
-        resource_class = self.resource_class or typemapper.get(model)
+        resource_class = self.resource_class
 
         if isinstance(resource_class, six.string_types):
             resource_class = str_to_class(resource_class)
-
+        elif resource_class is None:
+            resource_class = get_resource_class_or_none(model)
         assert resource_class, 'Missing resource for model {}'.format(model)
         return resource_class(request)
 

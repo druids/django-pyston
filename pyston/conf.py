@@ -44,6 +44,7 @@ DEFAULTS = {
     'PARTIAL_RELATED_UPDATE': False,
     'ERRORS_RESPONSE_CLASS': 'pyston.response.RESTErrorsResponse',
     'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
+    'AUTO_REGISTER_RESOURCE': True,
 }
 
 

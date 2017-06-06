@@ -38,7 +38,7 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
 from .forms import RESTModelForm
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
-from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData
+from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 
 
@@ -62,7 +62,7 @@ class ResourceMetaClass(type):
     def __new__(cls, name, bases, attrs):
         abstract = attrs.pop('abstract', False)
         new_cls = type.__new__(cls, name, bases, attrs)
-        if not abstract and new_cls.register:
+        if not abstract and new_cls.register and settings.AUTO_REGISTER_RESOURCE:
             def already_registered(model):
                 return typemapper.get(model)
 
@@ -175,6 +175,7 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
     csrf_exempt = True
     cache = None
     paginator = Paginator
+    resource_typemapper = {}
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -569,6 +570,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     abstract = True
     partial_put_update = None
     partial_related_update = None
+    serializer = ObjectResourceSerializer
 
     def _serialize(self, os, result, status_code, http_headers):
         try:

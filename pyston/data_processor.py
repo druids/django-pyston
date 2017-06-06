@@ -27,7 +27,7 @@ from pyston.utils.compatibility import (
 from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
 
 from .exception import DataInvalidException, RESTException
-from .resource import BaseObjectResource, typemapper, BaseModelResource
+from .resource import BaseObjectResource, BaseModelResource
 from .forms import (ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
                     MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin)
 
@@ -159,13 +159,10 @@ class ModelResourceDataProcessor(DataProcessor):
         self.via = resource._get_via(via)
         self.partial_update = partial_update
 
-
-class ResourceProcessorMixin(object):
-
     def _get_resource_class(self, model):
-        resource_class = typemapper.get(model)
-        if resource_class:
-            return resource_class
+        from .serializer import get_resource_class_or_none
+
+        return get_resource_class_or_none(model, self.resource.resource_typemapper)
 
 
 class MultipleDataProcessorMixin(object):
@@ -178,7 +175,7 @@ class MultipleDataProcessorMixin(object):
 
 
 @data_preprocessors.register(BaseObjectResource)
-class ModelDataPreprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
+class ModelDataPreprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         rest_field = None
@@ -197,7 +194,7 @@ class ModelDataPreprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
 
 
 @data_preprocessors.register(BaseObjectResource)
-class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, ModelResourceDataProcessor):
+class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         rest_field = None
@@ -217,7 +214,7 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ResourceProcesso
 
 
 @data_postprocessors.register(BaseModelResource)
-class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ResourceProcessorMixin, ModelResourceDataProcessor):
+class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         rest_field = getattr(self.form, key, None)
@@ -234,7 +231,7 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ResourceProce
 
 
 @data_postprocessors.register(BaseModelResource)
-class ReverseDataPostprocessor(ResourceProcessorMixin, ModelResourceDataProcessor):
+class ReverseDataPostprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
         rest_field = getattr(self.form, key, None)
