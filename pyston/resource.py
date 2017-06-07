@@ -157,6 +157,62 @@ class PermissionsResourceMixin(object):
         return 'options' in self.allowed_methods and hasattr(self, 'options')
 
 
+class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
+
+    read_obj_permission = False
+    create_obj_permission = False
+    update_obj_permission = False
+    delete_obj_permission = False
+
+    def has_get_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_get_permission(**kwargs) and
+            self.has_read_obj_permission(**kwargs)
+        )
+
+    def has_post_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_post_permission(**kwargs) and
+            self.has_create_obj_permission(**kwargs)
+        )
+
+    def has_put_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_put_permission(**kwargs) and
+            self.has_update_obj_permission(**kwargs)
+        )
+
+    def has_patch_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_patch_permission(**kwargs) and
+            self.has_update_obj_permission(**kwargs)
+        )
+
+    def has_delete_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_delete_permission(**kwargs) and
+            self.has_delete_obj_permission(**kwargs)
+        )
+
+    def has_options_permission(self, **kwargs):
+        return (
+            super(ObjectPermissionsResourceMixin, self).has_options_permission(**kwargs) and
+            self.has_read_obj_permission(**kwargs)
+        )
+
+    def has_read_obj_permission(self, obj=None, via=None):
+        return self.read_obj_permission
+
+    def has_create_obj_permission(self, obj=None, via=None):
+        return self.create_obj_permission
+
+    def has_update_obj_permission(self, obj=None, via=None):
+        return self.update_obj_permission
+
+    def has_delete_obj_permission(self, obj=None, via=None):
+        return self.delete_obj_permission
+
+
 class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixin)):
     """
     BaseResource that gives you CRUD for free.
@@ -467,7 +523,7 @@ def join_rfs(*iterable):
     return reduce(lambda a, b: a.join(b), iterable, rfs())
 
 
-class DefaultRESTObjectResource(PermissionsResourceMixin):
+class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
 
     fields = None
     allowed_fields = None
@@ -710,7 +766,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def delete_obj_with_pk(self, pk, via=None):
         via = via or []
         obj = self._get_obj_or_404(pk)
-        self._check_delete_permission(obj=obj, via=via)
+        self._check_delete_obj_permission(obj=obj, via=via)
         self._pre_delete_obj(obj)
         self._delete_obj(obj)
         self._post_delete_obj(obj)
@@ -763,11 +819,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _can_save_obj(self, change, obj, form, via):
         if change and (not via or form.has_changed()):
-            self._check_put_permission(obj=obj, via=via)
+            self._check_update_obj_permission(obj=obj, via=via)
         elif not change:
-            self._check_post_permission(obj=obj, via=via)
+            self._check_create_obj_permission(obj=obj, via=via)
 
-        return not change or self.has_put_permission(obj=obj, via=via)
+        return not change or self.has_update_obj_permission(obj=obj, via=via)
 
     def create_or_update(self, data, via=None, partial_update=False):
         try:

@@ -18,6 +18,11 @@ class IssueResource(BaseModelResource):
                        'leader', 'watched_by')
     general_fields = ('id', '_obj_name', 'name', 'created_by', 'watched_by')
 
+    create_obj_permission = True
+    read_obj_permission = True
+    update_obj_permission = True
+    delete_obj_permission = True
+
 
 class UserResource(BaseModelResource):
 
@@ -31,6 +36,10 @@ class UserResource(BaseModelResource):
         'watched_issues': 'watchedIssues',
         'created_issues': 'createdIssues',
     }
+    create_obj_permission = True
+    read_obj_permission = True
+    update_obj_permission = True
+    delete_obj_permission = True
 
 
 class ExtraResource(BaseResource):
@@ -65,12 +74,15 @@ class TestTextObjectCamelCaseResource(BaseObjectResource):
     model = TestTextObject
     register = True
 
+    read_obj_permission = True
+
     DATA_KEY_MAPPING = {
         'fiz_baz': 'fizBaz',
     }
 
 
 class TestCamelCaseResource(BaseResource):
+
     DATA_KEY_MAPPING = {
         'bar_baz': 'barBaz',
         'foo_bar': 'fooBar',
@@ -101,3 +113,7 @@ class UserWithFormResource(BaseModelResource):
     register = False
     model = User
     form_class = UserForm
+    create_obj_permission = True
+    read_obj_permission = True
+    update_obj_permission = True
+    delete_obj_permission = True

@@ -28,7 +28,7 @@ from django.utils.html import conditional_escape
 from chamber.utils.datastructures import Enum
 from chamber.utils import get_class_method
 
-from .exception import UnsupportedMediaTypeException
+from .exception import UnsupportedMediaTypeException, NotAllowedException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
 from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
@@ -237,6 +237,8 @@ class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
 
     def _serialize_recursive(self, data, serialization_format, **kwargs):
         if isinstance(data, self.resource.model):
+            if not self.resource.has_read_obj_permission(obj=data, via=kwargs.get('via')):
+                raise NotAllowedException
             return self.resource.update_serialized_data(
                 data.serialize(serialization_format, request=self.request, **kwargs)
             )
@@ -477,14 +479,14 @@ class ModelSerializer(Serializer):
     def _get_model_resource(self, obj):
         return None
 
-    def _get_fieldset_from_resource(self, model_resource, obj, via, has_get_permission):
-        if not has_get_permission:
+    def _get_fieldset_from_resource(self, model_resource, obj, via, has_read_permission):
+        if not has_read_permission:
             return model_resource.get_guest_fields_rfs(obj)
         else:
             return model_resource.get_general_fields_rfs(obj)
 
-    def _get_allowed_fieldset_from_resource(self, model_resource, obj, via, has_get_permission):
-        if not has_get_permission:
+    def _get_allowed_fieldset_from_resource(self, model_resource, obj, via, has_read_permission):
+        if not has_read_permission:
             return model_resource.get_guest_fields_rfs(obj)
         else:
             return model_resource.get_allowed_fields_rfs(obj)
@@ -501,11 +503,9 @@ class ModelSerializer(Serializer):
         model_resource = self._get_model_resource(obj)
 
         if model_resource:
-            has_get_permission = (model_resource.has_get_permission(obj=obj, via=via) or
-                                  model_resource.has_post_permission(obj=obj, via=via) or
-                                  model_resource.has_put_permission(obj=obj, via=via))
-            default_fieldset = self._get_fieldset_from_resource(model_resource, obj, via, has_get_permission)
-            allowed_fieldset = self._get_allowed_fieldset_from_resource(model_resource, obj, via, has_get_permission)
+            has_read_permission = model_resource.has_read_obj_permission(obj=obj, via=via)
+            default_fieldset = self._get_fieldset_from_resource(model_resource, obj, via, has_read_permission)
+            allowed_fieldset = self._get_allowed_fieldset_from_resource(model_resource, obj, via, has_read_permission)
         else:
             direct_serialization_fields = self._get_direct_serialization_fields(obj)
             allowed_fieldset = rfs(
