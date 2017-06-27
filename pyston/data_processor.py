@@ -106,7 +106,7 @@ class FileDataPreprocessor(DataProcessor):
             )
             data[key] = filename
         else:
-            self.errors[key] = ugettext('Content type cannot be evaluated from filename, please specify it')
+            self.errors[key] = ugettext('Unsupported file type')
 
     def _process_file_data_field(self, data, files, key, data_item):
         try:

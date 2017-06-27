@@ -22,9 +22,9 @@ msgstr ""
 msgid "This field is required"
 msgstr "Toto pole je povinné"
 
-#: data_processor.py:101
-msgid "Content type cannot be evaluated from filename, please specify it"
-msgstr "Typ souboru nemůže být rozhodnut z názvu souboru. Specifikujte jej pomocí atributu \"content_type\""
+#: data_processor.py:109
+msgid "Unsupported file type"
+msgstr "Nepodporovaný typ souboru"
 
 #: data_processor.py:103
 msgid "File content is not in base64 format"
