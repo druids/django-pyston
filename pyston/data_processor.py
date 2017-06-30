@@ -187,8 +187,9 @@ class ModelDataPreprocessor(ModelResourceDataProcessor):
 
         if rest_field:
             try:
-                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
-                                                               self.partial_update)
+                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
+                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
+                )
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -207,8 +208,9 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ModelResourceDat
 
         if rest_field:
             try:
-                data[key] = rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
-                                                               self.partial_update)
+                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
+                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
+                )
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -224,8 +226,9 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ModelResource
             rest_field = ReverseStructuredManyField(key, resource_class=resource_class) if resource_class else None
         if isinstance(rest_field, ReverseManyField):
             try:
-                 rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request,
-                                                    self.partial_update)
+                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
+                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
+                )
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
 
@@ -242,6 +245,8 @@ class ReverseDataPostprocessor(ModelResourceDataProcessor):
 
         if isinstance(rest_field, ReverseSingleField):
             try:
-                rest_field.create_update_or_remove(self.inst, data_item, self.via, self.request, self.partial_update)
+                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
+                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
+                )
             except DataInvalidException as ex:
                 self.errors[key] = ex.errors
