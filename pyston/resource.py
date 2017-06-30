@@ -14,6 +14,7 @@ from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
 from django.db.models.base import Model
 from django.db.models.query import QuerySet
+from django.db.models.fields import DateTimeField
 from django.http.response import Http404
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
@@ -28,6 +29,7 @@ from chamber.utils import transaction
 
 from pyston.conf import settings
 from pyston.utils.helpers import serialized_data_to_python
+from pyston.forms import ISODateTimeField
 
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
@@ -922,6 +924,11 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def get_name(self):
         return force_text(remove_accent(force_text(self.model._meta.verbose_name_plural)))
 
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if isinstance(db_field, DateTimeField):
+            kwargs.update({'form_class': ISODateTimeField})
+        return db_field.formfield(**kwargs)
+
     def _get_instance(self, data):
         # If data contains id this method is update otherwise create
         inst = None
@@ -947,4 +954,5 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         fields = self._get_form_fields(inst)
         if hasattr(form_class, '_meta') and form_class._meta.exclude:
             exclude.extend(form_class._meta.exclude)
-        return modelform_factory(self.model, form=form_class, exclude=exclude, fields=fields)
+        return modelform_factory(self.model, form=form_class, exclude=exclude, fields=fields,
+                                 formfield_callback=self.formfield_for_dbfield)

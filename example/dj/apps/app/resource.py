@@ -35,6 +35,7 @@ class UserResource(BaseModelResource):
         'is_superuser': 'isSuperuser',
         'watched_issues': 'watchedIssues',
         'created_issues': 'createdIssues',
+        'manual_created_date': 'manualCreatedDate',
     }
     create_obj_permission = True
     read_obj_permission = True

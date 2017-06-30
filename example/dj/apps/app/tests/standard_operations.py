@@ -32,6 +32,12 @@ class StandardOperationsTestCase(PystonTestCase):
         assert_valid_JSON_response(self.get('%s%s/' % (self.USER_API_URL, pk)))
 
     @data_provider('get_users_data')
+    def test_create_user_with_created_at(self, number, data):
+        data['manualCreatedDate'] = '2017-01-20T23:30:00'
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_valid_JSON_created_response(resp)
+
+    @data_provider('get_users_data')
     def test_create_error_user(self, number, data):
         resp = self.post(self.USER_API_URL, data={})
         assert_http_bad_request(resp)
@@ -113,7 +119,8 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
         assert_equal(set(output_data.keys()), {'id', 'createdAt', '_obj_name', 'email', 'contract',
-                                                    'solvingIssue', 'firstName', 'lastName', 'watchedIssues'})
+                                               'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
+                                               'manualCreatedDate'})
 
     @data_provider('get_users_data')
     def test_read_user_general_fields_set_with_metaclass(self, number, data):
@@ -123,7 +130,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
         assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'firstName', 'lastName',
-                                                       'watchedIssues'})
+                                                  'watchedIssues', 'manualCreatedDate'})
 
     @data_provider('get_users_data')
     def test_read_user_extra_fields_set_with_metaclass(self, number, data):
