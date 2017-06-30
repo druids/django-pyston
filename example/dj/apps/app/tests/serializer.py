@@ -22,7 +22,8 @@ class DirectSerializationTestCase(TestCase):
 
         assert_equal(
             set(json.loads((serialize(User.objects.first()))).keys()),
-            {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name'}
+            {'id', 'created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
+             'manual_created_date'}
         )
         assert_equal(
             set(json.loads((serialize(User.objects.first(), ('id',)))).keys()),
