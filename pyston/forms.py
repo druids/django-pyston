@@ -1,11 +1,12 @@
 from __future__ import unicode_literals
 
+from dateutil import parser
 import six
 
 from django import forms
 from django.core.exceptions import ValidationError, ImproperlyConfigured
 from django.utils.translation import ugettext
-from django.utils.encoding import force_text
+from django.utils.encoding import force_text, force_str
 from django.http.response import Http404
 
 from chamber.shortcuts import get_object_or_none
@@ -456,3 +457,8 @@ class ReverseStructuredManyField(ReverseManyField):
             return super(ReverseStructuredManyField, self)._update_reverse_related_objects(
                 resource, model, parent_inst, field_name, via, data, partial_update
             )
+
+class ISODateTimeField(forms.DateTimeField):
+
+    def strptime(self, value, format):
+        return parser.parse(force_str(value))

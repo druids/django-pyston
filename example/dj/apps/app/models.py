@@ -14,16 +14,20 @@ class User(models.Model):
     is_superuser = models.BooleanField(_('is superuser'), default=True)
     first_name = models.CharField(_('first name'), null=True, blank=True, max_length=100)
     last_name = models.CharField(_('last name'), null=True, blank=True, max_length=100)
+    manual_created_date = models.DateTimeField(verbose_name=_('manual created date'), null=True, blank=True)
 
     def __str__(self):
         return 'user: %s' % self.email
 
     class RESTMeta:
-        fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser')
+        fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser',
+                  'manual_created_date')
         detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
-                           'watched_issues__name', 'watched_issues__id')
-        general_fields = ('email', 'first_name', 'last_name', 'watched_issues__name', 'watched_issues__id')
-        direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
+                           'watched_issues__name', 'watched_issues__id', 'manual_created_date')
+        general_fields = ('email', 'first_name', 'last_name', 'watched_issues__name', 'watched_issues__id',
+                          'manual_created_date')
+        direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
+                                       'manual_created_date')
 
 
 @python_2_unicode_compatible
