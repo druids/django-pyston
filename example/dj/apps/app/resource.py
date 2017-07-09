@@ -12,11 +12,11 @@ from .serializable import CountIssuesPerUserTable, CountWatchersPerIssue
 class IssueResource(BaseModelResource):
 
     model = Issue
-    fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract',)), 'solver',
+    fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'solver',
               'leader', 'watched_by')
     detailed_fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract',)), 'solver',
                        'leader', 'watched_by')
-    general_fields = ('id', '_obj_name', 'name', 'created_by', 'watched_by')
+    general_fields = ('id', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'watched_by')
 
     create_obj_permission = True
     read_obj_permission = True

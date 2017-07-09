@@ -314,6 +314,12 @@ class RESTFieldset(object):
     def flat(self):
         return set(self.fields_map.keys())
 
+    def __contains__(self, key):
+        return key in self.fields_map
+
+    def __getitem__(self, key):
+        return self.get(key)
+
 
 RF = RESTField
 RFS = RESTFieldset

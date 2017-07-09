@@ -40,8 +40,11 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
 from .forms import RESTModelForm
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
-from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer
+from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, get_resource_or_none
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
+from .filters.default_filters import *
+from .filters.parser import MultipleFilterManager
+from .utils.helpers import get_field_or_none, get_method_or_none
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -896,6 +899,30 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     form_class = RESTModelForm
     serializer = ModelResourceSerializer
     form_fields = None
+
+    filters = {}
+    extra_filters_fields = []
+    filter_manager = MultipleFilterManager()
+
+    extra_order_fields = []
+    order_manager = None
+
+    def get_extra_filters_fields(self):
+        return self.extra_filters_fields
+
+    def get_filter_fields_rfs(self):
+        extra_filters_fields = self.get_extra_filters_fields()
+        return rfs(extra_filters_fields).join(self.get_general_fields_rfs())
+
+    def get_extra_order_fields(self):
+        return self.extra_filters_fields
+
+    def get_order_fields_rfs(self):
+        extra_order_fields = self.get_extra_order_fields()
+        return rfs(extra_order_fields).join(self.get_general_fields_rfs())
+
+    def _filter_queryset(self, qs):
+        return self.filter_manager.filter(self, qs, self.request)
 
     def _get_queryset(self):
         return self.model.objects.all()
