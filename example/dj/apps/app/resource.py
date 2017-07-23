@@ -1,22 +1,35 @@
 from __future__ import unicode_literals
 
+from django.db.models import F, Q
+
 from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
 from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
 from pyston.forms import RESTModelForm, ReverseOneToOneField, ReverseManyField
+from pyston.filters.default_filters import SimpleEqualFilter, BooleanFilterMixin
 
 from .models import Issue, User
 from .serializable import CountIssuesPerUserTable, CountWatchersPerIssue
+
+
+class OvertimeIssuesFilter(BooleanFilterMixin, SimpleEqualFilter):
+
+    def get_filter_term(self, value, operator, request):
+        filter_term = Q(**{
+            'solving_issue__in': Issue.objects.filter(logged_minutes__gt=F('estimate_minutes')).values('pk')
+        })
+        return filter_term if value else ~filter_term
 
 
 class IssueResource(BaseModelResource):
 
     model = Issue
     fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'solver',
-              'leader', 'watched_by')
+              'leader', 'watched_by', 'logged_minutes')
     detailed_fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract',)), 'solver',
                        'leader', 'watched_by')
-    general_fields = ('id', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'watched_by')
+    general_fields = ('id', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'watched_by',
+                      'short_description')
 
     create_obj_permission = True
     read_obj_permission = True
@@ -36,11 +49,17 @@ class UserResource(BaseModelResource):
         'watched_issues': 'watchedIssues',
         'created_issues': 'createdIssues',
         'manual_created_date': 'manualCreatedDate',
+        'watched_issues_count': 'watchedIssuesCount',
     }
     create_obj_permission = True
     read_obj_permission = True
     update_obj_permission = True
     delete_obj_permission = True
+    extra_order_fields = ()
+    extra_filter_fields = ()
+    filters = {
+        'issues__overtime': OvertimeIssuesFilter
+    }
 
 
 class ExtraResource(BaseResource):

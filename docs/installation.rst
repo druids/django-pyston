@@ -39,24 +39,3 @@ Because *django-pston* is rapidly evolving framework the best way how to install
 .. code-block:: console
 
     $ pip install https://github.com/druids/django-pyston/tarball/{{ version }}#egg=django-pyston-{{ version }}
-
-Configuration
-=============
-
-After installation you must go thought these steps to use django-pyston:
-
-Required Settings
------------------
-
-The following variables have to be added to or edited in the project's ``settings.py``:
-
-``INSTALLED_APPS``
-^^^^^^^^^^^^^^^^^^
-
-For using pyston you just add add ``pyston`` to ``INSTALLED_APPS`` variable::
-
-    INSTALLED_APPS = (
-        ...
-        'pyston',
-        ...
-    )

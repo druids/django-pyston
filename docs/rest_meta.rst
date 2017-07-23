@@ -56,3 +56,19 @@ Attribute defines fields that must be returned always. These fields needn't be d
 .. attribute:: RestMeta.extra_fields
 
 Extra fields is used if you can allow to return more fields from REST but you don't want to return them by default. Client must sent request with ``X-Fields`` header for obtaining.
+
+.. attribute:: RestMeta.filter_fields
+
+Defines fields that is allowed for resource filtering.
+
+.. attribute:: RestMeta.order_fields
+
+Defines fields that is allowed for resource ordering.
+
+.. attribute:: RestMeta.extra_filter_fields
+
+Defines fields that extends default fields that is defined inside all model resources that is allowed for filtering.
+
+.. attribute:: RestMeta.extra_order_fields
+
+Defines fields that extends default fields that is defined inside all model resources that is allowed for ordering.

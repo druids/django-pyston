@@ -19,6 +19,9 @@ from chamber.utils.decorators import classproperty
 from pyston.utils.compatibility import is_related_descriptor, get_model_from_relation_or_none
 
 
+LOOKUP_SEP = '__'
+
+
 def coerce_rest_request_method(request):
     """
     Django doesn't particularly understand REST.
@@ -167,15 +170,15 @@ class RESTFieldset(object):
         for field in split_fields(fields_string):
             if is_match('^[^\(\)]+\(.+\)$', field):
                 field_name, subfields_string = field[:len(field) - 1].split('(', 1)
-                if '__' in field_name:
-                    field_name, subfields_string = field.split('__', 1)
+                if LOOKUP_SEP in field_name:
+                    field_name, subfields_string = field.split(LOOKUP_SEP, 1)
 
                 subfieldset = RFS.create_from_string(subfields_string)
             else:
                 field_name = field
                 subfieldset = None
-                if '__' in field_name:
-                    field_name, subfields_string = field.split('__', 1)
+                if LOOKUP_SEP in field_name:
+                    field_name, subfields_string = field.split(LOOKUP_SEP, 1)
                     subfieldset = RFS.create_from_string(subfields_string)
 
             fields.append(RESTField(field_name, subfieldset))
@@ -189,8 +192,8 @@ class RESTFieldset(object):
 
     @classmethod
     def _create_field_from_string(cls, field):
-        if '__' in field:
-            field_name, field_child = field.split('__', 1)
+        if LOOKUP_SEP in field:
+            field_name, field_child = field.split(LOOKUP_SEP, 1)
             return RESTField(field_name, cls.create_from_list((field_child,)))
         else:
             return RESTField(field)

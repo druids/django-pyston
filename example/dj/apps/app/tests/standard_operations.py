@@ -130,7 +130,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
         assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'firstName', 'lastName',
-                                                  'watchedIssues', 'manualCreatedDate'})
+                                                  'watchedIssues', 'manualCreatedDate', 'watchedIssuesCount'})
 
     @data_provider('get_users_data')
     def test_read_user_extra_fields_set_with_metaclass(self, number, data):

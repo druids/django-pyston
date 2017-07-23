@@ -13,7 +13,40 @@ def humanized(humanized_func, **humanized_func_kwargs):
             func = func.fget
 
         def _humanized_func(*args, **kwargs):
-            return humanized_func(*args, **kwargs, **humanized_func_kwargs)
+            kwargs.update(humanized_func_kwargs)
+            return humanized_func(*args, **kwargs)
         func.humanized = _humanized_func
         return func
     return decorator
+
+
+def filter_class(filter_class):
+    """Sets 'filter' class (this attribute is used inside grid and rest)."""
+    def decorator(func):
+        if isinstance(func, property):
+            func = func.fget
+        func.filter = filter_class
+        return func
+    return decorator
+
+
+def filter_by(field_name):
+    """Sets 'field name' (this is used for grid filtering)"""
+    def decorator(func):
+        if isinstance(func, property):
+            func = func.fget
+        func.filter_by = field_name
+        return func
+    return decorator
+
+
+def order_by(field_name):
+    """Sets 'field name' (this is used for grid ordering)"""
+    def decorator(func):
+        if isinstance(func, property):
+            func = func.fget
+        func.order_by = field_name
+        return func
+    return decorator
+
+
