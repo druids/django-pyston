@@ -11,6 +11,10 @@ from collections import OrderedDict
 from django.utils.encoding import force_bytes
 from django.conf import settings
 
+from chamber.utils import get_class_method
+
+from .compatibility import FieldDoesNotExist
+
 
 class QuerysetIteratorHelper(object):
 
@@ -100,3 +104,17 @@ def str_to_class(class_string):
     # get the class, will raise AttributeError if class cannot be found
     c = getattr(m, class_name)
     return c
+
+
+def get_field_or_none(model, field_name):
+    try:
+        return model._meta.get_field(field_name)
+    except FieldDoesNotExist:
+        return None
+
+
+def get_method_or_none(model, name):
+    try:
+        return get_class_method(model, name)
+    except (AttributeError, FieldDoesNotExist):
+        return None

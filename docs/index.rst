@@ -26,11 +26,13 @@ Content
 =======
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    installation
+   configuration
    serializers
    reverse_fields
    converters
    rest_meta
-
+   filters
+   order

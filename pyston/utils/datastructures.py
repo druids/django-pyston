@@ -12,7 +12,7 @@ from chamber.utils import get_class_method
 
 from collections import OrderedDict
 
-from pyston.utils import split_fields, is_match, get_model_from_descriptor
+from pyston.utils import split_fields, is_match, get_model_from_descriptor, LOOKUP_SEP
 from pyston.utils.compatibility import get_all_related_objects_from_model, get_concrete_field, get_model_from_relation
 
 
@@ -27,7 +27,7 @@ class Field(object):
         return capfirst(' '.join(map(force_text, self.label_path))).strip()
 
     def __hash__(self):
-        return hash('__'.join(self.key_path))
+        return hash(LOOKUP_SEP.join(self.key_path))
 
     def __eq__(self, other):
         return self.__str__() == other.__str__()
@@ -106,8 +106,8 @@ class FieldsetGenerator(object):
                     field_name = field
                     subfields_string = None
 
-                if '__' in field_name:
-                    field_name, subfields_string = field.split('__', 1)
+                if LOOKUP_SEP in field_name:
+                    field_name, subfields_string = field.split(LOOKUP_SEP, 1)
 
                 self._recursive_generator(fields, subfields_string, get_model_from_descriptor(model, field_name),
                                           key_path + [field_name],
@@ -145,7 +145,7 @@ class DataFieldset(object):
 
     def _remove_childs(self, key_path, tree):
         if not tree:
-            del self.fieldset['__'.join(key_path)]
+            del self.fieldset[LOOKUP_SEP.join(key_path)]
         else:
             for key, subtree in tree.items():
                 self._remove_childs(key_path + [key], subtree)
@@ -162,7 +162,7 @@ class DataFieldset(object):
                 self._remove_childs(key_path, current)
 
             prev[key] = {}
-            self.fieldset['__'.join(key_path)] = None
+            self.fieldset[LOOKUP_SEP.join(key_path)] = None
 
     def _init_data(self, converted_data, key_path=None):
         key_path = key_path or []

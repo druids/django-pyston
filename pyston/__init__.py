@@ -4,6 +4,7 @@ try:
     try:
         from django.db import models  # NOQA
         from pyston.patch import *  # NOQA
+        from pyston.filters.default_filters import * # NOQA
     except ImproperlyConfigured:
         pass
 except ImportError as ex:

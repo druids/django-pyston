@@ -40,8 +40,11 @@ from .exception import (RESTException, ConflictException, NotAllowedException, D
 from .forms import RESTModelForm
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
-from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer
+from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, get_resource_or_none
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
+from .filters.managers import MultipleFilterManager
+from .order.managers import DefaultModelOrderManager
+from .utils.helpers import get_field_or_none
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -242,6 +245,8 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
         'base': ('HTTP_X_BASE', '_base'),
         'accept': ('HTTP_ACCEPT', '_accept'),
         'content_type': ('CONTENT_TYPE', '_content_type'),
+        'filter': ('HTTP_X_FILTER', 'filter'),
+        'order': ('HTTP_X_ORDER', 'order'),
     }
 
     DATA_KEY_MAPPING = {}
@@ -535,6 +540,10 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
     allowed_methods = None
     default_fields = None
     extra_fields = None
+    filter_fields = None
+    extra_filter_fields = None
+    order_fields = None
+    extra_order_fields = None
 
     def get_allowed_fields_rfs(self, obj=None):
         return rfs(self.allowed_fields) if self.allowed_fields is not None else join_rfs(
@@ -593,6 +602,54 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
 
         return rfs(extra_fields) if extra_fields is not None else rfs()
 
+    def get_extra_filter_fields(self):
+        """
+        :return: filter fields list that excludes default filter fields.
+        """
+        return list(self.extra_filter_fields) if self.extra_filter_fields is not None else None
+
+    def get_filter_fields(self):
+        """
+        :return: filter fields list or None.
+        """
+        return list(self.filter_fields) if self.filter_fields is not None else None
+
+    def get_filter_fields_rfs(self):
+        """
+        :return: RFS of allowed filter fields. If filter_fields is None value is returned from all allowed fields to
+        read.
+        """
+        filter_fields = self.get_filter_fields()
+        extra_filter_fields = self.get_extra_filter_fields() or ()
+        if filter_fields is None:
+            return rfs(extra_filter_fields).join(self.get_allowed_fields_rfs())
+        else:
+            return rfs(extra_filter_fields).join(rfs(filter_fields))
+
+    def get_extra_order_fields(self):
+        """
+        :return: order fields list that excludes default filter fields.
+        """
+        return list(self.extra_order_fields) if self.extra_order_fields is not None else None
+
+    def get_order_fields(self):
+        """
+        :return: order fields list or None.
+        """
+        return list(self.order_fields) if self.order_fields is not None else None
+
+    def get_order_fields_rfs(self):
+        """
+        :return: RFS of allowed order fields. If order_fields is None value is returned from all allowed fields to
+        read.
+        """
+        order_fields = self.get_order_fields()
+        extra_order_fields = self.get_extra_order_fields() or ()
+        if order_fields is None:
+            return rfs(extra_order_fields).join(self.get_allowed_fields_rfs())
+        else:
+            return rfs(extra_order_fields).join(rfs(order_fields))
+
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):
 
@@ -618,6 +675,22 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
     def get_default_fields(self, obj=None):
         default_fields = super(DefaultRESTModelResource, self).get_default_fields(obj=obj)
         return list(self.model._rest_meta.default_fields) if default_fields is None else default_fields
+
+    def get_extra_filter_fields(self):
+        extra_filter_fields = super(DefaultRESTModelResource, self).get_extra_filter_fields()
+        return list(self.model._rest_meta.extra_filter_fields) if extra_filter_fields is None else extra_filter_fields
+
+    def get_filter_fields(self):
+        filter_fields = super(DefaultRESTModelResource, self).get_filter_fields()
+        return self.model._rest_meta.filter_fields if filter_fields is None else filter_fields
+
+    def get_extra_order_fields(self):
+        extra_order_fields = super(DefaultRESTModelResource, self).get_extra_order_fields()
+        return list(self.model._rest_meta.extra_order_fields) if extra_order_fields is None else extra_order_fields
+
+    def get_order_fields(self):
+        order_fields = super(DefaultRESTModelResource, self).get_order_fields()
+        return self.model._rest_meta.order_fields if order_fields is None else order_fields
 
 
 class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
@@ -896,6 +969,28 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     form_class = RESTModelForm
     serializer = ModelResourceSerializer
     form_fields = None
+
+    filters = {}
+    filter_manager = MultipleFilterManager()
+    order_manager = DefaultModelOrderManager()
+
+    def _filter_queryset(self, qs):
+        """
+        :return: filtered queryset via filter manager if filter manager is not None.
+        """
+        if self.filter_manager:
+            return self.filter_manager.filter(self, qs, self.request)
+        else:
+            return qs
+
+    def _order_queryset(self, qs):
+        """
+        :return: ordered queryset via order manager if order manager is not None.
+        """
+        if self.order_manager:
+            return self.order_manager.order(self, qs, self.request)
+        else:
+            return qs
 
     def _get_queryset(self):
         return self.model.objects.all()
