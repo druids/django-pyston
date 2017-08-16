@@ -3,7 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 
 class UnsupportedMediaTypeException(Exception):
     """
-    Raised if the content_type has unssopported media type
+    Raised if the content_type has unsupported media type
     """
     pass
 

@@ -26,10 +26,12 @@ from pyston.utils.compatibility import (
 )
 from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
 
-from .exception import DataInvalidException, RESTException
+from .exception import DataInvalidException
 from .resource import BaseObjectResource, BaseModelResource
-from .forms import (ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
-                    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin)
+from .forms import (
+    ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
+    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin, RESTDictError, RESTError
+)
 
 
 class DataProcessorCollection(object):
@@ -71,7 +73,7 @@ class DataProcessor(object):
     def process_data(self, data, files):
         data, files = self._clear_data(data, files)
 
-        self.errors = {}
+        self.errors = RESTDictError()
         for key, data_item in data.items():
             self._process_field(data, files, key, data_item)
 
@@ -190,8 +192,8 @@ class ModelDataPreprocessor(ModelResourceDataProcessor):
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except DataInvalidException as ex:
-                self.errors[key] = ex.errors
+            except RESTError as ex:
+                self.errors[key] = ex
 
 
 @data_preprocessors.register(BaseObjectResource)
@@ -211,8 +213,8 @@ class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ModelResourceDat
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except DataInvalidException as ex:
-                self.errors[key] = ex.errors
+            except RESTError as ex:
+                self.errors[key] = ex
 
 
 @data_postprocessors.register(BaseModelResource)
@@ -229,8 +231,8 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ModelResource
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except DataInvalidException as ex:
-                self.errors[key] = ex.errors
+            except RESTError as ex:
+                self.errors[key] = ex
 
 
 @data_postprocessors.register(BaseModelResource)
@@ -248,5 +250,5 @@ class ReverseDataPostprocessor(ModelResourceDataProcessor):
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except DataInvalidException as ex:
-                self.errors[key] = ex.errors
+            except RESTError as ex:
+                self.errors[key] = ex

@@ -1,4 +1,7 @@
 from django.utils.translation import ugettext
+from django.utils.encoding import force_text
+
+from .forms import RESTDictError, RESTDictIndexError, RESTListError, RESTValidationError
 
 
 class HeadersResponse(object):
@@ -47,21 +50,40 @@ class RESTNoContentResponse(NoFieldsetResponse):
         super(RESTNoContentResponse, self).__init__(result='', http_headers=http_headers, code=code)
 
 
-class RESTErrorsResponse(HeadersResponse):
+class RESTErrorsResponseMixin(object):
+
+    def _get_errors(self, data):
+        if isinstance(data, RESTDictIndexError):
+            result = {
+                '_index': data.index
+            }
+            result.update(self._get_errors(data.data))
+            return result
+        elif isinstance(data, (RESTDictError, dict)):
+            return {
+                key: self._get_errors(val) for key, val in data.items()
+            }
+        elif isinstance(data, (RESTListError, list, tuple)):
+            return [self._get_errors(error) for error in data]
+        else:
+            return RESTValidationError(data).message
+
+
+class RESTErrorsResponse(RESTErrorsResponseMixin, HeadersResponse):
 
     def __init__(self, msg, http_headers=None, code=400):
         http_headers = {} if http_headers is None else http_headers
         super(RESTErrorsResponse, self).__init__(
-            result={'messages': {'errors': msg}}, http_headers=http_headers, code=code
+            result={'messages': {'errors': self._get_errors(msg)}}, http_headers=http_headers, code=code
         )
 
 
-class RESTErrorResponse(NoFieldsetResponse):
+class RESTErrorResponse(RESTErrorsResponseMixin, NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=400):
         http_headers = {} if http_headers is None else http_headers
         super(RESTErrorResponse, self).__init__(
-            result={'messages': {'error': msg}}, http_headers=http_headers, code=code
+            result={'messages': {'error': self._get_errors(msg)}}, http_headers=http_headers, code=code
         )
 
 
