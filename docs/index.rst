@@ -36,3 +36,4 @@ Content
    rest_meta
    filters
    order
+   exceptions

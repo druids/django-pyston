@@ -33,6 +33,7 @@ from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
 from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
 from .converters import get_converter
+from .forms import RESTDictError, RESTListError, RESTDictIndexError
 
 
 default_serializers = []
@@ -146,7 +147,16 @@ class LazyMappedSerializedData(object):
         return self.data_mapping.get(lookup_key, lookup_key)
 
     def serialize(self):
-        if isinstance(self.data, (types.GeneratorType, list, tuple)):
+        if isinstance(self.data, RESTDictError):
+            return RESTDictError({self._map_key(key): val for key, val in self.data.items()})
+        elif isinstance(self.data, RESTListError):
+            return RESTListError([LazyMappedSerializedData(val, self.data_mapping) for val in self.data])
+        elif isinstance(self.data, RESTDictIndexError):
+            return RESTDictIndexError(
+                self.data.index,
+                {self._map_key(key): val for key, val in self.data.data.items()}
+            )
+        elif isinstance(self.data, (types.GeneratorType, list, tuple)):
             return [LazyMappedSerializedData(val, self.data_mapping) for val in self.data]
         elif isinstance(self.data, dict):
             return OrderedDict(((self._map_key(key), val) for key, val in self.data.items()))

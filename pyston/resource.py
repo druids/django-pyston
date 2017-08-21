@@ -904,7 +904,10 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         try:
             return self._create_or_update(data, via, partial_update=partial_update)
         except DataInvalidException as ex:
-            raise DataInvalidException(self.update_serialized_data(ex.errors))
+            raise DataInvalidException(self._update_errors(ex.errors))
+
+    def _update_errors(self, errors):
+        return self.update_serialized_data(errors)
 
     def _create_or_update(self, data, via=None, partial_update=False):
         """
