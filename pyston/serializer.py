@@ -57,7 +57,10 @@ class SerializableObj(Serializable):
 
     def serialize(self, serialization_format, request=None, **kwargs):
         return {field_name: self._get_value(field_name, serialization_format, request, **kwargs)
-                for field_name in self.RESTMeta.fields}
+                for field_name in self.get_fields()}
+
+    def get_fields(self):
+        return self.RESTMeta.fields
 
 
 class SerializationException(Exception):
