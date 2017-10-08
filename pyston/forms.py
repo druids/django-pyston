@@ -593,7 +593,7 @@ class ReverseStructuredManyField(ReverseManyField):
                                                            partial_update)
 
     def _update_reverse_related_objects(self, resource, model, parent_inst, field_name, via, data, partial_update):
-        if isinstance(data, dict):
+        if isinstance(data, dict) and data and set(data.keys()) <= {'add', 'remove', 'set'}:
             return self._update_structured_object(resource, model, parent_inst, field_name, via, data, partial_update)
         else:
             return super(ReverseStructuredManyField, self)._update_reverse_related_objects(
