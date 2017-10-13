@@ -45,6 +45,7 @@ DEFAULTS = {
     'ERRORS_RESPONSE_CLASS': 'pyston.response.RESTErrorsResponse',
     'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
     'AUTO_REGISTER_RESOURCE': True,
+    'ALLOW_TAGS': False,
 }
 
 
