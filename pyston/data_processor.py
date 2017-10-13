@@ -30,7 +30,7 @@ from .exception import DataInvalidException
 from .resource import BaseObjectResource, BaseModelResource
 from .forms import (
     ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
-    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin, RESTDictError, RESTError
+    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin, RESTDictError, RESTError, RESTValidationError
 )
 
 
@@ -87,12 +87,10 @@ class FileDataPreprocessor(DataProcessor):
 
     def _validate_not_empty(self, data_item, key, item):
         if not data_item.get(item):
-            error = self.errors.get(key, {})
-            error.update({item: ugettext('This field is required')})
-            self.errors[key] = error
+            self.errors[key] = RESTDictError({key: RESTValidationError(error)})
 
     def _get_mimetype_from_filename(self, filename):
-        return mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
+        return mimetypes.guess_type(filename)[0]
 
     def _get_content_type(self, data_item, filename):
         return data_item.get('content_type') or self._get_mimetype_from_filename(filename)
@@ -108,14 +106,18 @@ class FileDataPreprocessor(DataProcessor):
             )
             data[key] = filename
         else:
-            self.errors[key] = ugettext('Unsupported file type')
+            self.errors[key] = RESTValidationError(ugettext(
+                'Content type cannot be evaluated from the filename please send it or change the filename'
+            ))
 
     def _process_file_data_field(self, data, files, key, data_item):
         try:
             file_content = BytesIO(base64.b64decode(data_item.get('content').encode('utf-8')))
             self._process_file_data(data, files, key, data_item, file_content)
         except TypeError:
-            self.errors[key] = ugettext('File content is not in base64 format')
+            self.errors[key] = RESTDictError({'content': RESTValidationError(
+                ugettext('File content must be in base64 format')
+            )})
 
     def _process_file_data_url_field(self, data, files, key, data_item):
         url = data_item.get('url')
@@ -123,11 +125,15 @@ class FileDataPreprocessor(DataProcessor):
             file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
             self._process_file_data(data, files, key, data_item, file_content)
         except RequestDataTooBig:
-            self.errors[key] = ugettext('Response too large, maximum size is {} bytes').format(
-                pyston_settings.FILE_SIZE_LIMIT
-            )
+            self.errors[key] = RESTDictError({'url': RESTValidationError(
+                ugettext('Response too large, maximum size is {} bytes').format(
+                    pyston_settings.FILE_SIZE_LIMIT
+                ))
+            })
         except RequestException:
-            self.errors[key] = ugettext('File is unreachable')
+            self.errors[key] = RESTDictError({'url': RESTValidationError(
+                ugettext('File is unreachable on the URL address')
+            )})
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
@@ -148,8 +154,11 @@ class FileDataPreprocessor(DataProcessor):
                 if not self.errors:
                     self._process_file_data_url_field(data, files, key, data_item)
             else:
-                self.errors[key] = (ugettext('File data item must contains {} or {}').format(
-                                    ', '.join(REQUIRED_ITEMS), ', '.join(REQUIRED_URL_ITEMS)))
+                self.errors[key] = RESTValidationError(
+                    ugettext('File data item must contains {} or {}').format(
+                        ', '.join(REQUIRED_ITEMS), ', '.join(REQUIRED_URL_ITEMS)
+                    )
+                )
 
 
 class ModelResourceDataProcessor(DataProcessor):
