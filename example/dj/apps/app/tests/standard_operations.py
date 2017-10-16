@@ -2,6 +2,8 @@ from six.moves.urllib.parse import urlencode
 
 import json
 
+from django.test.utils import override_settings
+
 from germanium.anotations import data_provider
 from germanium.tools.trivials import assert_in, assert_equal, assert_true
 from germanium.tools.http import (assert_http_bad_request, assert_http_not_found, assert_http_method_not_allowed,
@@ -311,3 +313,19 @@ class StandardOperationsTestCase(PystonTestCase):
             'connected': {'fizBaz': 'test object property content'}
         }
         assert_equal(data, self.deserialize(resp))
+
+    def test_html_is_auto_escaped(self):
+        issue = IssueFactory(name='<html>')
+        resp = self.get('{}{}/'.format(self.ISSUE_API_URL, issue.pk))
+        assert_equal(self.deserialize(resp)['name'], '&lt;html&gt;')
+
+    @override_settings(PYSTON_ALLOW_TAGS=True)
+    def test_auto_escape_is_turned_off(self):
+        issue = IssueFactory(name='<html>')
+        resp = self.get('{}{}/'.format(self.ISSUE_API_URL, issue.pk))
+        assert_equal(self.deserialize(resp)['name'], '<html>')
+
+    def test_short_description_is_not_escaped(self):
+        IssueFactory(description='<html>')
+        resp = self.get(self.ISSUE_API_URL)
+        assert_equal(self.deserialize(resp)[0]['short_description'], '<html>')

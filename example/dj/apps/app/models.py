@@ -5,7 +5,7 @@ from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 
-from pyston.utils.decorators import order_by, filter_class, filter_by
+from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags
 from pyston.filters.default_filters import (
     IntegerFieldFilterMixin, StringFieldFilter, SimpleMethodEqualFilter, OPERATORS, CONTAINS
 )
@@ -81,6 +81,7 @@ class Issue(models.Model):
 
     @filter_by('description')
     @order_by('description')
+    @allow_tags
     def short_description(self):
         return self.description[:50] if self.description is not None else None
 

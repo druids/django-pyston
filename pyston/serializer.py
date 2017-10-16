@@ -28,6 +28,7 @@ from django.utils.html import conditional_escape
 from chamber.utils.datastructures import Enum
 from chamber.utils import get_class_method
 
+from .conf import settings
 from .exception import UnsupportedMediaTypeException, NotAllowedException
 from .utils import rfs
 from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
@@ -262,8 +263,9 @@ class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
 @register(six.string_types)
 class StringSerializer(Serializer):
 
-    def serialize(self, data, serialization_format, **kwargs):
-        return conditional_escape(force_text(data, strings_only=True))
+    def serialize(self, data, serialization_format, allow_tags=False, **kwargs):
+        serialized_string = force_text(data, strings_only=True)
+        return serialized_string if allow_tags or settings.ALLOW_TAGS else conditional_escape(serialized_string)
 
 
 class DefaultSerializer(Serializer):
