@@ -1,8 +1,11 @@
 import requests
-
 from six import BytesIO
 
-from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import SuspiciousOperation, ValidationError
+from django.core.validators import URLValidator
+
+
+url_validator = URLValidator()
 
 
 class RequestDataTooBig(SuspiciousOperation):
@@ -10,6 +13,7 @@ class RequestDataTooBig(SuspiciousOperation):
 
 
 def get_file_content_from_url(url, limit, timeout=1):
+    url_validator(url)
     resp = requests.get(url, timeout=timeout, stream=True)
 
     content = BytesIO()

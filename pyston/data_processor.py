@@ -94,12 +94,15 @@ class FileDataPreprocessor(DataProcessor):
     def _get_mimetype_from_filename(self, filename):
         return mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
 
-    def _get_content_type(self, data_item, filename):
-        return data_item.get('content_type') or self._get_mimetype_from_filename(filename)
+    def _get_content_type(self, data_item, filename, key):
+        mimetype = self._get_mimetype_from_filename(filename)
+        if not mimetype:
+            self.errors[key] = RESTDictError({'filename': ugettext('Invalid suffix of the file')})
+        return data_item.get('content_type') or mimetype
 
     def _process_file_data(self, data, files, key, data_item, file_content):
         filename = data_item.get('filename')
-        content_type = self._get_content_type(data_item, filename)
+        content_type = self._get_content_type(data_item, filename, key)
         if content_type:
             charset = data_item.get('charset')
             files[key] = InMemoryUploadedFile(
@@ -107,8 +110,6 @@ class FileDataPreprocessor(DataProcessor):
                 size=sys.getsizeof(file_content), charset=charset
             )
             data[key] = filename
-        else:
-            self.errors[key] = ugettext('Unsupported file type')
 
     def _process_file_data_field(self, data, files, key, data_item):
         try:
