@@ -1,37 +1,37 @@
 from __future__ import unicode_literals
 
-import sys
 import base64
+import binascii
 import inspect
 import mimetypes
+import sys
 
+from requests.exceptions import RequestException
 from six import BytesIO
 
-from django.forms.fields import FileField
-from django.utils.translation import ugettext_lazy as _, ugettext
+from chamber.shortcuts import get_object_or_none
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
-
+from django.core.validators import URLValidator
+from django.forms.fields import FileField
 from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
 from django.http.response import Http404
 from django.utils.encoding import force_text
-
-from chamber.shortcuts import get_object_or_none
-
-from requests.exceptions import RequestException
-
+from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext
 from pyston.conf import settings as pyston_settings
 from pyston.utils.compatibility import (
-    is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
-    get_reverse_field_name, get_model_from_relation
-)
-from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
+    get_model_from_relation, get_reverse_field_name, is_reverse_many_to_many, is_reverse_many_to_one,
+    is_reverse_one_to_one)
+from pyston.utils.files import RequestDataTooBig, get_file_content_from_url
 
 from .exception import DataInvalidException
-from .resource import BaseObjectResource, BaseModelResource
 from .forms import (
-    ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
-    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin, RESTDictError, RESTError, RESTValidationError
-)
+    MultipleStructuredRelatedField, RESTDictError, RESTError, RESTFormMixin, RESTValidationError, ReverseField,
+    ReverseManyField, ReverseOneToOneField, ReverseSingleField, ReverseStructuredManyField, SingleRelatedField)
+from .resource import BaseModelResource, BaseObjectResource
+
+url_validator = URLValidator()
 
 
 class DataProcessorCollection(object):
@@ -87,6 +87,8 @@ class FileDataPreprocessor(DataProcessor):
 
     def _validate_not_empty(self, data_item, key, item):
         if not data_item.get(item):
+            error = self.errors.get(key, {})
+            error.update({item: ugettext('This field is required')})
             self.errors[key] = RESTDictError({key: RESTValidationError(error)})
 
     def _get_mimetype_from_filename(self, filename):
@@ -114,7 +116,7 @@ class FileDataPreprocessor(DataProcessor):
         try:
             file_content = BytesIO(base64.b64decode(data_item.get('content').encode('utf-8')))
             self._process_file_data(data, files, key, data_item, file_content)
-        except TypeError:
+        except (TypeError, binascii.Error):
             self.errors[key] = RESTDictError({'content': RESTValidationError(
                 ugettext('File content must be in base64 format')
             )})
@@ -122,18 +124,23 @@ class FileDataPreprocessor(DataProcessor):
     def _process_file_data_url_field(self, data, files, key, data_item):
         url = data_item.get('url')
         try:
-            file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
-            self._process_file_data(data, files, key, data_item, file_content)
-        except RequestDataTooBig:
-            self.errors[key] = RESTDictError({'url': RESTValidationError(
-                ugettext('Response too large, maximum size is {} bytes').format(
-                    pyston_settings.FILE_SIZE_LIMIT
-                ))
-            })
-        except RequestException:
-            self.errors[key] = RESTDictError({'url': RESTValidationError(
-                ugettext('File is unreachable on the URL address')
-            )})
+            url_validator(url)
+        except ValidationError as e:
+            self.errors[key] = RESTDictError({'url': RESTValidationError(e.messages[0])})
+        else:
+            try:
+                file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
+                self._process_file_data(data, files, key, data_item, file_content)
+            except RequestDataTooBig:
+                self.errors[key] = RESTDictError({'url': RESTValidationError(
+                    ugettext('Response too large, maximum size is {} bytes').format(
+                        pyston_settings.FILE_SIZE_LIMIT
+                    ))
+                })
+            except RequestException:
+                self.errors[key] = RESTDictError({'url': RESTValidationError(
+                    ugettext('File is unreachable on the URL address')
+                )})
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
