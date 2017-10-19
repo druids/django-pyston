@@ -316,7 +316,6 @@ class BooleanFilterMixin(object):
     """
 
     choices = (
-        ('', ''),
         (1, _('Yes')),
         (0, _('No'))
     )
@@ -336,7 +335,6 @@ class NullBooleanFilterMixin(BooleanFilterMixin):
     """
 
     choices = (
-        ('', ''),
         (None, NONE_LABEL),
         (1, _('Yes')),
         (0, _('No'))
