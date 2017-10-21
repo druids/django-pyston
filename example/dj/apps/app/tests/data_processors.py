@@ -6,6 +6,7 @@ import os
 
 from django.conf import settings
 from django.test.utils import override_settings
+from django.utils.translation import ugettext
 
 from germanium.anotations import data_provider
 from germanium.tools.trivials import assert_in, assert_equal, assert_not_equal
@@ -13,6 +14,8 @@ from germanium.tools.http import assert_http_bad_request
 from germanium.tools.rest import assert_valid_JSON_created_response, assert_valid_JSON_response
 
 import responses
+
+from pyston.conf import settings as pyston_settings
 
 from .test_case import PystonTestCase
 
@@ -380,3 +383,87 @@ class DataProcessorsTestCase(PystonTestCase):
         resp = self.post(self.USER_WITH_FORM_API_URL, data=user_data)
         assert_http_bad_request(resp)
         assert_in('leading_issue_renamed', self.deserialize(resp).get('messages', {}).get('errors'))
+
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_with_invalid_filename(self, number, data):
+        data['contract'] = {
+            'filename': 'contract',
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8')
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        assert_equal(errors['contract'],
+                     ugettext('Content type cannot be evaluated from the filename please send it or change the filename'))
+
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_if_file_content_is_not_in_base64(self, number, data):
+        data['contract'] = {
+            'content_type': 'text/plain',
+            'filename': 'contract.txt',
+            'content': 'abc',
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        assert_equal(errors['contract']['content'], ugettext('File content must be in base64 format'))
+
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_if_url_is_not_valid(self, number, data):
+        data['contract'] = {
+            'filename': 'testfile.pdf',
+            'url': 'hs://foo.bar/testfile.pdf',
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        assert_equal(errors['contract']['url'], ugettext('Enter a valid URL.'))
+
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_if_required_items_are_not_provided(self, number, data):
+        REQUIRED_ITEMS = {'filename', 'content'}
+        REQUIRED_URL_ITEMS = {'filename', 'url'}
+        data['contract'] = {}
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        msg = ugettext('File data item must contains {} or {}').format(
+                  ', '.join(REQUIRED_ITEMS), ', '.join(REQUIRED_URL_ITEMS)
+              )
+        assert_equal(errors['contract'], msg)
+
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_if_file_is_unreachable(self, number, data):
+        url = 'http://foo.bar/testfile.pdf'
+        data['contract'] = {
+            'filename': 'testfile.pdf',
+            'url': url,
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        assert_equal(errors['contract']['url'], ugettext('File is unreachable on the URL address'))
+
+    @override_settings(PYSTON_FILE_SIZE_LIMIT=10)
+    @data_provider('get_users_data')
+    def test_should_raise_bad_request_if_response_is_too_large(self, number, data):
+        data['contract'] = {
+            'content_type': 'text/plain',
+            'filename': 'contract.txt',
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8')
+        }
+        resp = self.get_file_url_response(data)
+        assert_http_bad_request(resp)
+        errors = self.deserialize(resp).get('messages', {}).get('errors')
+        assert_in('contract', errors)
+        msg = ugettext('Response too large, maximum size is {} bytes').format(pyston_settings.FILE_SIZE_LIMIT)
+        assert_equal(errors['contract']['url'], msg)
