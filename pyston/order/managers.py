@@ -13,6 +13,10 @@ from .parsers import DefaultOrderParser, OrderParserError
 from .utils import DIRECTION
 
 
+def get_allowed_order_fields_rfs_from_model(model):
+    return rfs(model._rest_meta.extra_order_fields).join(rfs(model._rest_meta.order_fields))
+
+
 class ModelOrderManager(object):
     """
     Order manager is used inside model resource for order response queryset according to input values.
@@ -111,7 +115,9 @@ class ModelOrderManager(object):
         """
         extra_order_fields_rfs = rfs() if extra_order_fields_rfs is None else extra_order_fields_rfs
         order_fields_rfs = (
-            extra_order_fields_rfs.join(resource.get_order_fields_rfs()) if resource else extra_order_fields_rfs
+            extra_order_fields_rfs.join(
+                resource.get_order_fields_rfs() if resource else get_allowed_order_fields_rfs_from_model(model)
+            )
         )
 
         order_string = (

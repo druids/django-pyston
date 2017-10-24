@@ -9,10 +9,13 @@ from pyston.utils import rfs, LOOKUP_SEP
 from pyston.utils.helpers import get_field_or_none, get_method_or_none
 from pyston.serializer import get_resource_or_none
 
-from .default_filters import OPERATORS
 from .exceptions import FilterValueError, OperatorFilterError, FilterIdentifierError
 from .utils import LOGICAL_OPERATORS
 from .parser import QueryStringFilterParser, DefaultFilterParser, FilterParserError
+
+
+def get_allowed_filter_fields_rfs_from_model(model):
+    return rfs(model._rest_meta.extra_filter_fields).join(rfs(model._rest_meta.filter_fields))
 
 
 class ModelFilterManager(object):
@@ -133,7 +136,9 @@ class ModelFilterManager(object):
         """
         extra_filter_fields_rfs = rfs() if extra_filter_fields_rfs is None else extra_filter_fields_rfs
         filters_fields_rfs = (
-            extra_filter_fields_rfs.join(resource.get_filter_fields_rfs()) if resource else extra_filter_fields_rfs
+            extra_filter_fields_rfs.join(
+                resource.get_filter_fields_rfs() if resource else get_allowed_filter_fields_rfs_from_model(model)
+            )
         )
         filter_obj = (
             self._get_resource_filter(
