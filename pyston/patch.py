@@ -1,7 +1,5 @@
 from __future__ import unicode_literals
 
-import six
-
 from chamber.patch import Options
 
 import django.db.models.options as options
@@ -11,7 +9,6 @@ from django.db.models.fields import (
     BooleanField, TextField, CharField, IntegerField, FloatField, SlugField, EmailField, NullBooleanField
 )
 from django.db.models.fields.related import ForeignKey, ManyToManyField, ForeignObjectRel
-from django.utils.translation import ugettext_lazy as _
 
 from pyston.utils.compatibility import get_last_parent_pk_field_name
 from pyston.filters.default_filters import (
