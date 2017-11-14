@@ -27,7 +27,7 @@ from pyston.utils.compatibility import (
     is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
     get_reverse_field_name, get_model_from_relation
 )
-from pyston.utils.files import get_file_content_from_url, RequestDataTooBig
+from pyston.utils.files import get_file_content_from_url, RequestDataTooBig, InvalidResponseStatusCode
 
 from .exception import DataInvalidException
 from .resource import BaseObjectResource, BaseModelResource
@@ -137,7 +137,7 @@ class FileDataPreprocessor(DataProcessor):
                     pyston_settings.FILE_SIZE_LIMIT
                 ))
             })
-        except RequestException:
+        except (RequestException, InvalidResponseStatusCode):
             self.errors[key] = RESTDictError({'url': RESTValidationError(
                 ugettext('File is unreachable on the URL address')
             )})
