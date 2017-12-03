@@ -27,7 +27,10 @@ from pyston.utils.compatibility import (
     is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
     get_reverse_field_name, get_model_from_relation
 )
-from pyston.utils.files import get_file_content_from_url, RequestDataTooBig, InvalidResponseStatusCode
+from pyston.utils.files import (
+    get_file_name_type_and_content_from_url, get_content_type_from_filename, get_content_type_from_file_content,
+    get_filename_from_content_type, RequestDataTooBig, InvalidResponseStatusCode
+)
 
 from .exception import DataInvalidException
 from .resource import BaseObjectResource, BaseModelResource
@@ -96,26 +99,42 @@ class FileDataPreprocessor(DataProcessor):
             error.update({item: ugettext('This field is required')})
             self.errors[key] = RESTDictError({key: RESTValidationError(error)})
 
-    def _get_mimetype_from_filename(self, filename):
-        return mimetypes.guess_type(filename)[0]
+    def _get_content_type(self, content_type, filename, file_content):
+        if content_type:
+            return content_type
+        elif filename:
+            return get_content_type_from_filename(filename)
+        else:
+            return get_content_type_from_file_content(file_content)
 
-    def _get_content_type(self, data_item, filename):
-        return data_item.get('content_type') or self._get_mimetype_from_filename(filename)
+    def _get_filename(self, content_type, filename):
+        if filename:
+            return filename
+        else:
+            return get_filename_from_content_type(content_type)
 
     def _process_file_data(self, data, files, key, data_item, file_content):
         filename = data_item.get('filename')
-        content_type = self._get_content_type(data_item, filename)
-        if content_type:
+        content_type = data_item.get('content_type')
+
+        content_type = self._get_content_type(content_type, filename, file_content)
+        filename = self._get_filename(content_type, filename)
+        if not content_type:
+            self.errors[key] = RESTValidationError(ugettext(
+                'Content type cannot be evaluated from input data please send it'
+            ))
+        elif not filename:
+            self.errors[key] = RESTValidationError(ugettext(
+                'File name cannot be evaluated from input data please send it'
+            ))
+        else:
+            filename = self._get_filename(content_type, filename)
             charset = data_item.get('charset')
             files[key] = InMemoryUploadedFile(
                 file_content, field_name=key, name=filename, content_type=content_type,
                 size=sys.getsizeof(file_content), charset=charset
             )
             data[key] = filename
-        else:
-            self.errors[key] = RESTValidationError(ugettext(
-                'Content type cannot be evaluated from the filename please send it or change the filename'
-            ))
 
     def _process_file_data_field(self, data, files, key, data_item):
         try:
@@ -129,7 +148,13 @@ class FileDataPreprocessor(DataProcessor):
     def _process_file_data_url_field(self, data, files, key, data_item):
         url = data_item.get('url')
         try:
-            file_content = get_file_content_from_url(url, pyston_settings.FILE_SIZE_LIMIT)
+            file_name, content_type, file_content = get_file_name_type_and_content_from_url(
+                url, pyston_settings.FILE_SIZE_LIMIT
+            )
+
+            data_item['filename'] = data_item.get('filename', file_name)
+            data_item['content_type'] = data_item.get('content_type', content_type)
+
             self._process_file_data(data, files, key, data_item, file_content)
         except RequestDataTooBig:
             self.errors[key] = RESTDictError({'url': RESTValidationError(
@@ -149,8 +174,8 @@ class FileDataPreprocessor(DataProcessor):
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
         if field and isinstance(field, FileField) and isinstance(data_item, dict):
-            REQUIRED_ITEMS = {'filename', 'content'}
-            REQUIRED_URL_ITEMS = {'filename', 'url'}
+            REQUIRED_ITEMS = {'content'}
+            REQUIRED_URL_ITEMS = {'url'}
 
             if REQUIRED_ITEMS.issubset(set(data_item.keys())):
                 for item in REQUIRED_ITEMS:

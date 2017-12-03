@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-10-13 15:56+0200\n"
+"POT-Creation-Date: 2017-12-03 20:39+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,31 +18,39 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
 
-#: data_processor.py:110
-msgid ""
-"Content type cannot be evaluated from the filename please send it or change "
-"the filename"
+#: data_processor.py:99
+msgid "This field is required"
 msgstr ""
-"Typ souboru nemůže být vyhodnocen z názvu souboru, prosím pošlete typ "
-"souboru nebo upravte příponu názvu souboru"
 
-#: data_processor.py:119
+#: data_processor.py:124
+msgid "Content type cannot be evaluated from input data please send it"
+msgstr ""
+"Typ souboru nemůže být vyhodnocen ze vstupních dat, prosím pošlete typ "
+"souboru"
+
+#: data_processor.py:128
+msgid "File name cannot be evaluated from input data please send it"
+msgstr ""
+"Název souboru nemůže být vyhodnocen ze vstupních dat, prosím pošlete název "
+"souboru"
+
+#: data_processor.py:145
 msgid "File content must be in base64 format"
 msgstr "Obsah souboru musí být formátu base64"
 
-#: data_processor.py:129
+#: data_processor.py:161
 msgid "Response too large, maximum size is {} bytes"
 msgstr "Odpověď je příliš velká, maximální velikost je {} bytů"
 
-#: data_processor.py:135
+#: data_processor.py:167
 msgid "File is unreachable on the URL address"
 msgstr "Soubor není možné na URL adrese nalézt"
 
-#: data_processor.py:158
+#: data_processor.py:194
 msgid "File data item must contains {} or {}"
 msgstr "Data obrázku musí obsahovat {} nebo {}"
 
-#: data_processor.py:181 forms.py:349 forms.py:381 forms.py:540 forms.py:549
+#: data_processor.py:217 forms.py:349 forms.py:381 forms.py:540 forms.py:549
 #: forms.py:557
 msgid "Data must be a collection"
 msgstr "Formát dat musí být kolekce"
@@ -83,62 +91,62 @@ msgstr "Hodnota musí být list"
 msgid "Value must be list with two values"
 msgstr "Hodnota musí být list dvou hodnot"
 
-#: filters/default_filters.py:320 filters/default_filters.py:341
-#: serializer.py:353
+#: filters/default_filters.py:319 filters/default_filters.py:339
+#: serializer.py:355
 msgid "Yes"
 msgstr "Ano"
 
-#: filters/default_filters.py:321 filters/default_filters.py:342
-#: serializer.py:353
+#: filters/default_filters.py:320 filters/default_filters.py:340
+#: serializer.py:355
 msgid "No"
 msgstr "Ne"
 
-#: filters/default_filters.py:330
+#: filters/default_filters.py:329
 msgid "Value must be boolean"
 msgstr "Hodnota musí být boolean"
 
-#: filters/default_filters.py:396 filters/default_filters.py:508
+#: filters/default_filters.py:394 filters/default_filters.py:506
 msgid "Value must be integer"
 msgstr "Hodnota musí být integer"
 
-#: filters/default_filters.py:411
+#: filters/default_filters.py:409
 msgid "Value must be float"
 msgstr "Hodnota musí být reálné číslo"
 
-#: filters/default_filters.py:422
+#: filters/default_filters.py:420
 msgid "Value must be decimal"
 msgstr "Hodnota musí být desítkové číslo"
 
-#: filters/default_filters.py:472
+#: filters/default_filters.py:470
 msgid "Value must be in format IPv4."
 msgstr "Hodnota musí být ve formátu IPv4"
 
-#: filters/default_filters.py:485
+#: filters/default_filters.py:483
 msgid "Value must be in format IPv4 or IPv6."
 msgstr "Hodnota musí být ve formátu IPv4 nebo IPv6"
 
-#: filters/default_filters.py:500
+#: filters/default_filters.py:498
 msgid "Value cannot be parsed to partial datetime"
 msgstr "Hodnota nemůže být vyhodnocena"
 
-#: filters/default_filters.py:515
+#: filters/default_filters.py:513
 msgid "Value must be in format ISO 8601."
 msgstr "Hodnota musí být ve formátu ISO 8601"
 
-#: filters/default_filters.py:584 filters/default_filters.py:602
-#: filters/default_filters.py:620
+#: filters/default_filters.py:582 filters/default_filters.py:600
+#: filters/default_filters.py:618
 msgid "Object with this PK cannot be found"
 msgstr "Objekt s tímto privátním klíčem nemůže být nalezen"
 
-#: filters/managers.py:197
+#: filters/managers.py:202
 msgid "Invalid identifier of condition \"{}\""
 msgstr "Nevalidní identifikátor podmínky \"{}\""
 
-#: filters/managers.py:201
+#: filters/managers.py:206
 msgid "Invalid value of condition \"{}\". {}"
 msgstr "Nevalidní hodnota podínky \"{}\". {}"
 
-#: filters/managers.py:205
+#: filters/managers.py:210
 msgid "Invalid operator of condition \"{}\""
 msgstr "Nevalidní operátor podmínky \"{}\""
 
@@ -166,7 +174,7 @@ msgstr "Objekt neexistuje ve vybraných datech"
 msgid "set cannot be together with add or remove"
 msgstr "set nemůže být poslán dohromady s add nebo remove"
 
-#: order/managers.py:157
+#: order/managers.py:163
 msgid "Invalid identifier of ordering \"{}\""
 msgstr "Nevalidní identifikátor řazení \"{}\""
 

@@ -7,6 +7,13 @@ CONVERTERS = (
     'pyston.converters.CSVConverter',
 )
 
+DEFAULT_FILENAMES = (
+    (('pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'), 'document'),
+    (('jpg', 'jpeg', 'png', 'gif', 'tiff', 'bmp', 'svg'), 'image'),
+)
+
+DEFAULT_FILENAME = 'attachment'
+
 try:
     import xlsxwriter
 
@@ -46,6 +53,8 @@ DEFAULTS = {
     'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
     'AUTO_REGISTER_RESOURCE': True,
     'ALLOW_TAGS': False,
+    'DEFAULT_FILENAMES': DEFAULT_FILENAMES,
+    'DEFAULT_FILENAME': DEFAULT_FILENAME,
 }
 
 
