@@ -585,6 +585,7 @@ class ForeignKeyFilter(RelatedFieldFilter):
 class ManyToManyFieldFilter(RelatedFieldFilter):
 
     operators = (
+        (OPERATORS.EQ, EQ),
         (OPERATORS.IN, IN),
         (OPERATORS.ALL, ALL),
     )
@@ -603,6 +604,7 @@ class ManyToManyFieldFilter(RelatedFieldFilter):
 class ForeignObjectRelFilter(RelatedFieldFilter):
 
     operators = (
+        (OPERATORS.EQ, EQ),
         (OPERATORS.IN, IN),
         (OPERATORS.ALL, ALL),
     )
