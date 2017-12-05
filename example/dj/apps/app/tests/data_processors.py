@@ -396,8 +396,10 @@ class DataProcessorsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
         errors = self.deserialize(resp).get('messages', {}).get('errors')
         assert_in('contract', errors)
-        assert_equal(errors['contract'],
-                     ugettext('Content type cannot be evaluated from the filename please send it or change the filename'))
+        assert_equal(
+            errors['contract'],
+            ugettext('Content type cannot be evaluated from input data please send it')
+        )
 
     @data_provider('get_users_data')
     def test_should_raise_bad_request_if_file_content_is_not_in_base64(self, number, data):
@@ -426,8 +428,8 @@ class DataProcessorsTestCase(PystonTestCase):
 
     @data_provider('get_users_data')
     def test_should_raise_bad_request_if_required_items_are_not_provided(self, number, data):
-        REQUIRED_ITEMS = {'filename', 'content'}
-        REQUIRED_URL_ITEMS = {'filename', 'url'}
+        REQUIRED_ITEMS = {'content'}
+        REQUIRED_URL_ITEMS = {'url'}
         data['contract'] = {}
         resp = self.post(self.USER_API_URL, data=data)
         assert_http_bad_request(resp)
@@ -467,3 +469,26 @@ class DataProcessorsTestCase(PystonTestCase):
         assert_in('contract', errors)
         msg = ugettext('Response too large, maximum size is {} bytes').format(pyston_settings.FILE_SIZE_LIMIT)
         assert_equal(errors['contract']['url'], msg)
+
+    @data_provider('get_users_data')
+    def test_filename_and_content_type_can_be_evaluated_from_file_content(self, number, data):
+        data['contract'] = {
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8')
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_valid_JSON_created_response(resp)
+        assert_in('.txt', self.deserialize(resp)['contract']['filename'])
+
+    @data_provider('get_users_data')
+    def test_filename_override_evaluated_filename_from_content(self, number, data):
+        data['contract'] = {
+            'content': base64.b64encode(
+                ('Contract of %s code: šří+áýšé' % data['email']).encode('utf-8')
+            ).decode('utf-8'),
+            'filename': 'test.csv'
+        }
+        resp = self.post(self.USER_API_URL, data=data)
+        assert_valid_JSON_created_response(resp)
+        assert_in('.csv', self.deserialize(resp)['contract']['filename'])
