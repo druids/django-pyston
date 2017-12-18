@@ -5,10 +5,11 @@ from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 
-from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags
+from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags, sorter_class
 from pyston.filters.default_filters import (
     IntegerFieldFilterMixin, StringFieldFilter, SimpleMethodEqualFilter, OPERATORS, CONTAINS
 )
+from pyston.order.sorters import ExtraSorter
 
 
 class OnlyContainsStringFieldFilter(StringFieldFilter):
@@ -28,6 +29,12 @@ class WatchedIssuesCountMethodFilter(IntegerFieldFilterMixin, SimpleMethodEqualF
         }
 
 
+class WatchedIssuesCountSorter(ExtraSorter):
+
+    def update_queryset(self, qs):
+        return qs.annotate(**{self.order_string: Count('watched_issues')})
+
+
 @python_2_unicode_compatible
 class User(models.Model):
 
@@ -41,6 +48,7 @@ class User(models.Model):
     manual_created_date = models.DateTimeField(verbose_name=_('manual created date'), null=True, blank=True)
 
     @filter_class(WatchedIssuesCountMethodFilter)
+    @sorter_class(WatchedIssuesCountSorter)
     def watched_issues_count(self):
         return self.watched_issues.count()
 
@@ -56,7 +64,7 @@ class User(models.Model):
                           'manual_created_date', 'watched_issues_count')
         direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
                                        'manual_created_date')
-        order_fields = ('email', 'solving_issue')
+        order_fields = ('email', 'solving_issue', 'watched_issues_count')
         extra_order_fields = ('created_at',)
         filter_fields = ('email', 'first_name', 'last_name', 'is_superuser', 'created_issues', 'watched_issues_count')
         extra_filter_fields = ('created_at',)

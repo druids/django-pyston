@@ -50,3 +50,11 @@ def order_by(field_name):
     return decorator
 
 
+def sorter_class(sorter_class):
+    """Sets 'sorter' class (this attribute is used inside grid and rest)."""
+    def decorator(func):
+        if isinstance(func, property):
+            func = func.fget
+        func.sorter = sorter_class
+        return func
+    return decorator
