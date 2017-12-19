@@ -27,7 +27,7 @@ Libraries are dependecies defined inside setup file.
 Using Pip
 ---------
 
-Django is core is not currently inside *PyPE* but in the future you will be able to use:
+Django pyston is not currently inside *PyPE* but in the future you will be able to use:
 
 .. code-block:: console
 
