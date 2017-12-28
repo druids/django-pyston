@@ -200,6 +200,8 @@ IN = SimpleListOperator('in')
 RANGE = RangeOperator()
 ALL = AllListOperator()
 DATE_CONTAINS = DateContainsOperator()
+PK_CONTAINS = SimpleOperator('pk__contains')
+PK_ICONTAINS = SimpleOperator('pk__icontains')
 
 
 class Filter(object):
@@ -571,6 +573,8 @@ class ForeignKeyFilter(RelatedFieldFilter):
         (OPERATORS.LTE, LTE),
         (OPERATORS.GTE, GTE),
         (OPERATORS.IN, IN),
+        (OPERATORS.ICONTAINS, ICONTAINS),
+        (OPERATORS.CONTAINS, CONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
@@ -585,12 +589,15 @@ class ForeignKeyFilter(RelatedFieldFilter):
 class ManyToManyFieldFilter(RelatedFieldFilter):
 
     operators = (
+        (OPERATORS.EQ, EQ),
         (OPERATORS.IN, IN),
         (OPERATORS.ALL, ALL),
+        (OPERATORS.CONTAINS, PK_CONTAINS),
+        (OPERATORS.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None:
+        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(
@@ -603,12 +610,15 @@ class ManyToManyFieldFilter(RelatedFieldFilter):
 class ForeignObjectRelFilter(RelatedFieldFilter):
 
     operators = (
+        (OPERATORS.EQ, EQ),
         (OPERATORS.IN, IN),
         (OPERATORS.ALL, ALL),
+        (OPERATORS.CONTAINS, PK_CONTAINS),
+        (OPERATORS.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None:
+        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(

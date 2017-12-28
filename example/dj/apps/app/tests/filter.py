@@ -261,7 +261,15 @@ class FilterTestCase(PystonTestCase):
         issue1.watched_by.add(user1, user2)
         issue2.watched_by.add(user1)
 
-        assert_http_bad_request(self.get(build_url(self.ISSUE_API_URL, watched_by=user1.pk)))
+        data = self.deserialize(
+            self.get(
+                build_url(
+                    self.ISSUE_API_URL,
+                    watched_by=user2.pk
+                )
+            )
+        )
+        assert_equal(len(data), 1)
 
         data = self.deserialize(
             self.get(
