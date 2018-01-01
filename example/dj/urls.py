@@ -3,9 +3,10 @@ from distutils.version import StrictVersion
 import django
 from django.conf.urls import url
 
-from app.resource import (IssueResource, UserResource, ExtraResource, CountIssuesPerUserResource,
-                          CountWatchersPerIssueResource, TestCamelCaseResource,
-                          CountWatchersPerIssueResource, UserResource, UserWithFormResource)
+from app.resource import (
+    IssueResource, UserResource, ExtraResource, CountIssuesPerUserResource, CountWatchersPerIssueResource,
+    TestCamelCaseResource, CountWatchersPerIssueResource, UserResource, UserWithFormResource, IssueWithFormResource
+)
 
 urlpatterns = [
     url(r'^api/user/$', UserResource.as_view(allowed_methods=('get', 'post', 'head', 'options'))),
@@ -15,6 +16,7 @@ urlpatterns = [
     )),
     url(r'^api/test-cc/$', TestCamelCaseResource.as_view(allowed_methods=('get', 'post',))),
     url(r'^api/issue/$', IssueResource.as_view(allowed_methods=('get', 'post', 'head', 'options'))),
+    url(r'^api/issue-form/$', IssueWithFormResource.as_view(allowed_methods=('get', 'post', 'head', 'options'))),
     url(r'^api/issue/(?P<pk>\d+)/$',
         IssueResource.as_view(allowed_methods=('get', 'put', 'patch', 'delete', 'head', 'options'))),
     url(r'^api/extra/$', ExtraResource.as_view()),

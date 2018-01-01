@@ -193,8 +193,8 @@ class DataProcessorsTestCase(PystonTestCase):
                               [user_data['email'], user_data2['email']])
 
     @data_provider('get_issues_and_users_data')
-    @override_settings(PYSTON_AUTO_REVERSE=False)
-    def test_atomic_add_and_delete_issues_with_auto_reverse_turned_off(self, number, issue_data, user_data):
+    @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
+    def test_atomic_add_and_delete_issues_with_auto_reverse_fields_turned_off(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
 
         user_data['createdIssues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
@@ -202,6 +202,13 @@ class DataProcessorsTestCase(PystonTestCase):
 
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count, Issue.objects.all().count())
+
+    @data_provider('get_issues_data')
+    @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
+    def test_atomic_create_issue_with_user_with_auto_related_fields_turned_off(self, number, data):
+        users_before_count = User.objects.all().count()
+        resp = self.post(self.ISSUE_API_URL, data=data)
+        assert_http_bad_request(resp)
 
     @data_provider('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issues_with_errors(self, number, issue_data, user_data):
@@ -348,7 +355,7 @@ class DataProcessorsTestCase(PystonTestCase):
         assert_in('leading_issue', self.deserialize(resp).get('messages', {}).get('errors'))
 
     @data_provider('get_issues_and_users_data')
-    @override_settings(PYSTON_AUTO_REVERSE=False)
+    @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_reverse_with_defined_field_created_issues_renamed(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         user_data['created_issues_renamed'] = (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())
@@ -356,6 +363,17 @@ class DataProcessorsTestCase(PystonTestCase):
 
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count + 3, Issue.objects.all().count())
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
+    def test_create_user_via_renamed_field(self, number, issue_data, user_data):
+        users_before_count = User.objects.all().count()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+
+        assert_valid_JSON_created_response(resp)
+        assert_equal(users_before_count + 2, User.objects.all().count())
 
     @data_provider('get_issues_and_users_data')
     def test_reverse_with_defined_field_created_issues_renamed_fail(self, number, issue_data, user_data):
@@ -368,7 +386,21 @@ class DataProcessorsTestCase(PystonTestCase):
         assert_equal(issues_before_count + 0, Issue.objects.all().count())
 
     @data_provider('get_issues_and_users_data')
-    @override_settings(PYSTON_AUTO_REVERSE=False)
+    @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
+    def test_reverse_with_defined_field_created_issues_renamed_invalid_issue_name(self, number, issue_data, user_data):
+        issues_before_count = Issue.objects.all().count()
+        users_before_count = Issue.objects.all().count()
+        user_data['created_issues_renamed'] = (
+            self.get_issue_data(), self.get_issue_data(name='invalid'), self.get_issue_data()
+        )
+        resp = self.post(self.USER_WITH_FORM_API_URL, data=user_data)
+
+        assert_http_bad_request(resp)
+        assert_equal(issues_before_count, Issue.objects.all().count())
+        assert_equal(users_before_count, User.objects.all().count())
+
+    @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_create_issue_via_user_one_to_one_renamed(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         user_data['leading_issue_renamed'] = self.get_issue_data()
@@ -377,7 +409,7 @@ class DataProcessorsTestCase(PystonTestCase):
         assert_equal(issues_before_count + 1, Issue.objects.all().count())
 
     @data_provider('get_issues_and_users_data')
-    @override_settings(PYSTON_AUTO_REVERSE=False)
+    @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_create_issue_via_user_one_to_one_renamed_fail(self, number, issue_data, user_data):
         user_data['leading_issue_renamed'] = {}
         resp = self.post(self.USER_WITH_FORM_API_URL, data=user_data)

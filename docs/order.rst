@@ -26,8 +26,8 @@ Order manager purposes are:
 
 * parse input data that contains information about ordering and split this data to pairs <order identifier, order direction>
 * check if concrete identifier is allowed to order
-* convert identifiers to django ordering identifiers
-* finally apply ordering on django QuerySet
+* convert identifiers to Django ordering identifiers
+* finally apply ordering on Django QuerySet
 
 Allowed identifiers are defined in ``order_fields`` or ``extra_order_fields`` that can be defined on model or resource
 (or both).
@@ -38,7 +38,7 @@ DefaultModelOrderManager
 It is only one pre-implemented Pyston ordering manager. Input data is parsed from querystring named ``order`` or
 HTTP header named ``X-Order``. Both have the same format. Order terms are split with a `,` char. Each term consists of
 a direction char and an identifier. Missing direction char means ascending and char '-' means descending order.
-Identifiers are very similar to django identifiers where relations are joined with a string '__'. Example::
+Identifiers are very similar to Django identifiers where relations are joined with a string '__'. Example::
 
     first_name,-last_name,created_issues__created_at
 

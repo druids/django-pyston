@@ -3,7 +3,7 @@
 Serializers
 ===========
 
-Returned data from resource is firstly serialized to python format via serializers. Serialization is performed recursively for complex data types (list, dict, tuple, django Model, django Queryset, etc.). Next step of serialization is converting python format response to the required format (JSON, XML, XLSX, etc.). For this purpose, :ref:`converters` are used.
+Returned data from resource is firstly serialized to python format via serializers. Serialization is performed recursively for complex data types (list, dict, tuple, Django Model, Django Queryset, etc.). Next step of serialization is converting python format response to the required format (JSON, XML, XLSX, etc.). For this purpose, :ref:`converters` are used.
 
 There are several serializers -- each one is used to serialize a different data type to get the Python format:
 

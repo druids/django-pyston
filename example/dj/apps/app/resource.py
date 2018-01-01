@@ -1,11 +1,14 @@
 from __future__ import unicode_literals
 
+from django import forms
 from django.db.models import F, Q
 
 from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
 from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
-from pyston.forms import RESTModelForm, ReverseOneToOneField, ReverseManyField
+from pyston.forms import (
+    RESTModelForm, ReverseOneToOneField, ReverseManyField, RESTValidationError, SingleRelatedField, MultipleRelatedField
+)
 from pyston.filters.default_filters import SimpleEqualFilter, BooleanFilterMixin
 
 from .models import Issue, User
@@ -127,12 +130,37 @@ class UserForm(RESTModelForm):
     solving_issue_renamed = ReverseOneToOneField('solving_issue')
     leading_issue_renamed = ReverseOneToOneField('leading_issue')
 
+    def clean_created_issues_renamed(self):
+        created_issues = self.cleaned_data.get('created_issues_renamed')
+        if created_issues and any(issue.name == 'invalid' for issue in created_issues):
+            raise RESTValidationError('Invalid issue name')
+
 
 class UserWithFormResource(BaseModelResource):
 
     register = False
     model = User
     form_class = UserForm
+    create_obj_permission = True
+    read_obj_permission = True
+    update_obj_permission = True
+    delete_obj_permission = True
+
+
+class IssueForm(RESTModelForm):
+
+    created_by = SingleRelatedField('created_by')
+    leader = SingleRelatedField('leader')
+    another_users = MultipleRelatedField('watched_by', form_field=forms.ModelMultipleChoiceField(
+        queryset=User.objects.all(), required=False
+    ))
+
+
+class IssueWithFormResource(BaseModelResource):
+
+    register = False
+    model = Issue
+    form_class = IssueForm
     create_obj_permission = True
     read_obj_permission = True
     update_obj_permission = True
