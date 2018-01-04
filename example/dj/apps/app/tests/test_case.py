@@ -19,6 +19,9 @@ class PystonTestCase(RESTTestCase):
     def get_pk(self, resp):
         return self.deserialize(resp).get('id')
 
+    def get_pk_list(self, resp, only_pks=None):
+        return [obj.get('id') for obj in self.deserialize(resp) if not only_pks or obj.get('id') in only_pks]
+
     def get_user_data(self, prefix=''):
         result = {'email': '%suser_%s@test.cz' % (prefix, self.user_id)}
         self.user_id += 1

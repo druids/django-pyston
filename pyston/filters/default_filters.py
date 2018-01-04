@@ -1,12 +1,9 @@
 from __future__ import unicode_literals
 
-import re
-
 from decimal import Decimal, InvalidOperation
 
 from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
-from django import forms
 from django.db.models import Q
 from django.core.validators import validate_ipv4_address, validate_ipv46_address
 from django.core.exceptions import ValidationError
@@ -18,7 +15,7 @@ from dateutil.parser import DEFAULTPARSER
 
 from pyston.utils import LOOKUP_SEP
 
-from .exceptions import FilterError, FilterValueError, OperatorFilterError
+from .exceptions import FilterValueError, OperatorFilterError
 
 
 OPERATORS = Enum(

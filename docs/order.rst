@@ -125,7 +125,7 @@ Model Issue has only set ``extra_order_fields`` which allows to order Issues by 
 Decorators
 ----------
 
-Ordering provides one helper to support ordering for methods as well, secorator ``order_by``. We can use our issue
+Ordering provides one helper to support ordering for methods as well, decorator ``order_by``. We can use our issue
 tracker as an example. Issue has a description, but for some reason we can only show the first 50 chars of the
 description. We can order according this value too, for this purpose we can define method ``short_description``
 and use ``order_by`` decorator::
@@ -141,3 +141,32 @@ and use ``order_by`` decorator::
             return self.description[:50] if self.description is not None else None
 
 You can now use order term 'short_description' to order data ``/api/issue/?order=short_description``.
+
+
+Second decorator is called ``sorter_class``. The decorator is used for custom ordering sorters that uses queryset
+annotation or extra method. The best method to explain it is example::
+
+    from pyston.utils.decorators import sorter_class
+
+    class WatchedIssuesCountSorter(ExtraSorter):
+
+        def update_queryset(self, qs):
+            return qs.annotate(**{self.order_string: Count('watched_issues')})
+
+    @python_2_unicode_compatible
+    class User(models.Model):
+
+        email = models.EmailField(null=False, blank=False, unique=True)
+        contract = models.FileField(null=True, blank=True, upload_to='documents/')
+        is_superuser = models.BooleanField(default=True)
+        first_name = models.CharField(null=True, blank=True, max_length=100)
+        last_name = models.CharField(null=True, blank=True, max_length=100)
+        manual_created_date = models.DateTimeField(null=True, blank=True)
+
+        @sorter_class(WatchedIssuesCountSorter)
+        def watched_issues_count(self):
+            return self.watched_issues.count()
+
+As you can see there is defined new sorter called ``WatchedIssuesCountSorter`` that allows sort users according to
+count of watched issues. For this purpose is used annotate method of queryset which adds new computed database table
+column that is used for sorting.

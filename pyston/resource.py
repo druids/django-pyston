@@ -991,7 +991,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         :return: ordered queryset via order manager if order manager is not None.
         """
         if self.order_manager:
-            return self.order_manager.order(self, qs, self.request)
+            return self.order_manager.sort(self, qs, self.request)
         else:
             return qs
 
