@@ -6,7 +6,7 @@ python-mimeparse==0.1.4
 pep8==1.6.2
 six==1.10.0
 https://github.com/druids/germanium/tarball/2.0.2#egg=germanium-2.0.2
-https://github.com/druids/django-chamber/tarball/0.3.7#egg=django-chamber-0.3.7
+https://github.com/druids/django-chamber/tarball/0.3.9#egg=django-chamber-0.3.9
 https://github.com/matllubos/xhtml2pdf/tarball/develop
 coverage==4.0.2
 factory-boy==2.8.1
