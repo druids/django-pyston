@@ -35,7 +35,7 @@ A manager must be able to:
 * validate filter specification in GET arguments
 * parse this input into identifiers, operators and values
 * search corresponding filter classes accorring to filter identifiers.
-* check if the specific filter is allowed on the resource, i.e. if it is in filter_fields_rfs
+* check if specific field is allowed to be filtered, i.e. if it is in ``filter_fields_rfs``
 
 By default, ``filter_fields_rfs`` contains all fields the user is allowed to read. These fields can be rewritten in
 ``RESTMeta`` class or on the resource using attributes ``filter_fields`` or ``extra_filter_fields``. Attribute
@@ -70,13 +70,13 @@ Filtering field configuration
 
 Fields that can be filtered are generated as a join of ``filter_fields`` and ``extra_fields_fields``. You can
 change this behaviour by overriding the method ``get_filter_fields_rfs``. The values ``filter_fields`` and
-``extra_filter_fields`` are first taken from a resource and if thay are not set in the resource theayare  obtained
+``extra_filter_fields`` are first taken from a resource and if they are not set in the resource they are  obtained
 from the model RESTMeta. If the value ``filter_fields`` is not defined in RESTMeta, the value ``filter_fields`` is
-replaces with response of method ``get_allowed_fields_rfs`` which returns all fields that a client of resource can
-read. The only exception of filters that needn't be explicitly allowed are resource filters becaouse they are always
+replaced with response of method ``get_allowed_fields_rfs`` which returns all fields that a client of resource can
+read. The only exception of filters that needn't be explicitly allowed are resource filters because they are always
 allowed.
 
-As example we define can youse issue tracker with models ``Issue`` and ``User`` and two resources::
+As an example we define issue tracker with models ``Issue`` and ``User`` and two resources::
 
     class User(models.Model):
 
@@ -153,7 +153,7 @@ Filters
 Filter is used for converting triple <identifier, operator, value> to a specific Q object. There are three types of
 filters:
 
- * resource filter that is defined inside a resource and is not related to the a model field, method or resource method
+ * resource filter that is defined inside a resource and is not related to a model field, method or resource method
  * method filter that is related to a method
  * field filter that is related to a model field
 
@@ -300,7 +300,7 @@ Method filter
 ^^^^^^^^^^^^^
 
 Method filter is related with concrete model or resource method. To simplify filter definition Pyston provides decorator
-``filter_class``. For example we can implement filter that returns users with concrete number of watched issues, for
+``filter_class``. For example we can implement a filter that returns users with concrete number of watched issues, for
 this purpose we can use ``IntegerFieldFilterMixin`` that provides clean value method that will ensure that value will
 be integer and ``SimpleMethodEqualFilter`` class::
 
@@ -374,5 +374,5 @@ property ``filters``. As mentioned before, these filters don't have to be allowe
         }
 
 
-We created filter that filters users according to solving issues. If filter input value is ``True`` resource returns
+We created filter that filters users according to solving issues. If filter input value is ``True``, resource returns
 users which solve issues that are overtime. URL with filter is ``/api/user?issues__overtime=1``.
