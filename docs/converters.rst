@@ -67,11 +67,11 @@ Converters can be configured inside django settings file with attribute ``PYSTON
         'pyston.converters.PDFConverter', # only if xhtml2pdf library is installed
     )
 
-All converters is defined inside following list with its description:
+All converters are defined inside the following list with their description:
 
  * ``pyston.converters.JSONConverter`` - full converter that serialize/deserialize data to/from JSON format.
- * ``pyston.converters.XMLConverter`` - only deserialize data to XML format.
- * ``pyston.converters.CSVConverter`` - only deserialize data to CSV format.
- * ``pyston.converters.XLSXConverter`` - only deserialize data to XLSX format. You must firstly install library xlsxwriter to use this converter.
- * ``pyston.converters.PDFConverter`` - only deserialize data to PDF format. You must firstly install library xhtml2pdf to use this converter.
- * ``pyston.converters.HTMLConverter`` - only deserialize data to HTML format. This converter should be used only for dev purpose and shouldn't be deployes on production environment.
+ * ``pyston.converters.XMLConverter`` - only serialize data to XML format.
+ * ``pyston.converters.CSVConverter`` - only serialize data to CSV format.
+ * ``pyston.converters.XLSXConverter`` - only serialize data to XLSX format. You must firstly install library xlsxwriter to use this converter.
+ * ``pyston.converters.PDFConverter`` - only serialize data to PDF format. You must firstly install library xhtml2pdf to use this converter.
+ * ``pyston.converters.HTMLConverter`` - only serialize data to HTML format. This converter should be used only for dev purpose and shouldn't be deployed on production environment.
