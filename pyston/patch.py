@@ -18,6 +18,7 @@ from pyston.filters.default_filters import (
 )
 
 
+
 def merge_iterable(a, b):
     c = list(a) + list(b)
     return sorted(set(c), key=lambda x: c.index(x))
