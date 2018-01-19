@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from django.conf import settings as django_settings
 from django.utils.encoding import force_text
+from django.utils.safestring import SafeText
 
 try:
     # xlsxwriter isn't standard with python.  It shouldn't be required if it
@@ -32,6 +33,13 @@ except ImportError:
 
 from pyston.conf import settings
 from pyston.utils.compatibility import render_template
+
+try:
+    # Python 2.6-2.7
+    from HTMLParser import HTMLParser
+except ImportError:
+    # Python 3
+    from html.parser import HTMLParser
 
 
 TWOPLACES = Decimal(10) ** -2
@@ -134,6 +142,7 @@ if xlsxwriter:
             decimal_format = wb.add_format({'num_format': '0.00'})
 
             row = 0
+            html_parser = HTMLParser()
 
             if header:
                 for col, head in enumerate(header):
@@ -142,6 +151,9 @@ if xlsxwriter:
 
             for data_row in data:
                 for col, val in enumerate(data_row):
+                    if isinstance(val, SafeText):
+                        val = html_parser.unescape(val)
+
                     if isinstance(val, datetime):
                         ws.write(row, col, val.replace(tzinfo=None), datetime_format)
                     elif isinstance(val, date):
