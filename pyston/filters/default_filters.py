@@ -210,7 +210,7 @@ class Filter(object):
     suffixes = {}
     choices = None
 
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, field=None, method=None):
+    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, field=None, method=None):
         """
         Filter init values are these:
         :param identifiers_prefix: because filters are recursive if model relations property contains list of
@@ -218,6 +218,7 @@ class Filter(object):
         :param identifiers: list of identifiers that conclusively identifies the filter.
         :param identifiers_suffix: list of suffixes that can be used for more specific filters.
                For example for a date filter can be used suffixes month, day, year.
+        :param model: Django model class of filtered object.
         :param field: model field which is related with filter.
         :param method: method that is related with filter.
         method and field cannot be set together.
@@ -230,6 +231,7 @@ class Filter(object):
         self.full_identifiers = identifiers_prefix + identifiers + identifiers_suffix
         self.field = field
         self.method = method
+        self.model = model
 
     def get_allowed_operators(self):
         """
@@ -290,9 +292,9 @@ class MethodFilter(Filter):
     Abstract parent for all method filters.
     """
 
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, method=None):
+    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, method=None):
         assert method, 'Method is required'
-        super(MethodFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, method=method)
+        super(MethodFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, model, method=method)
 
 
 class ModelFieldFilter(Filter):
@@ -300,9 +302,9 @@ class ModelFieldFilter(Filter):
     Abstract parent for all model field filters.
     """
 
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, field=None):
+    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, field=None):
         assert field, 'Field is required'
-        super(ModelFieldFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, field=field)
+        super(ModelFieldFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, model, field=field)
 
 
 class OperatorsModelFieldFilter(OperatorsFilterMixin, ModelFieldFilter):
