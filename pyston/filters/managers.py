@@ -52,7 +52,7 @@ class ModelFilterManager(object):
         suffix = LOOKUP_SEP.join(identifiers_suffix)
         if not hasattr(method, 'filter') or (suffix and suffix not in method.filter.get_suffixes()):
             raise FilterIdentifierError
-        return method.filter(identifiers_prefix, identifiers, identifiers_suffix, method=method)
+        return method.filter(identifiers_prefix, identifiers, identifiers_suffix, model, method=method)
 
     def _get_resource_filter(self, identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs):
         """
@@ -74,15 +74,19 @@ class ModelFilterManager(object):
             suffix_string = LOOKUP_SEP.join(identifiers_suffix)
             if (resource and identifiers_string in resource.filters and
                     (not suffix_string or suffix_string in resource.filters[identifiers_string].get_suffixes())):
-                return resource.filters[identifiers_string](identifiers_prefix, current_identifiers, identifiers_suffix)
+                return resource.filters[identifiers_string](
+                    identifiers_prefix, current_identifiers, identifiers_suffix, model
+                )
 
         # Filter is obtained from resource methods
         current_identifier = identifiers[0]
         resource_method = get_method_or_none(resource, current_identifier)
 
         if current_identifier in filters_fields_rfs and resource_method:
-            return self._get_method_filter(resource_method, identifiers_suffix, [current_identifier], identifiers[1:],
-                                           model, resource, request, filters_fields_rfs)
+            return self._get_method_filter(
+                resource_method, identifiers_suffix, [current_identifier], identifiers[1:], model, resource, request,
+                filters_fields_rfs
+            )
 
         return None
 
@@ -109,7 +113,9 @@ class ModelFilterManager(object):
         model_method = get_method_or_none(model, current_identifier)
 
         if model_field and model_field.filter and (not suffix or suffix in model_field.filter.get_suffixes()):
-            return model_field.filter(identifiers_prefix, [current_identifier], identifiers_suffix, field=model_field)
+            return model_field.filter(
+                identifiers_prefix, [current_identifier], identifiers_suffix, model, field=model_field
+            )
         elif model_field and model_field.is_relation and model_field.related_model:
             # recursive search for filter via related model fields
             next_model = model_field.related_model
@@ -119,8 +125,10 @@ class ModelFilterManager(object):
                 filters_fields_rfs[current_identifier].subfieldset
             )
         elif model_method:
-            return self._get_method_filter(model_method, identifiers_prefix, [current_identifier], identifiers_suffix,
-                                           model, resource, request, filters_fields_rfs)
+            return self._get_method_filter(
+                model_method, identifiers_prefix, [current_identifier], identifiers_suffix,
+                model, resource, request, filters_fields_rfs
+            )
 
     def _get_filter_recursive(self, identifiers_prefix, identifiers, model, resource, request,
                               extra_filter_fields_rfs=None):

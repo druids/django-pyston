@@ -157,6 +157,41 @@ filters:
  * method filter that is related to a method
  * field filter that is related to a model field
 
+.. class:: pyston.filters.default_filters.Filter
+
+  .. attribute:: identifiers
+
+    The ``identifiers`` attribute contains list of keys on which is filter registered. It can be model field name, method name or custom string according to type of filter.
+
+  .. attribute:: identifiers_suffix
+
+    Suffix usually contains the operator that will be used for filtering. But it can contain more values. For example ``identifiers_suffix`` for ``DateFilter`` can be ``['day', 'gt']``.
+
+  .. attribute:: identifiers_prefix
+
+    Because filters can be used recursively (User can be filtered via its Issues) the attribute ``identifiers_prefix`` contains all keys through which the filter was found. For example if there is foreign key between ``Issue`` and ``User`` named ``created_by``, issue can be filtered with term ``created_by__name__gt``. Values of ``identifiers_prefix``, ``identifiers``, ``identifiers_suffix`` will be:
+
+      * ``identifiers_prefix = ['created_by']``
+      * ``identifiers = ['name']``
+      * ``identifiers_suffix = ['gt']``
+
+  .. attribute:: full_identifiers
+
+    Attribute that is combination of ``identifiers_prefix + identifiers + identifiers_suffix``.
+
+  .. attribute:: model
+
+    Django model class being filtered.
+
+  .. attribute:: field
+
+    Attribute ``field`` will be set only if filter is instance of ``FieldFilter`` and contains model field that is filtered.
+
+  .. attribute:: method
+
+    Like to ``field`` the attribute is set only if filter is instance of ``MethodFilter`` and contains model method that is filtered.
+
+
 Field filter
 ^^^^^^^^^^^^
 
