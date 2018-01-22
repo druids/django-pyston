@@ -852,7 +852,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def _post_delete_obj(self, obj):
         pass
 
-    @transaction.atomic
+    @transaction.atomic_with_signals
     def atomic_create_or_update(self, data, partial_update=False):
         """
         Atomic object creation
