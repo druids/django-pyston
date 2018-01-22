@@ -206,11 +206,6 @@ class ModelResourceDataProcessor(DataProcessor):
         self.via = resource._get_via(via)
         self.partial_update = partial_update
 
-    def _get_resource_class(self, model):
-        from .serializer import get_resource_class_or_none
-
-        return get_resource_class_or_none(model, self.resource.resource_typemapper)
-
 
 class MultipleDataProcessorMixin(object):
 
@@ -225,53 +220,9 @@ class MultipleDataProcessorMixin(object):
 class ModelDataPreprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
-        rest_field = None
-        form_field = self.form.fields.get(key)
-        if (form_field and isinstance(form_field, ModelChoiceField) and
-                not isinstance(form_field, ModelMultipleChoiceField)):
-            resource_class = self._get_resource_class(form_field.queryset.model)
-            rest_field = SingleRelatedField(self.form, key, resource_class) if resource_class else None
+        rest_field = getattr(self.form, 'related_fields', {}).get(key)
 
-        if rest_field:
-            try:
-                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
-                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
-                )
-            except RESTError as ex:
-                self.errors[key] = ex
-
-
-@data_preprocessors.register(BaseObjectResource)
-class ModelMultipleDataPreprocessor(MultipleDataProcessorMixin, ModelResourceDataProcessor):
-
-    def _process_field(self, data, files, key, data_item):
-        rest_field = None
-        form_field = self.form.fields.get(key)
-        if form_field and isinstance(form_field, ModelMultipleChoiceField):
-            resource_class = self._get_resource_class(form_field.queryset.model)
-            rest_field = (
-                MultipleStructuredRelatedField(self.form, key, resource_class) if resource_class else None
-            )
-
-        if rest_field:
-            try:
-                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
-                    self.inst, data_item, self.via, self.request, self.partial_update, self.form
-                )
-            except RESTError as ex:
-                self.errors[key] = ex
-
-
-@data_postprocessors.register(BaseModelResource)
-class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ModelResourceDataProcessor):
-
-    def _process_field(self, data, files, key, data_item):
-        rest_field = getattr(self.form, key, None)
-        if (not rest_field and isinstance(self.form, RESTFormMixin) and self.form._rest_meta.auto_reverse and (
-                is_reverse_many_to_many(self.model, key) or is_reverse_many_to_one(self.model, key))):
-            resource_class = self._get_resource_class(get_model_from_relation(self.model, key))
-            rest_field = ReverseStructuredManyField(key, resource_class=resource_class) if resource_class else None
-        if isinstance(rest_field, ReverseManyField):
+        if rest_field and not rest_field.is_reverse:
             try:
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
@@ -284,15 +235,11 @@ class ReverseMultipleDataPostprocessor(MultipleDataProcessorMixin, ModelResource
 class ReverseDataPostprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
-        rest_field = getattr(self.form, key, None)
-        if (not rest_field and isinstance(self.form, RESTFormMixin) and self.form._rest_meta.auto_reverse and
-                is_reverse_one_to_one(self.model, key)):
-            resource_class = self._get_resource_class(get_model_from_relation(self.model, key))
-            rest_field = ReverseOneToOneField(key, resource_class=resource_class) if resource_class else None
+        rest_field = getattr(self.form, 'related_fields', {}).get(key)
 
-        if isinstance(rest_field, ReverseSingleField):
+        if rest_field and rest_field.is_reverse:
             try:
-                data[key] = self.form.data[key] = rest_field.create_update_or_remove(
+                data[key] = self.form.cleaned_data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
             except RESTError as ex:

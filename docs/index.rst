@@ -31,7 +31,7 @@ Content
    installation
    configuration
    serializers
-   reverse_fields
+   forms
    converters
    rest_meta
    filters

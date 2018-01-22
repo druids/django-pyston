@@ -160,7 +160,7 @@ filters:
 Field filter
 ^^^^^^^^^^^^
 
-Field filter is always joined to specific model field. Most django fields have predefined filters:
+Field filter is always joined to specific model field. Most Django fields have predefined filters:
 
 * BooleanField - BooleanFieldFilter
 * NullBooleanField - NullBooleanFieldFilter
@@ -276,7 +276,7 @@ related through field with returned object.
 Custom field filter
 ___________________
 
-Because Pyston improves django model fields (monkey patch) you can very simply change default field filter::
+Because Pyston improves Django model fields (monkey patch) you can very simply change default field filter::
 
     from pyston.utils.decorators import order_by
     from pyston.filters.default_filters import StringFieldFilter, OPERATORS, CONTAINS

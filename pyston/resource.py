@@ -27,24 +27,21 @@ from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent
 from chamber.utils import transaction
 
-from pyston.conf import settings
-from pyston.utils.helpers import serialized_data_to_python
-from pyston.forms import ISODateTimeField
-
+from .conf import settings
 from .paginator import Paginator
 from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
                        ResponseExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException)
-from .forms import RESTModelForm
+from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
 from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, get_resource_or_none
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 from .filters.managers import MultipleFilterManager
 from .order.managers import DefaultModelOrderManager
-from .utils.helpers import get_field_or_none
+from .utils.helpers import get_field_or_none, serialized_data_to_python
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -950,8 +947,14 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
                 data, files = preprocessor(self, form, inst, via, partial_related_update).process_data(data, files)
 
         if can_save_obj:
-            if hasattr(form, 'save_m2m'):
-                form.save_m2m()
+            if hasattr(form, 'post_save'):
+                form.post_save()
+
+            # Because reverse related validations is performed after save errors check must be evaluated two times
+            errors = form.is_invalid()
+            if errors:
+                raise DataInvalidException(errors)
+
             self._post_save_obj(inst, form, change)
         return inst
 
@@ -1052,5 +1055,10 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
         fields = self._get_form_fields(inst)
         if hasattr(form_class, '_meta') and form_class._meta.exclude:
             exclude.extend(form_class._meta.exclude)
-        return modelform_factory(self.model, form=form_class, exclude=exclude, fields=fields,
-                                 formfield_callback=self.formfield_for_dbfield)
+        return rest_modelform_factory(
+            self.model, form=form_class, resource_typemapper=self.resource_typemapper,
+            auto_related_direct_fields=settings.AUTO_RELATED_DIRECT_FIELDS,
+            auto_related_reverse_fields=settings.AUTO_RELATED_REVERSE_FIELDS,
+            exclude=exclude, fields=fields,
+            formfield_callback=self.formfield_for_dbfield
+        )
