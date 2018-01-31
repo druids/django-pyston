@@ -121,6 +121,7 @@ class Converter(object):
     charset = 'utf-8'
     media_type = None
     format = None
+    allow_tags = False
 
     @property
     def content_type(self):
@@ -320,6 +321,7 @@ class CSVConverter(GeneratorConverter):
     generator_class = CSVGenerator
     media_type = 'text/csv'
     format = 'csv'
+    allow_tags = True
 
 
 class XLSXConverter(GeneratorConverter):
@@ -332,6 +334,7 @@ class XLSXConverter(GeneratorConverter):
     generator_class = XLSXGenerator
     media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     format = 'xlsx'
+    allow_tags = True
 
 
 class PDFConverter(GeneratorConverter):

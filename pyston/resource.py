@@ -349,18 +349,21 @@ class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixi
 
     def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
-            result, self._get_serialization_format(), lazy=True
+            result, self._get_serialization_format(), lazy=True, allow_tags=self._get_converter().allow_tags
         )
 
-    def _serialize(self, os, result, status_code, http_headers):
+    def _get_converter(self):
         try:
-            converter = get_converter_from_request(self.request)
-            http_headers['Content-Type'] = converter.content_type
-
-            converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
-                                       status_code=status_code, http_headers=http_headers, result=result)
+            return get_converter_from_request(self.request)
         except ValueError:
             raise UnsupportedMediaTypeException
+
+    def _serialize(self, os, result, status_code, http_headers):
+        converter = self._get_converter()
+        http_headers['Content-Type'] = converter.content_type
+
+        converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
+                                   status_code=status_code, http_headers=http_headers, result=result)
 
     def _deserialize(self):
         rm = self.request.method.upper()
@@ -714,7 +717,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
             result, self._get_serialization_format(), requested_fieldset=self._get_requested_fieldset(result),
-            lazy=True
+            lazy=True, allow_tags=self._get_converter().allow_tags
         )
 
     def _get_requested_fieldset(self, result):
