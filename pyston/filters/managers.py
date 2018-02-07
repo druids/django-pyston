@@ -119,7 +119,7 @@ class ModelFilterManager(object):
         elif model_field and model_field.is_relation and model_field.related_model:
             # recursive search for filter via related model fields
             next_model = model_field.related_model
-            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper'))
+            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
             return self._get_filter_recursive(
                 identifiers_prefix + [identifiers[0]], identifiers[1:], next_model, next_resource, request,
                 filters_fields_rfs[current_identifier].subfieldset
