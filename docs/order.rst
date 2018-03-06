@@ -46,7 +46,7 @@ Identifiers are very similar to Django identifiers where relations are joined wi
 Ordering field configuration
 ----------------------------
 
-By default the fields that can be ordered is generated as a join of ``order_fields`` and ``extra_order_fields``. But
+By default the fields that can be ordered are generated as a join of ``order_fields`` and ``extra_order_fields``. But
 you can change this behaviour by overriding the method ``get_order_fields_rfs``. Values of ``order_fields`` and
 ``extra_order_fields`` are firstly taken from a resource and if they are not set in resource thay are obtained from
 model RESTMeta. If ``order_fields`` is not defined in RESTMeta it is replaced with response of the method
@@ -115,7 +115,7 @@ As example we define two models ``Issue`` and ``User`` and two resources::
         extra_order_fields = ()
 
 As you can see ``order_fields`` and ``extra_order_fields`` are set inside model RESTMeta for User model. From RESTMeta
-is allowed to filter three fields ('email', 'solving_issue', 'created_at'). But because extra_order_fields is overridden
+is allowed to filter three fields ('email', 'solving_issue', 'created_at'). But because ``extra_order_fields`` is overridden
 inside UserResource client can order only with ('email', 'solving_issue').
 
 Model Issue has only set ``extra_order_fields`` which allows to order Issues by ``User.created_at`` via related field
