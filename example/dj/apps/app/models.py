@@ -78,11 +78,11 @@ class Issue(models.Model):
     watched_by = models.ManyToManyField('app.User', verbose_name=_('watched by'), blank=True,
                                         related_name='watched_issues')
     created_by = models.ForeignKey('app.User', verbose_name=_('created by'), null=False, blank=False,
-                                   related_name='created_issues')
+                                   related_name='created_issues', on_delete=models.CASCADE)
     solver = models.OneToOneField('app.User', verbose_name=_('solver'), null=True, blank=True,
-                                  related_name='solving_issue')
+                                  related_name='solving_issue', on_delete=models.CASCADE)
     leader = models.OneToOneField('app.User', verbose_name=_('leader'), null=False, blank=False,
-                                  related_name='leading_issue')
+                                  related_name='leading_issue', on_delete=models.CASCADE)
     description = models.TextField(verbose_name=_('description'), null=True, blank=True)
     logged_minutes = models.IntegerField(verbose_name=_('logged minutes'), null=True, blank=True)
     estimate_minutes = models.IntegerField(verbose_name=_('logged minutes'), null=True, blank=True)

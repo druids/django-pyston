@@ -1,7 +1,4 @@
-from __future__ import unicode_literals
-
 from dateutil import parser
-import six
 import copy
 
 from collections import OrderedDict
@@ -11,7 +8,6 @@ from django.core.exceptions import NON_FIELD_ERRORS, ValidationError, Improperly
 from django.utils.translation import ugettext
 from django.utils.encoding import force_text, force_str
 from django.http.response import Http404
-from django.utils.encoding import python_2_unicode_compatible
 from django.forms.models import ModelFormMetaclass, modelform_factory
 
 from chamber.shortcuts import get_object_or_none
@@ -21,7 +17,7 @@ from .conf import settings as pyston_settings
 from .exception import DataInvalidException, RESTException
 from .utils.compatibility import (
     get_reverse_field_name, get_model_from_relation, is_reverse_many_to_many, is_reverse_one_to_one,
-    is_reverse_many_to_one
+    is_reverse_many_to_one, delete_cached_value
 )
 from .utils.helpers import str_to_class
 
@@ -33,7 +29,6 @@ class RESTError(Exception):
     pass
 
 
-@python_2_unicode_compatible
 class RESTListError(RESTError):
     """
     List exception is standard list object that can be raised like exception.
@@ -68,7 +63,6 @@ class RESTListError(RESTError):
         self._list.append(val)
 
 
-@python_2_unicode_compatible
 class RESTDictError(RESTError):
     """
     Dict exception is standard dict object that can be raised like exception.
@@ -121,7 +115,6 @@ class RESTDictError(RESTError):
         return self._dict.pop(key)
 
 
-@python_2_unicode_compatible
 class RESTDictIndexError(RESTError):
 
     def __init__(self, index, data):
@@ -136,7 +129,6 @@ class RESTDictIndexError(RESTError):
         return str(self.data)
 
 
-@python_2_unicode_compatible
 class RESTValidationError(RESTError):
 
     def __init__(self, message, code=None):
@@ -160,7 +152,7 @@ class AllFieldsUniqueValidationModelForm(forms.ModelForm):
             self._update_errors(e)
 
 
-class RelatedField(object):
+class RelatedField:
 
     is_reverse = False
 
@@ -172,7 +164,7 @@ class RelatedField(object):
 
         resource_class = self.resource_class
 
-        if isinstance(resource_class, six.string_types):
+        if isinstance(resource_class, str):
             resource_class = str_to_class(resource_class)
         elif resource_class is None:
             resource_class = get_resource_class_or_none(model)
@@ -402,7 +394,7 @@ class ReverseOneToOneField(ReverseSingleField):
 
     def _remove(self, resource, parent_inst, related_obj, field_name, via):
         super(ReverseOneToOneField, self)._remove(resource, parent_inst, related_obj, field_name, via)
-        setattr(parent_inst, getattr(parent_inst.__class__, self.reverse_field_name).cache_name, None)
+        delete_cached_value(parent_inst, self.reverse_field_name)
 
     def _create_or_update(self, resource, parent_inst, related_obj, field_name, via, data, partial_update):
         obj = super(ReverseOneToOneField, self)._create_or_update(resource, parent_inst, related_obj, field_name, via,
@@ -530,7 +522,7 @@ class ISODateTimeField(forms.DateTimeField):
         return parser.parse(force_str(value))
 
 
-class RESTFormMixin(object):
+class RESTFormMixin:
 
     def __init__(self, *args, **kwargs):
         self.origin_initial = kwargs.get('initial', {})
@@ -681,7 +673,7 @@ def reverse_related_fields_for_model(model, fields=None, exclude=None, resource_
     return OrderedDict(field_list)
 
 
-class RESTModelFormOptions(object):
+class RESTModelFormOptions:
 
     def __init__(self, options=None):
         self.resource_typemapper = getattr(options, 'resource_typemapper', None)
@@ -754,7 +746,7 @@ class RESTFormMetaclass(ModelFormMetaclass):
         return new_class
 
 
-class RESTModelForm(six.with_metaclass(RESTFormMetaclass, RESTFormMixin, AllFieldsUniqueValidationModelForm)):
+class RESTModelForm(RESTFormMixin, AllFieldsUniqueValidationModelForm, metaclass=RESTFormMetaclass):
 
     def __init__(self, *args, **kwargs):
         super(RESTModelForm, self).__init__(*args, **kwargs)

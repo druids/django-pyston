@@ -1,10 +1,7 @@
-from __future__ import unicode_literals
-
 import os
 import decimal
 import datetime
 import inspect
-import six
 import mimetypes
 import types
 
@@ -40,7 +37,7 @@ from .forms import RESTDictError, RESTListError, RESTDictIndexError
 default_serializers = []
 
 
-class Serializable(object):
+class Serializable:
 
     def serialize(self, serialization_format, **kwargs):
         raise NotImplementedError
@@ -84,7 +81,7 @@ def get_resource_class_or_none(thing, resource_typemapper=None):
 
     resource_typemapper = {} if resource_typemapper is None else resource_typemapper
     resource_class = resource_typemapper.get(thing) or global_resource_typemapper.get(thing)
-    if isinstance(resource_class, six.string_types):
+    if isinstance(resource_class, str):
         resource_class = str_to_class(resource_class)
     return resource_class
 
@@ -109,7 +106,7 @@ def get_serializer(thing, request=None, resource_typemapper=None):
     return DefaultSerializer(request=request)
 
 
-class RawVerboseValue(object):
+class RawVerboseValue:
     """
     Return RAW, VERBOSE or BOTH values according to serialization type
     """
@@ -129,7 +126,7 @@ class RawVerboseValue(object):
             return {'_raw': self.raw_value, '_verbose': self.verbose_value}
 
 
-class LazySerializedData(object):
+class LazySerializedData:
 
     def __init__(self, serializer, data, serialization_format, **kwargs):
         self.serializer = serializer
@@ -141,7 +138,7 @@ class LazySerializedData(object):
         return self.serializer.serialize(self.data, self.serialization_format, **self.kwargs)
 
 
-class LazyMappedSerializedData(object):
+class LazyMappedSerializedData:
 
     def __init__(self, data, data_mapping):
         self.data = data
@@ -171,7 +168,7 @@ class LazyMappedSerializedData(object):
 LAZY_SERIALIZERS = (LazySerializedData, LazyMappedSerializedData)
 
 
-class Serializer(object):
+class Serializer:
     """
     REST serializer and deserializer, firstly is data serialized to standard python data types and after that is
     used convertor for final serialization
@@ -203,7 +200,7 @@ class Serializer(object):
         raise NotImplementedError
 
 
-class ResourceSerializerMixin(object):
+class ResourceSerializerMixin:
 
     def __init__(self, resource, request=None):
         self.resource = resource
@@ -260,7 +257,7 @@ class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
             return super(ObjectResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
 
 
-@register(six.string_types)
+@register(str)
 class StringSerializer(Serializer):
 
     def serialize(self, data, serialization_format, allow_tags=False, **kwargs):
@@ -386,7 +383,7 @@ class ModelSerializer(Serializer):
     def _model_field_to_python(self, field, obj, serialization_format, allow_tags=False, **kwargs):
         return (self._lazy_data_to_python if field.is_relation else self._data_to_python)(
             self._value_to_raw_verbose(self._get_model_field_raw_value(obj, field), field, obj)
-            if not field.rel else getattr(obj, field.name),
+            if not field.remote_field else getattr(obj, field.name),
             serialization_format, allow_tags=allow_tags or getattr(field, 'allow_tags', False), **kwargs
         )
 
@@ -450,6 +447,7 @@ class ModelSerializer(Serializer):
 
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
                          obj, serialization_format, allow_tags=False, **kwargs):
+
         if field_name == '_obj_name':
             return force_text(obj)
         elif field_name in resource_method_fields:

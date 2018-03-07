@@ -59,7 +59,7 @@ DEFAULTS = {
 }
 
 
-class Settings(object):
+class Settings:
 
     def __getattr__(self, attr):
         if attr not in DEFAULTS:

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from chamber.patch import Options
 
 import django.db.models.options as options
@@ -68,14 +66,14 @@ def field_get_filter_class(self):
 def fk_get_filter_class(self):
     return (
         self._filter if hasattr(self, '_filter')
-        else getattr(self.rel.to._meta, 'default_fk_filter', None) or self.default_filter
+        else getattr(self.related_model._meta, 'default_fk_filter', None) or self.default_filter
     )
 
 
 def m2m_get_filter_class(self):
     return (
         self._filter if hasattr(self, '_filter')
-        else getattr(self.rel.to._meta, 'default_m2m_filter', None) or self.default_filter
+        else getattr(self.related_model._meta, 'default_m2m_filter', None) or self.default_filter
     )
 
 

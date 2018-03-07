@@ -1,12 +1,10 @@
-from __future__ import unicode_literals
-
 from django.utils.translation import ugettext
 from django.db.models.query import QuerySet
 
 from .exception import RESTException
 
 
-class BasePaginator(object):
+class BasePaginator:
 
     @property
     def page_qs(self):

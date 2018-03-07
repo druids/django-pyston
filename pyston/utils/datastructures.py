@@ -1,23 +1,19 @@
-from __future__ import unicode_literals
-
 from django.utils.encoding import force_text
 from django.db import models
 from django.db.models.fields import FieldDoesNotExist
 from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
 from django.forms.forms import pretty_name
-from django.utils.encoding import python_2_unicode_compatible
 
 from chamber.utils import get_class_method
 
 from collections import OrderedDict
 
-from pyston.utils import split_fields, is_match, get_model_from_descriptor, LOOKUP_SEP
+from pyston.utils import split_fields, is_match, get_model_from_relation_or_none, LOOKUP_SEP
 from pyston.utils.compatibility import get_all_related_objects_from_model, get_concrete_field, get_model_from_relation
 
 
-@python_2_unicode_compatible
-class Field(object):
+class Field:
 
     def __init__(self, key_path, label_path):
         self.key_path = key_path
@@ -36,7 +32,7 @@ class Field(object):
         return not self.__eq__(other)
 
 
-class FieldsetGenerator(object):
+class FieldsetGenerator:
 
     def __init__(self, resource=None, fields_string=None):
         self.resource = resource
@@ -109,7 +105,7 @@ class FieldsetGenerator(object):
                 if LOOKUP_SEP in field_name:
                     field_name, subfields_string = field.split(LOOKUP_SEP, 1)
 
-                self._recursive_generator(fields, subfields_string, get_model_from_descriptor(model, field_name),
+                self._recursive_generator(fields, subfields_string, get_model_from_relation_or_none(model, field_name),
                                           key_path + [field_name],
                                           label_path + [self._get_label(field_name, model)])
 
@@ -119,7 +115,7 @@ class FieldsetGenerator(object):
         return fields
 
 
-class DataFieldset(object):
+class DataFieldset:
 
     def __init__(self, data):
         self.root = {}

@@ -1,12 +1,9 @@
-from __future__ import unicode_literals
-
 import re
 import warnings
 
-import six
+from functools import reduce
 
-from six.moves import reduce
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 
 from django.conf import settings as django_settings
 from django.http.response import HttpResponse, HttpResponseBase
@@ -81,7 +78,7 @@ class ResourceMetaClass(type):
         return new_cls
 
 
-class PermissionsResourceMixin(object):
+class PermissionsResourceMixin:
 
     allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
 
@@ -215,7 +212,7 @@ class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
         return self.delete_obj_permission
 
 
-class BaseResource(six.with_metaclass(ResourceMetaClass, PermissionsResourceMixin)):
+class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     """
     BaseResource that gives you CRUD for free.
     You are supposed to subclass this for specific

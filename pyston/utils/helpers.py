@@ -1,10 +1,7 @@
-from __future__ import unicode_literals
-
 import types
 import sys
-import six
 
-from six import BytesIO
+from io import BytesIO
 
 from collections import OrderedDict
 
@@ -16,7 +13,7 @@ from chamber.utils import get_class_method
 from .compatibility import FieldDoesNotExist
 
 
-class QuerysetIteratorHelper(object):
+class QuerysetIteratorHelper:
 
     def __init__(self, queryset):
         self.queryset = queryset
@@ -29,7 +26,7 @@ class QuerysetIteratorHelper(object):
         return self.queryset.model
 
 
-class UniversalBytesIO(object):
+class UniversalBytesIO:
 
     def __init__(self, container=None, charset=None):
         self.charset = charset or settings.DEFAULT_CHARSET
@@ -67,7 +64,7 @@ class UniversalBytesIO(object):
         """Turn a value into a bytestring encoded in the output charset."""
         if isinstance(value, bytes):
             return bytes(value)
-        if isinstance(value, six.text_type):
+        if isinstance(value, str):
             return bytes(value.encode(self.charset))
 
         # Handle non-string types

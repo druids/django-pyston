@@ -1,12 +1,10 @@
-from __future__ import unicode_literals
-
 import binascii
 import sys
 import base64
 import inspect
 import mimetypes
 
-from six import BytesIO
+from io import BytesIO
 
 from django.forms.fields import FileField
 from django.utils.translation import ugettext_lazy as _, ugettext
@@ -42,7 +40,7 @@ from .forms import (
 url_validator = URLValidator()
 
 
-class DataProcessorCollection(object):
+class DataProcessorCollection:
 
     def __init__(self):
         self.data_processors_map = {}
@@ -65,7 +63,7 @@ data_preprocessors = DataProcessorCollection()
 data_postprocessors = DataProcessorCollection()
 
 
-class DataProcessor(object):
+class DataProcessor:
 
     def __init__(self, resource, form, *args, **kwargs):
         self.resource = resource
@@ -207,7 +205,7 @@ class ModelResourceDataProcessor(DataProcessor):
         self.partial_update = partial_update
 
 
-class MultipleDataProcessorMixin(object):
+class MultipleDataProcessorMixin:
 
     INVALID_COLLECTION_EXCEPTION = {'error': _('Data must be a collection')}
 

@@ -1,4 +1,4 @@
-class ResourceMetamodel(object):
+class ResourceMetamodel:
 
     def __init__(self, resource):
         self.resource = resource

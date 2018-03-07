@@ -1,13 +1,11 @@
-from __future__ import unicode_literals
-
 import types
 import json
 
-from six.moves import cStringIO
+from io import StringIO
 
 from collections import OrderedDict
 
-from django.core.serializers.json import DateTimeAwareJSONEncoder
+from django.core.serializers.json import DjangoJSONEncoder
 from django.http.response import HttpResponseBase
 from django.template.loader import get_template
 from django.utils.encoding import force_text
@@ -114,7 +112,7 @@ def get_supported_mime_types():
     return [converter.media_type for _, converter in converters.items()]
 
 
-class Converter(object):
+class Converter:
     """
     Converter from standard data types to output format (JSON,YAML, Pickle) and from input to python objects
     """
@@ -183,7 +181,7 @@ class XMLConverter(Converter):
 
     def _encode(self, data, **kwargs):
         if data is not None:
-            stream = cStringIO()
+            stream = StringIO()
 
             xml = SimplerXMLGenerator(stream, 'utf-8')
             xml.startDocument()
@@ -199,7 +197,7 @@ class XMLConverter(Converter):
             return ''
 
 
-class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
+class LazyDjangoJSONEncoder(DjangoJSONEncoder):
 
     def default(self, o):
         from pyston.serializer import LAZY_SERIALIZERS
@@ -209,7 +207,7 @@ class LazyDateTimeAwareJSONEncoder(DateTimeAwareJSONEncoder):
         elif isinstance(o, LAZY_SERIALIZERS):
             return o.serialize()
         else:
-            return super(LazyDateTimeAwareJSONEncoder, self).default(o)
+            return super(LazyDjangoJSONEncoder, self).default(o)
 
 
 class JSONConverter(Converter):
@@ -222,7 +220,7 @@ class JSONConverter(Converter):
     def _encode_to_stream(self, os, data, options=None, **kwargs):
         options = settings.JSON_CONVERTER_OPTIONS if options is None else options
         if data is not None:
-            json.dump(data, os, cls=LazyDateTimeAwareJSONEncoder, ensure_ascii=False, **options)
+            json.dump(data, os, cls=LazyDjangoJSONEncoder, ensure_ascii=False, **options)
 
     def _decode(self, data, **kwargs):
         return json.loads(data)

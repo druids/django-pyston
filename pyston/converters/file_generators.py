@@ -1,18 +1,16 @@
-from __future__ import unicode_literals
-
-import six
 import os
 
 import csv
 import codecs
 
-from six.moves import cStringIO
+from io import StringIO
 
 from datetime import datetime, date
 from decimal import Decimal
 
 from django.conf import settings as django_settings
 from django.utils.encoding import force_text
+from django.template.loader import get_template
 
 try:
     # xlsxwriter isn't standard with python.  It shouldn't be required if it
@@ -31,13 +29,12 @@ except ImportError:
     PDFGenerator = None
 
 from pyston.conf import settings
-from pyston.utils.compatibility import render_template
 
 
 TWOPLACES = Decimal(10) ** -2
 
 
-class CSVGenerator(object):
+class CSVGenerator:
 
     def __init__(self, delimiter=chr(59), quotechar=chr(34), quoting=csv.QUOTE_ALL, encoding='utf-8'):
         self.encoding = encoding
@@ -46,10 +43,7 @@ class CSVGenerator(object):
         self.delimiter = delimiter
 
     def generate(self, header, data, output_stream):
-        if six.PY2:
-            writer = Py2CSV(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=self.quoting)
-        else:
-            writer = Py3CSV(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=self.quoting)
+        writer = StreamCSV(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=self.quoting)
 
         if header:
             writer.writerow(self._prepare_list(header))
@@ -75,40 +69,9 @@ class CSVGenerator(object):
         return value.replace('&nbsp;', ' ')
 
 
-class Py2CSV(object):
-    """
-    A CSV writer which will write rows to CSV file "f",
-    which is encoded in the given encoding.
-    https://docs.python.org/2/library/csv.html
-    """
+class StreamCSV:
 
-    def __init__(self, f, dialect=csv.excel, encoding='utf-8', **kwds):
-        # Redirect output to a queue
-        self.queue = cStringIO()
-        self.writer = csv.writer(self.queue, dialect=dialect, **kwds)
-        self.stream = f
-        self.stream.write(codecs.BOM_UTF8)  # BOM for Excel
-        self.encoder = codecs.getincrementalencoder(encoding)()
-
-    def writerow(self, row):
-        self.writer.writerow([s.encode('utf-8') for s in row])
-        # Fetch UTF-8 output from the queue ...
-        data = self.queue.getvalue()
-        # ... and reencode it into the target encoding
-        # write to the target stream
-        self.stream.write(data)
-        # empty queue
-        self.queue.truncate(0)
-        self.stream.flush()
-
-    def writerows(self, rows):
-        for row in rows:
-            self.writerow(row)
-
-
-class Py3CSV(object):
-
-    def __init__(self, f, dialect=csv.excel, encoding='utf-8', **kwds):
+    def __init__(self, f, dialect=csv.excel, **kwds):
         self.writer = csv.writer(f, dialect=dialect, **kwds)
         self.stream = f
         self.stream.write(force_text(codecs.BOM_UTF8))  # BOM for Excel
@@ -123,7 +86,7 @@ class Py3CSV(object):
 
 
 if xlsxwriter:
-    class XLSXGenerator(object):
+    class XLSXGenerator:
 
         def generate(self, header, data, output_stream):
             wb = xlsxwriter.Workbook(output_stream)
@@ -148,7 +111,7 @@ if xlsxwriter:
                         ws.write(row, col, val, date_format)
                     elif isinstance(val, (Decimal, float)):
                         ws.write(row, col, val, decimal_format)
-                    elif isinstance(val, six.string_types):
+                    elif isinstance(val, str):
                         ws.write(row, col, val)
                     else:
                         ws.write(row, col, val)
@@ -156,7 +119,7 @@ if xlsxwriter:
             wb.close()
 
 if pisa:
-    class PDFGenerator(object):
+    class PDFGenerator:
 
         encoding = 'utf-8'
 
@@ -172,7 +135,9 @@ if pisa:
                 return ''
             pisa.pisaDocument(
                 force_text(
-                    render_template(settings.PDF_EXPORT_TEMPLATE, {'pagesize': 'A4', 'headers': header, 'data': data})
+                    get_template(settings.PDF_EXPORT_TEMPLATE).render(
+                        {'pagesize': 'A4', 'headers': header, 'data': data}
+                    )
                 ),
                 output_stream, encoding=self.encoding, link_callback=fetch_resources
             )
