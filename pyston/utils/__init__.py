@@ -1,8 +1,4 @@
-from __future__ import unicode_literals
-
 import re
-
-import six
 
 from collections import OrderedDict
 
@@ -16,7 +12,7 @@ from copy import deepcopy
 
 from chamber.utils.decorators import classproperty
 
-from pyston.utils.compatibility import is_related_descriptor, get_model_from_relation_or_none
+from pyston.utils.compatibility import get_model_from_relation_or_none
 
 
 LOOKUP_SEP = '__'
@@ -106,10 +102,6 @@ def is_match(regex, text):
     return pattern.search(text) is not None
 
 
-def get_model_from_descriptor(model, field_name):
-    return get_model_from_relation_or_none(model, field_name) if model else None
-
-
 def split_fields(fields_string):
 
     brackets = 0
@@ -136,10 +128,10 @@ def split_fields(fields_string):
         yield field
 
 
-class RESTField(object):
+class RESTField:
 
     def __init__(self, name, subfieldset=None):
-        assert isinstance(name, six.string_types)
+        assert isinstance(name, str)
         assert subfieldset is None or isinstance(subfieldset, RESTFieldset)
 
         self.name = name
@@ -162,7 +154,7 @@ class RESTField(object):
         return force_text(self.name)
 
 
-class RESTFieldset(object):
+class RESTFieldset:
 
     @classmethod
     def create_from_string(cls, fields_string):
@@ -207,7 +199,7 @@ class RESTFieldset(object):
         for field in fields_list or ():
             if isinstance(field, (list, tuple)):
                 fields.append(cls._create_field_from_list(field))
-            elif isinstance(field, six.string_types):
+            elif isinstance(field, str):
                 fields.append(cls._create_field_from_string(field))
             else:
                 raise ValueError('field can be only list, tuple or string ({} [{}])'.format(field, type(field)))
@@ -286,7 +278,7 @@ class RESTFieldset(object):
     def append(self, field):
         if isinstance(field, RESTField):
             rest_field = field
-        elif isinstance(field, six.string_types):
+        elif isinstance(field, str):
             rest_field = self._create_field_from_string(field)
         elif isinstance(field, (list, tuple)):
             rest_field = self._create_field_from_list(field)

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from decimal import Decimal, InvalidOperation
 
 from django.utils.translation import ugettext
@@ -43,7 +41,7 @@ OPERATORS = Enum(
 NONE_LABEL = _('(None)')
 
 
-class Operator(object):
+class Operator:
     """
     Operator is used for specific type of filters that allows more different ways how to filter queryset data according
     to input operator between identifier and value.
@@ -88,7 +86,7 @@ class SimpleOperator(Operator):
         return Q(**{'{}__{}'.format(filter.get_full_filter_key(), self.orm_operator): value})
 
 
-class ListOperatorMixin(object):
+class ListOperatorMixin:
     """
     The mixin is helper for operator objects that accepts list of data.
     It adds clean method that cleans list of values and returns an error to the concrete item of the list.
@@ -201,7 +199,7 @@ PK_CONTAINS = SimpleOperator('pk__contains')
 PK_ICONTAINS = SimpleOperator('pk__icontains')
 
 
-class Filter(object):
+class Filter:
     """
     Filters purpose is return Q object that is used for filtering data that resource returns.
     Filter can be joined to the field, method or resource.
@@ -254,7 +252,7 @@ class Filter(object):
         raise NotImplementedError
 
 
-class OperatorsFilterMixin(object):
+class OperatorsFilterMixin:
     """
     Mixin is used for specific type of filter that uses operator objects.
     """
@@ -311,7 +309,7 @@ class OperatorsModelFieldFilter(OperatorsFilterMixin, ModelFieldFilter):
     pass
 
 
-class BooleanFilterMixin(object):
+class BooleanFilterMixin:
     """
     Helper that contains cleaner for boolean input values.
     """
@@ -381,7 +379,7 @@ class NumberFieldFilter(OperatorsModelFieldFilter):
     )
 
 
-class IntegerFieldFilterMixin(object):
+class IntegerFieldFilterMixin:
     """
     Helper that contains cleaner for integer input values.
     """
@@ -485,7 +483,7 @@ class GenericIPAddressFieldFilter(CaseSensitiveStringFieldFilter):
         return value
 
 
-class DateFilterMixin(object):
+class DateFilterMixin:
 
     suffixes = {
         'day', 'month', 'year'
@@ -558,7 +556,7 @@ class RelatedFieldFilter(OperatorsModelFieldFilter):
         if not field.is_relation:
             return field
         else:
-            next_field = field.rel.to._meta.get_field(field.rel.field_name)
+            next_field = field.related_model._meta.get_field(field.remote_field.field_name)
             return self.get_last_rel_field(next_field)
 
 
@@ -600,7 +598,7 @@ class ManyToManyFieldFilter(RelatedFieldFilter):
             return value
         try:
             return self.get_last_rel_field(
-                self.field.rel.to._meta.get_field(self.field.m2m_target_field_name())
+                self.field.related_model._meta.get_field(self.field.m2m_target_field_name())
             ).get_prep_value(value)
         except ValueError:
             raise FilterValueError(ugettext('Object with this PK cannot be found'))
@@ -627,7 +625,7 @@ class ForeignObjectRelFilter(RelatedFieldFilter):
             raise FilterValueError(ugettext('Object with this PK cannot be found'))
 
 
-class SimpleFilterMixin(object):
+class SimpleFilterMixin:
     """
     Helper that is used for implementation all simple custom filters.
     """
@@ -673,7 +671,6 @@ class SimpleEqualFilterMixin(SimpleFilterMixin):
     """
 
     allowed_operators = (OPERATORS.EQ,)
-
 
 
 class SimpleFilter(SimpleFilterMixin, Filter):

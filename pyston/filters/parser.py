@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import re
 
 import pyparsing as pp
@@ -21,7 +19,7 @@ class FilterParserError(Exception):
     pass
 
 
-class Condition(object):
+class Condition:
     """
     Logical condition tree node.
     """
@@ -58,7 +56,7 @@ class Term(Condition):
         self.source = source
 
 
-class FilterParser(object):
+class FilterParser:
     """
     Abstract filter parser.
     """

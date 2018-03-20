@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from itertools import chain
 
 from pyston.utils import rfs, LOOKUP_SEP
@@ -7,7 +5,7 @@ from pyston.utils import rfs, LOOKUP_SEP
 from .utils import DIRECTION
 
 
-class DefaultSorter(object):
+class DefaultSorter:
     """
     Sorter is used to build Django queryset order string
     """

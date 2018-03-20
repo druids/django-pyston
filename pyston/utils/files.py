@@ -6,7 +6,7 @@ import mimetypes
 
 import magic  # pylint: disable=E0401
 
-from six import BytesIO
+from io import BytesIO
 
 from django.core.exceptions import SuspiciousOperation
 

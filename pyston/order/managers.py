@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from functools import reduce
 
 from django.utils.safestring import mark_safe
@@ -20,7 +18,7 @@ def get_allowed_order_fields_rfs_from_model(model):
     return rfs(model._rest_meta.extra_order_fields).join(rfs(model._rest_meta.order_fields))
 
 
-class ModelOrderManager(object):
+class ModelOrderManager:
     """
     Order manager is used inside model resource for order response queryset according to input values.
     This is abstract class that provides methods to obtain concrete order strings from resource and model methods

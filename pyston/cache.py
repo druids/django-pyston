@@ -1,7 +1,7 @@
 from django.core.cache import cache
 
 
-class DefaultRESTCache(object):
+class DefaultRESTCache:
     """
     Cache for improve REST efficiency, works only for GET method
     """

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from pyston.utils import LOOKUP_SEP
 
 from .utils import DIRECTION
@@ -12,7 +10,7 @@ class OrderParserError(Exception):
     pass
 
 
-class OrderTerm(object):
+class OrderTerm:
     """
     Simple order term that contains order identifiers list, direction and source inpout value which is used to assemble
     error messages.
@@ -24,7 +22,7 @@ class OrderTerm(object):
         self.source = source
 
 
-class OrderParser(object):
+class OrderParser:
     """
     Abstract order parser.
     """
@@ -37,7 +35,7 @@ class OrderParser(object):
         raise NotImplementedError
 
 
-class DefaultOrderParser(object):
+class DefaultOrderParser:
     """
     Default order parser that accepts filter.
     E.q.:

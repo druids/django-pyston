@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db.models import Q
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
@@ -18,7 +16,7 @@ def get_allowed_filter_fields_rfs_from_model(model):
     return rfs(model._rest_meta.extra_filter_fields).join(rfs(model._rest_meta.filter_fields))
 
 
-class ModelFilterManager(object):
+class ModelFilterManager:
     """
     Filter manager is used inside model resource for composing filters with purpose to restrict output data according
     to input values.

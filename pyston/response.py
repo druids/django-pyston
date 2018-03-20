@@ -4,7 +4,7 @@ from django.utils.encoding import force_text
 from .forms import RESTDictError, RESTDictIndexError, RESTListError, RESTValidationError
 
 
-class HeadersResponse(object):
+class HeadersResponse:
 
     fieldset = True
 
@@ -50,7 +50,7 @@ class RESTNoContentResponse(NoFieldsetResponse):
         super(RESTNoContentResponse, self).__init__(result='', http_headers=http_headers, code=code)
 
 
-class RESTErrorsResponseMixin(object):
+class RESTErrorsResponseMixin:
 
     def _get_errors(self, data):
         if isinstance(data, RESTDictIndexError):
@@ -87,7 +87,7 @@ class RESTErrorResponse(RESTErrorsResponseMixin, NoFieldsetResponse):
         )
 
 
-class ResponseFactory(object):
+class ResponseFactory:
 
     def __init__(self, response_class):
         self.response_class = response_class
