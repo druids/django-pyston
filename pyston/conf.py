@@ -5,6 +5,7 @@ CONVERTERS = (
     'pyston.converters.JSONConverter',
     'pyston.converters.XMLConverter',
     'pyston.converters.CSVConverter',
+    'pyston.converters.TXTConverter',
 )
 
 DEFAULT_FILENAMES = (
