@@ -85,6 +85,19 @@ class StreamCSV:
             self.writerow(row)
 
 
+class TXTGenerator:
+
+    def generate(self, header, data, output_stream):
+        output_stream.write('---\n')
+        for data_row in data:
+            output_stream.write('\n')
+            for col, val in enumerate(data_row):
+                if header:
+                    output_stream.write('{}:\n'.format(header[col]))
+                output_stream.write('\t'.join(('\t' + force_text(val).lstrip()).splitlines(True)) + '\n\n')
+            output_stream.write('---\n')
+
+
 if xlsxwriter:
     class XLSXGenerator:
 

@@ -17,7 +17,7 @@ from pyston.utils.helpers import UniversalBytesIO, serialized_data_to_python
 from pyston.utils.datastructures import FieldsetGenerator
 from pyston.conf import settings
 
-from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator
+from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator, TXTGenerator
 
 
 converters = OrderedDict()
@@ -345,6 +345,17 @@ class PDFConverter(GeneratorConverter):
     generator_class = PDFGenerator
     media_type = 'application/pdf'
     format = 'pdf'
+
+
+class TXTConverter(GeneratorConverter):
+    """
+    Converter for TXT response.
+    Supports only output conversion
+    """
+
+    generator_class = TXTGenerator
+    media_type = 'plain/text'
+    format = 'txt'
 
 
 class HTMLConverter(Converter):
