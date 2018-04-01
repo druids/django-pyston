@@ -5,6 +5,8 @@ from functools import reduce
 
 from urllib.parse import urlparse
 
+from collections import OrderedDict
+
 from django.conf import settings as django_settings
 from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
@@ -16,6 +18,7 @@ from django.http.response import Http404
 from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import ugettext_lazy as _
+from django.utils.module_loading import import_string
 
 from functools import update_wrapper
 
@@ -75,6 +78,13 @@ class ResourceMetaClass(type):
             if name != 'BaseResource':
                 resource_tracker.append(new_cls)
 
+        if not abstract:
+            converters = OrderedDict()
+            for converter_class in new_cls.converter_classes:
+                converters[converter_class.format] = (
+                    import_string(converter_class) if isinstance(converter_class, str) else converter_class
+                )()
+            new_cls.converters = converters
         return new_cls
 
 
@@ -231,6 +241,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     cache = None
     paginator = Paginator
     resource_typemapper = {}
+    converter_classes = settings.CONVERTERS
+    errors_response_class = settings.ERRORS_RESPONSE_CLASS
+    error_response_class = settings.ERROR_RESPONSE_CLASS
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -252,8 +265,14 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
     @property
     def exception_responses(self):
-        errors_response_class = str_to_class(settings.ERRORS_RESPONSE_CLASS)
-        error_response_class = str_to_class(settings.ERROR_RESPONSE_CLASS)
+        errors_response_class = (
+            str_to_class(self.errors_response_class) if isinstance(self.errors_response_class, str)
+            else self.errors_response_class
+        )
+        error_response_class = (
+            str_to_class(self.error_response_class) if isinstance(self.error_response_class, str)
+            else self.error_response_class
+        )
         return (
             (MimerDataException, ResponseErrorFactory(_('Bad Request'), 400, error_response_class)),
             (NotAllowedException, ResponseErrorFactory(_('Forbidden'), 403, error_response_class)),
@@ -351,7 +370,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
     def _get_converter(self):
         try:
-            return get_converter_from_request(self.request)
+            return get_converter_from_request(self.request, self.converters)
         except ValueError:
             raise UnsupportedMediaTypeException
 
@@ -371,7 +390,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
         if rm in {'POST', 'PUT', 'PATCH'}:
             try:
-                converter = get_converter_from_request(self.request, True)
+                converter = get_converter_from_request(self.request, self.converters, True)
                 self.request.data = self.serializer(self).deserialize(converter.decode(force_text(self.request.body)))
             except (TypeError, ValueError):
                 raise MimerDataException
@@ -471,7 +490,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         return 'resource'
 
     def _get_filename(self):
-        return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request))
+        return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request, self.converters))
 
     def _get_allow_header(self):
         return ','.join((method.upper() for method in self.get_allowed_methods()))
@@ -702,7 +721,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _serialize(self, os, result, status_code, http_headers):
         try:
-            converter = get_converter_from_request(self.request)
+            converter = get_converter_from_request(self.request, self.converters)
             http_headers['Content-Type'] = converter.content_type
 
             converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
