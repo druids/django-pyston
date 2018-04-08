@@ -67,6 +67,8 @@ Converters can be configured inside django settings file with attribute ``PYSTON
         'pyston.converters.PDFConverter', # only if xhtml2pdf library is installed
     )
 
+Converters can be changed in concrete REST resource class with parameter ``converter_classes``. There can be converter defined as a path to the converter in the string format or as an class.
+
 All converters is defined inside following list with its description:
 
  * ``pyston.converters.JSONConverter`` - full converter that serialize/deserialize data to/from JSON format.

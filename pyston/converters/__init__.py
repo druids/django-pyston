@@ -20,38 +20,34 @@ from pyston.conf import settings
 from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator, TXTGenerator
 
 
-converters = OrderedDict()
-
-
 def is_collection(data):
     return isinstance(data, (list, tuple, set, types.GeneratorType))
 
 
-def register_converters():
+def get_default_converters():
     """
     Register all converters from settings configuration.
     """
+    converters = OrderedDict()
     for converter_class_path in settings.CONVERTERS:
         converter_class = import_string(converter_class_path)()
         converters[converter_class.format] = converter_class
+    return converters
 
 
-def get_default_converter_name():
+def get_default_converter_name(converters=None):
     """
     Gets default converter name
     """
-    if not converters:
-        register_converters()
-
+    converters = get_default_converters() if converters is None else converters
     return list(converters.keys())[0]
 
 
-def get_converter(result_format):
+def get_converter(result_format, converters=None):
     """
     Gets an converter, returns the class and a content-type.
     """
-    if not converters:
-        register_converters()
+    converters = get_default_converters() if converters is None else converters
 
     if result_format in converters:
         return converters.get(result_format)
@@ -59,14 +55,11 @@ def get_converter(result_format):
         raise ValueError('No converter found for type {}'.format(result_format))
 
 
-def get_converter_name_from_request(request, input_serialization=False):
+def get_converter_name_from_request(request, converters=None, input_serialization=False):
     """
     Function for determining which converter name to use
     for output.
     """
-    if not converters:
-        register_converters()
-
     try:
         import mimeparse
     except ImportError:
@@ -76,7 +69,9 @@ def get_converter_name_from_request(request, input_serialization=False):
     if input_serialization:
         context_key = 'content_type'
 
-    default_converter_name = get_default_converter_name()
+    converters = get_default_converters() if converters is None else converters
+
+    default_converter_name = get_default_converter_name(converters)
 
     if mimeparse and context_key in request._rest_context:
         supported_mime_types = set()
@@ -99,16 +94,16 @@ def get_converter_name_from_request(request, input_serialization=False):
     return default_converter_name
 
 
-def get_converter_from_request(request, input_serialization=False):
+def get_converter_from_request(request, converters=None, input_serialization=False):
     """
     Function for determining which converter name to use
     for output.
     """
 
-    return get_converter(get_converter_name_from_request(request, input_serialization))
+    return get_converter(get_converter_name_from_request(request, converters, input_serialization), converters)
 
 
-def get_supported_mime_types():
+def get_supported_mime_types(converters):
     return [converter.media_type for _, converter in converters.items()]
 
 

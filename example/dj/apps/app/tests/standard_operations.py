@@ -54,7 +54,7 @@ class StandardOperationsTestCase(PystonTestCase):
         pk = self.get_pk(resp)
 
         assert_valid_JSON_response(self.put('{}{}/'.format(self.USER_API_URL, pk),
-                                                 data={'email': 'valid@email.cz'}))
+                                            data={'email': 'valid@email.cz'}))
 
         assert_http_bad_request(
             self.put('{}{}/'.format(self.USER_API_URL, pk), data={'email': 'invalid_email'})
@@ -250,6 +250,15 @@ class StandardOperationsTestCase(PystonTestCase):
                             headers={'HTTP_ACCEPT': accept_type})
             assert_true(accept_type in resp['Content-Type'])
             assert_http_not_found(resp)
+
+    @data_provider('get_issues_data')
+    def test_issue_resource_should_support_only_xml_and_json_converters(self, number, data):
+        for accept_type in self.ACCEPT_TYPES:
+            resp = self.get('%s?_accept=%s' % (self.ISSUE_API_URL, accept_type))
+            if accept_type in self.ACCEPT_TYPES[:2]:
+                assert_in(accept_type, resp['Content-Type'])
+            else:
+                assert_in(self.ACCEPT_TYPES[0], resp['Content-Type'])
 
     @data_provider('get_users_data')
     def test_head_requests(self, number, data):

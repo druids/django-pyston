@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django import forms
 from django.db.models import F, Q
 
+from pyston.converters import XMLConverter
 from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
 from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
@@ -34,6 +35,10 @@ class IssueResource(BaseModelResource):
     general_fields = ('id', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'watched_by',
                       'short_description')
 
+    converter_classes = (
+        'pyston.converters.JSONConverter',
+        XMLConverter,
+    )
     create_obj_permission = True
     read_obj_permission = True
     update_obj_permission = True
