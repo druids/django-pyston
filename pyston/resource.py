@@ -80,10 +80,12 @@ class ResourceMetaClass(type):
 
         if not abstract:
             converters = OrderedDict()
-            for converter_class in new_cls.converter_classes:
-                converters[converter_class.format] = (
-                    import_string(converter_class) if isinstance(converter_class, str) else converter_class
-                )()
+            for converter_class_path in new_cls.converter_classes:
+                converter_class = (
+                    import_string(converter_class_path) if isinstance(converter_class_path, str)
+                    else converter_class_path
+                )
+                converters[converter_class.format] = converter_class()
             new_cls.converters = converters
         return new_cls
 
