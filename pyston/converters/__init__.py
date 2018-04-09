@@ -351,6 +351,7 @@ class TXTConverter(GeneratorConverter):
     generator_class = TXTGenerator
     media_type = 'plain/text'
     format = 'txt'
+    allow_tags = True
 
 
 class HTMLConverter(Converter):
