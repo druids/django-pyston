@@ -1,7 +1,10 @@
-from django.utils.translation import ugettext
 from django.utils.encoding import force_text
+from django.utils.translation import ugettext
 
-from .forms import RESTDictError, RESTDictIndexError, RESTListError, RESTValidationError
+from chamber.exceptions import PersistenceException
+
+from .exception import DataInvalidException
+from .forms import (RESTDictError, RESTDictIndexError, RESTListError, RESTValidationError)
 
 
 class HeadersResponse:
@@ -116,6 +119,10 @@ class ResponseErrorFactory(ResponseFactory):
 class ResponseExceptionFactory(ResponseFactory):
 
     def get_response_kwargs(self, exception):
+        if isinstance(exception, DataInvalidException) or isinstance(exception, PersistenceException):
+            msg = exception.message
+        else:
+            msg = exception
         return {
-            'msg': exception.message,
+                'msg': msg
         }
