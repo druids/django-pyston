@@ -42,6 +42,8 @@ DEFAULTS = {
     'CORS_WHITELIST': (),
     'CORS_MAX_AGE': 60 * 30,
     'CORS_ALLOW_CREDENTIALS': True,
+    'CORS_ALLOWED_HEADERS': ('X-Base', 'X-Offset', 'X-Fields', 'Origin', 'Content-Type', 'Accept'),
+    'CORS_ALLOWED_EXPOSED_HEADERS': ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options'),
     'JSON_CONVERTER_OPTIONS': {
         'indent': 4
     },

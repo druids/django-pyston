@@ -94,15 +94,18 @@ class PermissionsResourceMixin:
 
     allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
 
+    def get_allowed_methods(self):
+        return set(self.allowed_methods)
+
     def _get_via(self, via=None):
         via = list(via) if via is not None else []
         via.append(self)
         return via
 
-    def get_allowed_methods(self, restricted_methods=None, **kwargs):
+    def check_permissions_and_get_allowed_methods(self, restricted_methods=None, **kwargs):
         allowed_methods = []
 
-        tested_methods = set(self.allowed_methods)
+        tested_methods = self.get_allowed_methods()
         if restricted_methods is not None:
             tested_methods = tested_methods.intersection(restricted_methods)
 
@@ -147,25 +150,25 @@ class PermissionsResourceMixin:
         raise AttributeError('%r object has no attribute %r' % (self.__class__, name))
 
     def has_get_permission(self, **kwargs):
-        return 'get' in self.allowed_methods and hasattr(self, 'get')
+        return 'get' in self.get_allowed_methods() and hasattr(self, 'get')
 
     def has_post_permission(self, **kwargs):
-        return 'post' in self.allowed_methods and hasattr(self, 'post')
+        return 'post' in self.get_allowed_methods() and hasattr(self, 'post')
 
     def has_put_permission(self, **kwargs):
-        return 'put' in self.allowed_methods and hasattr(self, 'put')
+        return 'put' in self.get_allowed_methods() and hasattr(self, 'put')
 
     def has_patch_permission(self, **kwargs):
-        return 'patch' in self.allowed_methods and hasattr(self, 'patch')
+        return 'patch' in self.get_allowed_methods() and hasattr(self, 'patch')
 
     def has_delete_permission(self, **kwargs):
-        return 'delete' in self.allowed_methods and hasattr(self, 'delete')
+        return 'delete' in self.get_allowed_methods() and hasattr(self, 'delete')
 
     def has_head_permission(self, **kwargs):
-        return 'head' in self.allowed_methods and (hasattr(self, 'head') or self.has_get_permission(**kwargs))
+        return 'head' in self.get_allowed_methods() and (hasattr(self, 'head') or self.has_get_permission(**kwargs))
 
     def has_options_permission(self, **kwargs):
-        return 'options' in self.allowed_methods and hasattr(self, 'options')
+        return 'options' in self.get_allowed_methods() and hasattr(self, 'options')
 
 
 class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
@@ -265,6 +268,12 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         self.args = []
         self.kwargs = {}
 
+    def get_allowed_methods(self):
+        allowed_methods = super().get_allowed_methods()
+        if self.is_allowed_cors:
+            allowed_methods.add('options')
+        return allowed_methods
+
     @property
     def exception_responses(self):
         errors_response_class = (
@@ -330,10 +339,10 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         return self.get()
 
     def _get_cors_allowed_headers(self):
-        return ('X-Base', 'X-Offset', 'X-Fields', 'origin', 'content-type', 'accept')
+        return settings.CORS_ALLOWED_HEADERS
 
     def _get_cors_allowed_exposed_headers(self):
-        return ('X-Total', 'X-Serialization-Format-Options', 'X-Fields-Options')
+        return settings.CORS_ALLOWED_EXPOSED_HEADERS
 
     def _cors_is_origin_allowed(self, origin):
         if not origin:
@@ -415,7 +424,8 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
             rm = self.request.method.lower()
             meth = getattr(self, rm, None)
-            if not meth or rm not in self.allowed_methods:
+
+            if not meth or rm not in self.get_allowed_methods():
                 raise NotAllowedMethodException
             else:
                 self._check_permission(rm)
@@ -495,7 +505,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request, self.converters))
 
     def _get_allow_header(self):
-        return ','.join((method.upper() for method in self.get_allowed_methods()))
+        return ','.join((method.upper() for method in self.check_permissions_and_get_allowed_methods()))
 
     def _get_headers(self, default_http_headers):
         origin = self.request.META.get('HTTP_ORIGIN')
@@ -532,6 +542,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
                 self.allowed_methods = set(allowed_methods) & set(cls.allowed_methods)
             else:
                 self.allowed_methods = set(cls.allowed_methods)
+
             return self.dispatch(request, *args, **kwargs)
         view.csrf_exempt = cls.csrf_exempt
 
@@ -762,7 +773,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         return ','.join(self.get_allowed_fields_rfs(self._get_obj_or_none()).flat())
 
     def _get_allow_header(self):
-        return ','.join((method.upper() for method in self.get_allowed_methods(obj=self._get_obj_or_none())))
+        return ','.join((
+            method.upper() for method in self.check_permissions_and_get_allowed_methods(obj=self._get_obj_or_none())
+        ))
 
     def _get_headers(self, default_http_headers):
         http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
