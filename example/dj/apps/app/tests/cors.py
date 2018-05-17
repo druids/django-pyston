@@ -107,11 +107,11 @@ class CorsTestCase(PystonTestCase):
     def test_cors_allow_headers(self, number, data):
         resp = self.options(self.USER_API_URL, headers={'HTTP_ORIGIN': FOO_DOMAIN})
         assert_equal(resp[ACCESS_CONTROL_ALLOW_HEADERS],
-                          ', '.join(('X-Base', 'X-Offset', 'X-Fields', 'origin', 'content-type', 'accept')))
+                          ', '.join(('X-Base', 'X-Offset', 'X-Fields', 'Origin', 'Content-Type', 'Accept')))
 
         resp = self.options(self.USER_API_URL, headers={'HTTP_ORIGIN': BAR_DOMAIN})
         assert_equal(resp[ACCESS_CONTROL_ALLOW_HEADERS],
-                          ', '.join(('X-Base', 'X-Offset', 'X-Fields', 'origin', 'content-type', 'accept')))
+                          ', '.join(('X-Base', 'X-Offset', 'X-Fields', 'Origin', 'Content-Type', 'Accept')))
 
         resp = self.options(self.USER_API_URL)
         assert_false(ACCESS_CONTROL_ALLOW_HEADERS in resp)
