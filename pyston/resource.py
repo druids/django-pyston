@@ -208,12 +208,6 @@ class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
             self.has_delete_obj_permission(**kwargs)
         )
 
-    def has_options_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_options_permission(**kwargs) and
-            self.has_read_obj_permission(**kwargs)
-        )
-
     def has_read_obj_permission(self, obj=None, via=None):
         return self.read_obj_permission
 
