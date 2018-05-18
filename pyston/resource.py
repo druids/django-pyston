@@ -33,11 +33,14 @@ from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentRespon
                        ResponseExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
-                        UnsupportedMediaTypeException, MimerDataException)
+                        UnsupportedMediaTypeException, MimerDataException, UnauthorizedException)
 from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
-from .serializer import ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, get_resource_or_none
+from .serializer import (
+    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer,
+    get_resource_or_none
+)
 from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
 from .filters.managers import MultipleFilterManager
 from .order.managers import DefaultModelOrderManager
@@ -113,7 +116,7 @@ class PermissionsResourceMixin:
             try:
                 self._check_permission(method, **kwargs)
                 allowed_methods.append(method)
-            except (NotImplementedError, NotAllowedException):
+            except (NotImplementedError, NotAllowedException, UnauthorizedException):
                 pass
         return allowed_methods
 
@@ -280,6 +283,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         )
         return (
             (MimerDataException, ResponseErrorFactory(_('Bad Request'), 400, error_response_class)),
+            (UnauthorizedException, ResponseErrorFactory(_('Unauthorized'), 401, error_response_class)),
             (NotAllowedException, ResponseErrorFactory(_('Forbidden'), 403, error_response_class)),
             (UnsupportedMediaTypeException, ResponseErrorFactory(_('Unsupported Media Type'), 415,
                                                                  error_response_class)),

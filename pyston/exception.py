@@ -35,6 +35,10 @@ class NotAllowedException(RESTException):
     message = _('Not allowed.')
 
 
+class UnauthorizedException(RESTException):
+    message = _('Unauthorized.')
+
+
 class NotAllowedMethodException(RESTException):
     message = _('Not allowed method.')
 
