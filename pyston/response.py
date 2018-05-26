@@ -47,7 +47,7 @@ class RESTNoContentResponse(NoFieldsetResponse):
 
     def __init__(self, http_headers=None, code=204):
         http_headers = {} if http_headers is None else http_headers
-        super(RESTNoContentResponse, self).__init__(result='', http_headers=http_headers, code=code)
+        super(RESTNoContentResponse, self).__init__(result=None, http_headers=http_headers, code=code)
 
 
 class RESTErrorsResponseMixin:
