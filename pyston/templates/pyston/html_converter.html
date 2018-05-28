@@ -124,7 +124,7 @@
     </style>
   </head>
   <div class="container">
-    <h1>API {{ resource.get_name|title }}</h1>
+    <h1>API {{ name|title }}</h1>
     <div class="row">
       {% if permissions.get %}<button type="button" class="btn btn-primary get-btn">GET</button>{% endif %}
       {% if permissions.options %}<button type="button" class="btn btn-primary options-btn">OPTIONS</button>{% endif %}

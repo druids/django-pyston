@@ -15,7 +15,6 @@ from django.db.models.base import Model
 from django.db.models.query import QuerySet
 from django.db.models.fields import DateTimeField
 from django.http.response import Http404
-from django.forms.models import modelform_factory
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import ugettext_lazy as _
 from django.utils.module_loading import import_string
@@ -38,13 +37,11 @@ from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
 from .serializer import (
-    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer,
-    get_resource_or_none
+    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer
 )
-from .converters import get_converter_name_from_request, get_converter_from_request, get_converter
+from .converters import get_converter_name_from_request, get_converter_from_request
 from .filters.managers import MultipleFilterManager
 from .order.managers import DefaultModelOrderManager
-from .utils.helpers import get_field_or_none, serialized_data_to_python
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -120,7 +117,9 @@ class PermissionsResourceMixin:
                 pass
         return allowed_methods
 
-    def _check_permission(self, name, *args, **kwargs):
+    def _check_permission(self, name=None, *args, **kwargs):
+        name = name or self.request.method.lower()
+
         if not hasattr(self, 'has_{}_permission'.format(name)):
             if django_settings.DEBUG:
                 raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
@@ -130,7 +129,9 @@ class PermissionsResourceMixin:
         if not getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs):
             raise NotAllowedException
 
-    def _check_call(self, name, *args, **kwargs):
+    def _check_call(self, name=None, *args, **kwargs):
+        name = name or self.request.method.lower()
+
         if not hasattr(self, 'has_{}_permission'.format(name)):
             if django_settings.DEBUG:
                 raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
@@ -496,11 +497,11 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
             self._store_to_cache(response)
             return response
 
-    def get_name(self):
+    def _get_name(self):
         return 'resource'
 
     def _get_filename(self):
-        return '{}.{}'.format(self.get_name(), get_converter_name_from_request(self.request, self.converters))
+        return '{}.{}'.format(self._get_name(), get_converter_name_from_request(self.request, self.converters))
 
     def _get_allow_header(self):
         return ','.join((method.upper() for method in self.check_permissions_and_get_allowed_methods()))
@@ -509,13 +510,15 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         origin = self.request.META.get('HTTP_ORIGIN')
 
         http_headers = default_http_headers.copy()
-        http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
         http_headers['Cache-Control'] = 'private, no-cache, no-store, max-age=0'
         http_headers['Pragma'] = 'no-cache'
         http_headers['Expires'] = '0'
-        http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
-        http_headers['Allow'] = self._get_allow_header()
         http_headers['Vary'] = 'Accept'
+
+        if self._check_call():
+            http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
+            http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
+            http_headers['Allow'] = self._get_allow_header()
 
         if self.is_allowed_cors:
             if origin and self._cors_is_origin_allowed(origin):
@@ -777,7 +780,8 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _get_headers(self, default_http_headers):
         http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
-        http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
+        if self._check_call():
+            http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
         return http_headers
 
     def _get_queryset(self):
@@ -1054,7 +1058,7 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def _get_form_class(self, inst):
         return self.form_class
 
-    def get_name(self):
+    def _get_name(self):
         return force_text(remove_accent(force_text(self.model._meta.verbose_name_plural)))
 
     def formfield_for_dbfield(self, db_field, **kwargs):
