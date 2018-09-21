@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django import forms
 from django.db.models import F, Q
 
@@ -39,10 +37,10 @@ class IssueResource(BaseModelResource):
         'pyston.converters.JSONConverter',
         XMLConverter,
     )
-    create_obj_permission = True
-    read_obj_permission = True
-    update_obj_permission = True
-    delete_obj_permission = True
+    can_create_obj = True
+    can_read_obj = True
+    can_update_obj = True
+    can_delete_obj = True
 
 
 class UserResource(BaseModelResource):
@@ -59,10 +57,10 @@ class UserResource(BaseModelResource):
         'manual_created_date': 'manualCreatedDate',
         'watched_issues_count': 'watchedIssuesCount',
     }
-    create_obj_permission = True
-    read_obj_permission = True
-    update_obj_permission = True
-    delete_obj_permission = True
+    can_create_obj = True
+    can_read_obj = True
+    can_update_obj = True
+    can_delete_obj = True
     extra_order_fields = ()
     extra_filter_fields = ()
     filters = {
@@ -102,7 +100,7 @@ class TestTextObjectCamelCaseResource(BaseObjectResource):
     model = TestTextObject
     register = True
 
-    read_obj_permission = True
+    can_read_obj = True
 
     DATA_KEY_MAPPING = {
         'fiz_baz': 'fizBaz',
@@ -146,10 +144,10 @@ class UserWithFormResource(BaseModelResource):
     register = False
     model = User
     form_class = UserForm
-    create_obj_permission = True
-    read_obj_permission = True
-    update_obj_permission = True
-    delete_obj_permission = True
+    can_create_obj = True
+    can_read_obj = True
+    can_update_obj = True
+    can_delete_obj = True
 
 
 class IssueForm(RESTModelForm):
@@ -166,7 +164,7 @@ class IssueWithFormResource(BaseModelResource):
     register = False
     model = Issue
     form_class = IssueForm
-    create_obj_permission = True
-    read_obj_permission = True
-    update_obj_permission = True
-    delete_obj_permission = True
+    can_create_obj = True
+    can_read_obj = True
+    can_update_obj = True
+    can_delete_obj = True

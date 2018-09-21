@@ -1,9 +1,6 @@
-from __future__ import unicode_literals
-
 from django.db import models
 from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import python_2_unicode_compatible
 
 from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags, sorter_class
 from pyston.filters.default_filters import (
@@ -35,7 +32,6 @@ class WatchedIssuesCountSorter(ExtraSorter):
         return qs.annotate(**{self.order_string: Count('watched_issues')})
 
 
-@python_2_unicode_compatible
 class User(models.Model):
 
     created_at = models.DateTimeField(verbose_name=_('created at'), null=False, blank=False, auto_now_add=True)
@@ -70,7 +66,6 @@ class User(models.Model):
         extra_filter_fields = ('created_at',)
 
 
-@python_2_unicode_compatible
 class Issue(models.Model):
 
     created_at = models.DateTimeField(verbose_name=_('created at'), null=False, blank=False, auto_now_add=True)

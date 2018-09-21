@@ -129,7 +129,7 @@ class PermissionsResourceMixin:
         if not getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs):
             raise NotAllowedException
 
-    def _check_call(self, name=None, *args, **kwargs):
+    def has_permission(self, name=None, *args, **kwargs):
         name = name or self.request.method.lower()
 
         if not hasattr(self, 'has_{}_permission'.format(name)):
@@ -141,17 +141,6 @@ class PermissionsResourceMixin:
             return getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs)
         except Http404:
             return False
-
-    def __getattr__(self, name):
-        for regex, method in (
-                (r'_check_(\w+)_permission', self._check_permission),
-                (r'can_call_(\w+)', self._check_call)):
-            m = re.match(regex, name)
-            if m:
-                def _call(*args, **kwargs):
-                    return method(m.group(1), *args, **kwargs)
-                return _call
-        raise AttributeError('%r object has no attribute %r' % (self.__class__, name))
 
     def has_get_permission(self, **kwargs):
         return 'get' in self.get_allowed_methods() and hasattr(self, 'get')
@@ -177,52 +166,22 @@ class PermissionsResourceMixin:
 
 class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
 
-    read_obj_permission = False
-    create_obj_permission = False
-    update_obj_permission = False
-    delete_obj_permission = False
-
-    def has_get_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_get_permission(**kwargs) and
-            self.has_read_obj_permission(**kwargs)
-        )
-
-    def has_post_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_post_permission(**kwargs) and
-            self.has_create_obj_permission(**kwargs)
-        )
-
-    def has_put_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_put_permission(**kwargs) and
-            self.has_update_obj_permission(**kwargs)
-        )
-
-    def has_patch_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_patch_permission(**kwargs) and
-            self.has_update_obj_permission(**kwargs)
-        )
-
-    def has_delete_permission(self, **kwargs):
-        return (
-            super(ObjectPermissionsResourceMixin, self).has_delete_permission(**kwargs) and
-            self.has_delete_obj_permission(**kwargs)
-        )
-
-    def has_read_obj_permission(self, obj=None, via=None):
-        return self.read_obj_permission
+    can_create_obj = False
+    can_read_obj = False
+    can_update_obj = False
+    can_delete_obj = False
 
     def has_create_obj_permission(self, obj=None, via=None):
-        return self.create_obj_permission
+        return self.can_create_obj
+
+    def has_read_obj_permission(self, obj=None, via=None):
+        return self.can_read_obj
 
     def has_update_obj_permission(self, obj=None, via=None):
-        return self.update_obj_permission
+        return self.can_update_obj
 
     def has_delete_obj_permission(self, obj=None, via=None):
-        return self.delete_obj_permission
+        return self.can_delete_obj
 
 
 class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
@@ -515,7 +474,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         http_headers['Expires'] = '0'
         http_headers['Vary'] = 'Accept'
 
-        if self._check_call():
+        if self.has_permission():
             http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
             http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
             http_headers['Allow'] = self._get_allow_header()
@@ -780,7 +739,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _get_headers(self, default_http_headers):
         http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
-        if self._check_call():
+        if self.has_permission():
             http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
         return http_headers
 
@@ -874,7 +833,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def delete_obj_with_pk(self, pk, via=None):
         via = via or []
         obj = self._get_obj_or_404(pk)
-        self._check_delete_obj_permission(obj=obj, via=via)
+        self._check_permission('delete_obj', obj=obj, via=via)
         self._pre_delete_obj(obj)
         self._delete_obj(obj)
         self._post_delete_obj(obj)
@@ -927,9 +886,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
 
     def _can_save_obj(self, change, obj, form, via):
         if change and (not via or form.has_changed()):
-            self._check_update_obj_permission(obj=obj, via=via)
+            self._check_permission('update_obj', obj=obj, via=via)
         elif not change:
-            self._check_create_obj_permission(obj=obj, via=via)
+            self._check_permission('create_obj', obj=obj, via=via)
 
         return not change or self.has_update_obj_permission(obj=obj, via=via)
 
