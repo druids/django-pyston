@@ -4,11 +4,13 @@ import copy
 from collections import OrderedDict
 
 from django import forms
+from django.contrib.postgres.utils import prefix_validation_error
+from django.contrib.postgres.forms.array import SimpleArrayField
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError, ImproperlyConfigured
-from django.utils.translation import ugettext
-from django.utils.encoding import force_text, force_str
 from django.http.response import Http404
 from django.forms.models import ModelFormMetaclass, modelform_factory
+from django.utils.translation import ugettext
+from django.utils.encoding import force_text, force_str
 
 from chamber.shortcuts import get_object_or_none
 from chamber.utils.decorators import classproperty
@@ -520,6 +522,41 @@ class ISODateTimeField(forms.DateTimeField):
 
     def strptime(self, value, format):
         return parser.parse(force_str(value))
+
+
+class RESTSimpleArrayField(SimpleArrayField):
+    """
+    Django array form field doesn't accept list. Therefore we must rewrite to_python method
+    """
+
+    def to_python(self, value):
+        if value is None:
+            return None
+
+        if isinstance(value, list):
+            errors = []
+            values = []
+            for index, item in enumerate(value):
+                try:
+                    values.append(self.base_field.to_python(item))
+                except ValidationError as error:
+                    errors.append(prefix_validation_error(
+                        error,
+                        prefix=self.error_messages['item_invalid'],
+                        code='item_invalid',
+                        params={'nth': index},
+                    ))
+            if errors:
+                raise ValidationError(errors)
+        else:
+            raise ValidationError(ugettext('Enter a list.'))
+        return values
+
+    def clean(self, value):
+        if value is None:
+            return value
+        else:
+            return super().clean(value)
 
 
 class RESTFormMixin:
