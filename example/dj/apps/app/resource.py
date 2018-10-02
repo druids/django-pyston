@@ -6,7 +6,8 @@ from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
 from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
 from pyston.forms import (
-    RESTModelForm, ReverseOneToOneField, ReverseManyField, RESTValidationError, SingleRelatedField, MultipleRelatedField
+    RESTModelForm, ReverseOneToOneField, ReverseManyField, RESTValidationError, SingleRelatedField,
+    MultipleRelatedField, RESTSimpleArrayField
 )
 from pyston.filters.default_filters import SimpleEqualFilter, BooleanFilterMixin
 
@@ -157,6 +158,19 @@ class IssueForm(RESTModelForm):
     another_users = MultipleRelatedField('watched_by', form_field=forms.ModelMultipleChoiceField(
         queryset=User.objects.all(), required=False
     ))
+    tags_list = RESTSimpleArrayField(label='tags', base_field=forms.CharField(max_length=5), required=False)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        tags_list = self.cleaned_data.get('tags_list')
+        if tags_list:
+            instance.tags = '|'.join(tags_list)
+        if commit:
+            instance.save()
+        return instance
+
+    class Meta:
+        exclude = ('tags',)
 
 
 class IssueWithFormResource(BaseModelResource):
