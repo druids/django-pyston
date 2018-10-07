@@ -431,7 +431,7 @@ class HTMLConverter(Converter):
 
         http_headers = self._update_headers(http_headers, resource, converter)
         obj = (
-            resource._get_obj_or_none() if isinstance(resource, BaseObjectResource) and resource._check_call()
+            resource._get_obj_or_none() if isinstance(resource, BaseObjectResource) and resource.has_permission()
             else None
         )
 
@@ -448,7 +448,7 @@ class HTMLConverter(Converter):
             'permissions': self._get_permissions(resource, obj),
             'forms': self._get_forms(resource, obj),
             'output': data_stream.get_string_value(),
-            'name': resource._get_name() if resource._check_call() else '401'
+            'name': resource._get_name() if resource.has_permission() else '401'
         })
 
         # All responses has set 200 response code, because response can return status code without content (204) and
