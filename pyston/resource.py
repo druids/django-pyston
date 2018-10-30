@@ -280,7 +280,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     def update_deserialized_data(self, data):
         return (
             {self._demap_key(k): v for k, v in data.items() if k not in self.DATA_KEY_MAPPING}
-            if isinstance(data,dict) else {}
+            if isinstance(data, dict) else {}
         )
 
     def get_dict_data(self):
@@ -317,7 +317,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
                 return origin
 
     def _is_cors_options_request(self):
-        return self.is_allowed_cors and self.request.META.get('HTTP_ORIGIN')
+        return (
+            self.is_allowed_cors and self.request.method.upper() == 'OPTIONS' and self.request.META.get('HTTP_ORIGIN')
+        )
 
     def options(self):
         if self._is_cors_options_request():
@@ -646,39 +648,39 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
     model = None
 
     def get_detailed_fields(self, obj=None):
-        detailed_fields = super(DefaultRESTModelResource, self).get_detailed_fields(obj=obj)
+        detailed_fields = super().get_detailed_fields(obj=obj)
         return list(self.model._rest_meta.detailed_fields) if detailed_fields is None else detailed_fields
 
     def get_general_fields(self, obj=None):
-        general_fields = super(DefaultRESTModelResource, self).get_general_fields(obj=obj)
+        general_fields = super().get_general_fields(obj=obj)
         return list(self.model._rest_meta.general_fields) if general_fields is None else general_fields
 
     def get_guest_fields(self, obj=None):
-        guest_fields = super(DefaultRESTModelResource, self).get_guest_fields(obj=obj)
+        guest_fields = super().get_guest_fields(obj=obj)
         return list(self.model._rest_meta.guest_fields) if guest_fields is None else guest_fields
 
     def get_extra_fields(self, obj=None):
-        extra_fields = super(DefaultRESTModelResource, self).get_extra_fields(obj=obj)
+        extra_fields = super().get_extra_fields(obj=obj)
         return list(self.model._rest_meta.extra_fields) if extra_fields is None else extra_fields
 
     def get_default_fields(self, obj=None):
-        default_fields = super(DefaultRESTModelResource, self).get_default_fields(obj=obj)
+        default_fields = super().get_default_fields(obj=obj)
         return list(self.model._rest_meta.default_fields) if default_fields is None else default_fields
 
     def get_extra_filter_fields(self):
-        extra_filter_fields = super(DefaultRESTModelResource, self).get_extra_filter_fields()
+        extra_filter_fields = super().get_extra_filter_fields()
         return list(self.model._rest_meta.extra_filter_fields) if extra_filter_fields is None else extra_filter_fields
 
     def get_filter_fields(self):
-        filter_fields = super(DefaultRESTModelResource, self).get_filter_fields()
+        filter_fields = super().get_filter_fields()
         return self.model._rest_meta.filter_fields if filter_fields is None else filter_fields
 
     def get_extra_order_fields(self):
-        extra_order_fields = super(DefaultRESTModelResource, self).get_extra_order_fields()
+        extra_order_fields = super().get_extra_order_fields()
         return list(self.model._rest_meta.extra_order_fields) if extra_order_fields is None else extra_order_fields
 
     def get_order_fields(self):
-        order_fields = super(DefaultRESTModelResource, self).get_order_fields()
+        order_fields = super().get_order_fields()
         return self.model._rest_meta.order_fields if order_fields is None else order_fields
 
 
