@@ -1,5 +1,7 @@
 from itertools import chain
 
+from django.db.models import F
+
 from pyston.utils import rfs, LOOKUP_SEP
 
 from .utils import DIRECTION
@@ -18,11 +20,11 @@ class DefaultSorter:
     def _get_order_string(self):
         return LOOKUP_SEP.join(self.identifiers)
 
-    def get_full_order_string(self):
-        return '{direction}{order_string}'.format(
-            direction='-' if self.direction == DIRECTION.DESC else '',
-            order_string=self.order_string
-        )
+    def get_order_term(self):
+        if self.direction == DIRECTION.DESC:
+            return F(self.order_string).desc(nulls_last=True)
+        else:
+            return F(self.order_string).asc(nulls_first=True)
 
 
 class ExtraSorter(DefaultSorter):

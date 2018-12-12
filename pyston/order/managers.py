@@ -174,7 +174,7 @@ class ParserModelOrderManager(ModelOrderManager):
         """
         Converts sorters to the django query order strings.
         """
-        return [sorter.get_full_order_string() for sorter in sorters]
+        return [sorter.get_order_term() for sorter in sorters]
 
     def _update_queryset(self, qs, sorters):
         """
