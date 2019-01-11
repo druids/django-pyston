@@ -92,17 +92,18 @@ runserver:
 	$(PYTHON_BIN)/python manage.py runserver --insecure $(DJANGO_POSTFIX)
 
 schemamigration:
-ifeq ($(force), 1)
-	-rm -rf "dj/apps/$(app)/migrations"
-	$(PYTHON_BIN)/python manage.py schemamigration $(app) --initial $(DJANGO_POSTFIX)	
-else ifneq ($(wildcard dj/apps/$(app)/migrations/0001_*),)
-	$(PYTHON_BIN)/python manage.py schemamigration $(app) --auto $(DJANGO_POSTFIX)
+ifdef name
+	$(PYTHON_BIN)/python manage.py makemigrations $(app) --name $(name) $(DJANGO_POSTFIX)
 else
-	$(PYTHON_BIN)/python manage.py schemamigration $(app) --initial $(DJANGO_POSTFIX)
+	$(PYTHON_BIN)/python manage.py makemigrations $(app) $(DJANGO_POSTFIX)
 endif
 
 datamigration:
-	$(PYTHON_BIN)/python manage.py datamigration $(app) $(name) $(DJANGO_POSTFIX)
+ifdef name
+	$(PYTHON_BIN)/python manage.py makemigrations $(app) --empty --name $(name) $(DJANGO_POSTFIX)
+else
+	$(PYTHON_BIN)/python manage.py makemigrations $(app) --empty $(DJANGO_POSTFIX)
+endif
 
 install: cleanvar bootstrap initlog linklibrary initdb syncdb initdata initenv
 

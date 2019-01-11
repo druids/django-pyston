@@ -81,6 +81,7 @@ class Issue(models.Model):
     description = models.TextField(verbose_name=_('description'), null=True, blank=True)
     logged_minutes = models.IntegerField(verbose_name=_('logged minutes'), null=True, blank=True)
     estimate_minutes = models.IntegerField(verbose_name=_('logged minutes'), null=True, blank=True)
+    tags = models.TextField(verbose_name=_('tags'), null=True, blank=True)
 
     @filter_by('description')
     @order_by('description')

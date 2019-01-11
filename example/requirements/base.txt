@@ -13,3 +13,4 @@ factory-boy==2.8.1
 responses==0.5.1
 pyparsing==2.2.0
 pytz==2017.2
+psycopg2==2.7.5

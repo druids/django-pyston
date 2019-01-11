@@ -19,7 +19,7 @@ from .test_case import PystonTestCase
 from app.models import User, Issue
 
 
-class DataProcessorsTestCase(PystonTestCase):
+class FieldsTestCase(PystonTestCase):
 
     @data_provider('get_users_data')
     def test_create_user_with_file(self, number, data):
@@ -521,3 +521,25 @@ class DataProcessorsTestCase(PystonTestCase):
         resp = self.post(self.USER_API_URL, data=data)
         assert_valid_JSON_created_response(resp)
         assert_in('.csv', self.deserialize(resp)['contract']['filename'])
+
+    def test_create_issue_should_tags_be_parsed_as_a_list(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        issue_data['tags_list'] = ['taga', 'tagb']
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+
+        assert_valid_JSON_created_response(resp)
+        assert_equal(Issue.objects.last().tags, 'taga|tagb')
+
+    def test_create_issue_should_tags_with_invalid_value_should_not_be_accepted(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        issue_data['tags_list'] = 'invalid'
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
+
+        issue_data['tags_list'] = ['too long tag']
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
