@@ -27,7 +27,7 @@ from chamber.utils import remove_accent
 from chamber.utils import transaction
 
 from .conf import settings
-from .paginator import Paginator
+from .paginator import BaseOffsetPaginator
 from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
                        ResponseExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
@@ -201,7 +201,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     abstract = True
     csrf_exempt = True
     cache = None
-    paginator = Paginator
+    paginator = BaseOffsetPaginator
     resource_typemapper = {}
     converter_classes = settings.CONVERTERS
     errors_response_class = settings.ERRORS_RESPONSE_CLASS

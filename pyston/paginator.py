@@ -15,7 +15,7 @@ class BasePaginator:
         return {}
 
 
-class Paginator(BasePaginator):
+class BaseOffsetPaginator(BasePaginator):
     """
     REST paginator for list and querysets
     """
@@ -27,6 +27,14 @@ class Paginator(BasePaginator):
         self.offset = self._get_offset(request)
         self.base = self._get_base(request)
         self.total = self._get_total()
+        self.next_offset = self._get_next_offset()
+        self.prev_offset = self._get_prev_offset()
+
+    def _get_next_offset(self):
+        return self.offset + self.base if self.base and self.offset + self.base < self.total else None
+
+    def _get_prev_offset(self):
+        return None if self.offset == 0 or not self.base else max(self.offset - self.base, 0)
 
     def _get_total(self):
         if isinstance(self.qs, QuerySet):
@@ -67,4 +75,22 @@ class Paginator(BasePaginator):
 
     @property
     def headers(self):
-        return {'X-Total': self.total}
+        return {
+            k: v for k, v in {
+                'X-Total': self.total,
+                'X-Next-Offset': self.next_offset,
+                'X-Prev-Offset': self.prev_offset,
+            }.items() if v is not None
+        }
+
+
+class BaseOffsetPaginatorWithoutTotal(BaseOffsetPaginator):
+
+    def _get_total(self):
+        return None
+
+    def _get_next_offset(self):
+        if not self.base:
+            return None
+        next_offset = self.offset + self.base
+        return next_offset if self.qs[next_offset:next_offset + 1].exists() else None
