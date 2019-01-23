@@ -399,7 +399,7 @@ class HTMLConverter(Converter):
             'delete': resource.has_delete_permission(obj=obj),
             'head': resource.has_head_permission(obj=obj),
             'options': resource.has_options_permission(obj=obj),
-        }
+        } if resource else {}
 
     def _update_headers(self, http_headers, resource, converter):
         http_headers['Content-Type'] = converter.content_type
@@ -424,8 +424,6 @@ class HTMLConverter(Converter):
     def _encode(self, data, response=None, http_headers=None, resource=None, result=None, **kwargs):
         from pyston.resource import BaseObjectResource
 
-        assert resource is not None, 'HTML converter requires resource and cannot be used as a direct serializer'
-
         http_headers = {} if http_headers is None else http_headers.copy()
         converter = self._get_converter(resource)
 
@@ -448,11 +446,11 @@ class HTMLConverter(Converter):
             'permissions': self._get_permissions(resource, obj),
             'forms': self._get_forms(resource, obj),
             'output': data_stream.get_string_value(),
-            'name': resource._get_name() if resource.has_permission() else '401'
+            'name': resource._get_name() if resource and resource.has_permission() else response.status_code
         })
 
         # All responses has set 200 response code, because response can return status code without content (204) and
         # browser doesn't render it
         response.status_code = 200
 
-        return get_template(self.template_name).render(context, request=resource.request)
+        return get_template(self.template_name).render(context, request=resource.request if resource else None)
