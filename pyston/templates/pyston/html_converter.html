@@ -130,9 +130,11 @@
       {% if permissions.options %}<button type="button" class="btn btn-primary options-btn">OPTIONS</button>{% endif %}
       {% if permissions.delete %}<button type="button" class="btn btn-primary delete-btn">DELETE</button>{% endif %}
     </div><br>
-    <div class="row">
-      <pre class="prettyprint request"><b>{{ request.method }} {{ request.get_full_path }}</b></pre>
-    </div>
+    {% if request %}
+      <div class="row">
+        <pre class="prettyprint request"><b>{{ request.method }} {{ request.get_full_path }}</b></pre>
+      </div>
+    {% endif %}
     <div class="row">
       {% autoescape off %}
       <pre class="prettyprint response"><b>HTTP {{ status_code }}</b>
