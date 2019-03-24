@@ -319,16 +319,6 @@ class SerializableSerializer(Serializer):
 @register((Model, QuerySet, QuerysetIteratorHelper))
 class ModelSerializer(Serializer):
 
-    RESERVED_FIELDS = {'read', 'update', 'create', 'delete', 'model', 'allowed_methods', 'fields', 'exclude'}
-
-    def _get_resource_method_fields(self, resource, fields):
-        out = {}
-        for field in fields.flat() - self.RESERVED_FIELDS:
-            t = getattr(resource, str(field), None)
-            if t and callable(t):
-                out[field] = t
-        return out
-
     def _get_model_fields(self, obj):
         out = {}
         for f in obj._meta.fields:
@@ -354,6 +344,8 @@ class ModelSerializer(Serializer):
             return formats.localize(timezone.template_localtime(raw))
         elif isinstance(raw, (datetime.date, datetime.time)):
             return formats.localize(raw)
+        elif raw is None:
+            return settings.NONE_HUMANIZED_VALUE
         else:
             return raw
 
@@ -484,7 +476,9 @@ class ModelSerializer(Serializer):
 
     def _fields_to_python(self, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
         model_resource = self._get_model_resource(obj)
-        resource_method_fields = self._get_resource_method_fields(model_resource, fieldset)
+        resource_method_fields = (
+            model_resource.get_methods_returning_field_value(fieldset.flat()) if model_resource else {}
+        )
         model_fields = self._get_model_fields(obj)
         m2m_fields = self._get_m2m_fields(obj)
 

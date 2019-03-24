@@ -4,8 +4,6 @@ import copy
 from collections import OrderedDict
 
 from django import forms
-from django.contrib.postgres.utils import prefix_validation_error
-from django.contrib.postgres.forms.array import SimpleArrayField
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError, ImproperlyConfigured
 from django.http.response import Http404
 from django.forms.models import ModelFormMetaclass, modelform_factory
@@ -15,13 +13,13 @@ from django.utils.encoding import force_text, force_str
 from chamber.shortcuts import get_object_or_none
 from chamber.utils.decorators import classproperty
 
-from .conf import settings as pyston_settings
-from .exception import DataInvalidException, RESTException
-from .utils.compatibility import (
+from pyston.conf import settings as pyston_settings
+from pyston.exception import DataInvalidException, RESTException
+from pyston.utils.compatibility import (
     get_reverse_field_name, get_model_from_relation, is_reverse_many_to_many, is_reverse_one_to_one,
     is_reverse_many_to_one, delete_cached_value
 )
-from .utils.helpers import str_to_class
+from pyston.utils.helpers import str_to_class
 
 
 DEFAULT_CODE = 'invalid'
@@ -162,7 +160,7 @@ class RelatedField:
         self.resource_class = resource_class
 
     def _get_resource(self, model, request):
-        from .serializer import get_resource_class_or_none
+        from pyston.serializer import get_resource_class_or_none
 
         resource_class = self.resource_class
 
@@ -524,41 +522,6 @@ class ISODateTimeField(forms.DateTimeField):
         return parser.parse(force_str(value))
 
 
-class RESTSimpleArrayField(SimpleArrayField):
-    """
-    Django array form field doesn't accept list. Therefore we must rewrite to_python method
-    """
-
-    def to_python(self, value):
-        if value is None:
-            return None
-
-        if isinstance(value, list):
-            errors = []
-            values = []
-            for index, item in enumerate(value):
-                try:
-                    values.append(self.base_field.to_python(item))
-                except ValidationError as error:
-                    errors.append(prefix_validation_error(
-                        error,
-                        prefix=self.error_messages['item_invalid'],
-                        code='item_invalid',
-                        params={'nth': index},
-                    ))
-            if errors:
-                raise ValidationError(errors)
-        else:
-            raise ValidationError(ugettext('Enter a list.'))
-        return values
-
-    def clean(self, value):
-        if value is None:
-            return value
-        else:
-            return super().clean(value)
-
-
 class RESTFormMixin:
 
     def __init__(self, *args, **kwargs):
@@ -653,7 +616,7 @@ class RESTFormMixin:
 
 
 def get_resource_class( model, resource_typemapper):
-    from .serializer import get_resource_class_or_none
+    from pyston.serializer import get_resource_class_or_none
 
     return get_resource_class_or_none(model, resource_typemapper)
 

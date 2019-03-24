@@ -41,9 +41,7 @@ class FieldsetGenerator:
     def _get_resource_class(self, obj):
         from pyston.resource import typemapper
 
-        resource_class = typemapper.get(obj)
-        if resource_class:
-            return resource_class
+        return typemapper.get(obj)
 
     def _get_field_label_from_model_related_objects(self, model, field_name):
         for rel in get_all_related_objects_from_model(model):
@@ -56,28 +54,37 @@ class FieldsetGenerator:
                     return model._meta.verbose_name_plural
         return None
 
-    def _get_field_label_from_resource_or_model_method(self, resource_or_model, field_name):
-        return get_class_method(resource_or_model, field_name).short_description
+    def _get_field_label_from_model_method(self, model, field_name):
+        method = get_class_method(model, field_name)
+
+        if not method:
+            return None
+        elif hasattr(method, 'short_description'):
+            return method.short_description
+        elif hasattr(method, 'field'):
+            # Generic relation
+            return getattr(method.field, 'verbose_name', pretty_name(field_name))
+        else:
+            return pretty_name(field_name)
 
     def _get_field_label_from_model_field(self, model, field_name):
         return get_concrete_field(model, field_name).verbose_name
+
+    def _get_field_label_from_resource_method(self, resource, field_name):
+        # Resources should be split to the serializers and views
+        method_field = resource(None).get_method_returning_field_value(field_name)
+        return getattr(method_field, 'short_description', pretty_name(field_name)) if method_field else None
 
     def _get_field_label_from_model(self, model, resource, field_name):
         try:
             return self._get_field_label_from_model_field(model, field_name)
         except FieldDoesNotExist:
-            if resource:
-                resource_and_model = (resource, model)
-            else:
-                resource_and_model = (model,)
-
-            for resource_or_model in resource_and_model:
-                try:
-                    return self._get_field_label_from_resource_or_model_method(resource_or_model, field_name)
-                except (AttributeError, ObjectDoesNotExist):
-                    pass
-
-            return self._get_field_label_from_model_related_objects(model, field_name) or pretty_name(field_name)
+            return (
+                self._get_field_label_from_resource_method(resource, field_name)
+                or self._get_field_label_from_model_method(model, field_name)
+                or self._get_field_label_from_model_related_objects(model, field_name)
+                or pretty_name(field_name)
+            )
 
     def _get_label(self, field_name, model):
         if model:
