@@ -23,8 +23,7 @@ from functools import update_wrapper
 
 from chamber.shortcuts import get_object_or_none
 from chamber.exceptions import PersistenceException
-from chamber.utils import remove_accent
-from chamber.utils import transaction
+from chamber.utils import remove_accent, transaction
 
 from .conf import settings
 from .paginator import BaseOffsetPaginator
@@ -217,7 +216,6 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         'filter': ('HTTP_X_FILTER', 'filter'),
         'order': ('HTTP_X_ORDER', 'order'),
     }
-
     DATA_KEY_MAPPING = {}
 
     def __init__(self, request):
@@ -640,6 +638,28 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
             return rfs(extra_order_fields).join(self.get_allowed_fields_rfs())
         else:
             return rfs(extra_order_fields).join(rfs(order_fields))
+
+    def get_methods_returning_field_value(self, fields):
+        """
+        Returns dict of resource methods which can be used with serializer to get a field value.
+        :param fields: list of field names
+        :return: dict of resource methods. Key is a field name, value is a method that returns field value.
+        """
+        method_fields = {}
+        for field_name in fields:
+            method = self.get_method_returning_field_value(field_name)
+            if method:
+                method_fields[field_name] = method
+        return method_fields
+
+    def get_method_returning_field_value(self, field_name):
+        """
+        Returns method which can be used with serializer to get a field value.
+        :param field_name: name of th field
+        :return: resource method
+        """
+        method = getattr(self, field_name, None)
+        return method if method and callable(method) else None
 
 
 class DefaultRESTModelResource(DefaultRESTObjectResource):

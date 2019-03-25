@@ -7,8 +7,9 @@ from pyston.response import RESTCreatedResponse, RESTOkResponse
 from pyston.serializer import SerializableObj
 from pyston.forms import (
     RESTModelForm, ReverseOneToOneField, ReverseManyField, RESTValidationError, SingleRelatedField,
-    MultipleRelatedField, RESTSimpleArrayField
+    MultipleRelatedField
 )
+from pyston.forms.postgres import RESTSimpleArrayField
 from pyston.filters.default_filters import SimpleEqualFilter, BooleanFilterMixin
 
 from .models import Issue, User
