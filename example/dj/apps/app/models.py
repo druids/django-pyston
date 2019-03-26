@@ -90,7 +90,7 @@ class Issue(models.Model):
         return self.description[:50] if self.description is not None else None
 
     def __str__(self):
-        return 'issue: %s' % self.name
+        return 'issue: <b>%s</b>' % self.name
 
     class RESTMeta:
         extra_order_fields = ('solver__created_at',)
