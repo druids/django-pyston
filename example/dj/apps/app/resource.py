@@ -151,6 +151,11 @@ class UserWithFormResource(BaseModelResource):
     can_update_obj = True
     can_delete_obj = True
 
+    fields = ('user_email',)
+
+    def user_email(self, obj):
+        return obj.email
+
 
 class IssueForm(RESTModelForm):
 
@@ -183,3 +188,11 @@ class IssueWithFormResource(BaseModelResource):
     can_read_obj = True
     can_update_obj = True
     can_delete_obj = True
+
+    fields = ('id', 'creator')
+    resource_typemapper = {
+        User: UserWithFormResource,
+    }
+
+    def creator(self, obj):
+        return obj.created_by

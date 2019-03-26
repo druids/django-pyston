@@ -111,19 +111,23 @@ class RawVerboseValue:
     Return RAW, VERBOSE or BOTH values according to serialization type
     """
 
-    def __init__(self, raw_value, verbose_value):
+    def __init__(self, raw_value, verbose_value, data_to_python_callback):
         self.raw_value = raw_value
         self.verbose_value = verbose_value
+        self.data_to_python = data_to_python_callback
 
-    def get_value(self, serialization_format):
+    def serialize(self, data, serialization_format, lazy=False, **kwargs):
         if serialization_format == Serializer.SERIALIZATION_TYPES.RAW:
-            return self.raw_value
+            return self.data_to_python(self.raw_value, serialization_format, lazy, **kwargs)
         elif serialization_format == Serializer.SERIALIZATION_TYPES.VERBOSE:
-            return self.verbose_value
+            return self.data_to_python(self.verbose_value, serialization_format, lazy, **kwargs)
         elif self.raw_value == self.verbose_value:
-            return self.raw_value
+            return self.data_to_python(self.raw_value, serialization_format, lazy, **kwargs)
         else:
-            return {'_raw': self.raw_value, '_verbose': self.verbose_value}
+            return {
+                '_raw': self.data_to_python(self.raw_value, serialization_format, lazy, **kwargs),
+                '_verbose': self.data_to_python(self.verbose_value, serialization_format, lazy, **kwargs),
+            }
 
 
 class LazySerializedData:
@@ -306,7 +310,7 @@ class DecimalSerializer(Serializer):
 class RawVerboseSerializer(Serializer):
 
     def serialize(self, data, serialization_format, lazy=False, **kwargs):
-        return self._data_to_python(data.get_value(serialization_format), serialization_format, lazy=False, **kwargs)
+        return data.serialize(serialization_format, serialization_format, lazy=False, **kwargs)
 
 
 @register(Serializable)
@@ -350,7 +354,11 @@ class ModelSerializer(Serializer):
             return raw
 
     def _value_to_raw_verbose(self, val, field_or_method, obj, **kwargs):
-        return RawVerboseValue(val, self._get_verbose_value(val, field_or_method, obj, **kwargs))
+        return RawVerboseValue(
+            val,
+            self._get_verbose_value(val, field_or_method, obj, **kwargs),
+            data_to_python_callback=self._data_to_python
+        )
 
     def _method_to_python(self, method, obj, serialization_format, allow_tags=False, **kwargs):
         method_kwargs_names = inspect.getargspec(method)[0][1:]

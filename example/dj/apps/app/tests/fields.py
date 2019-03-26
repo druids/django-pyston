@@ -373,6 +373,14 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(users_before_count + 2, User.objects.all().count())
 
     @data_provider('get_issues_and_users_data')
+    @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
+    def test_typemapper_settings_of_resource_should_define_related_obj_serializer(self, number, issue_data, user_data):
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_equal(resp.json()['creator']['user_email'], issue_data['created_by']['email'])
+
+    @data_provider('get_issues_and_users_data')
     def test_reverse_with_defined_field_created_issues_renamed_fail(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         user_data['created_issues_renamed'] = {'add': (self.get_issue_data(),
