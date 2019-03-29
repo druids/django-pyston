@@ -87,8 +87,6 @@ def get_resource_class_or_none(thing, resource_typemapper=None):
 
 
 def get_resource_or_none(request, thing, resource_typemapper=None):
-    from .resource import typemapper as global_resource_typemapper
-
     resource_class = get_resource_class_or_none(thing, resource_typemapper)
     return resource_class(request) if resource_class else None
 
@@ -448,11 +446,11 @@ class ModelSerializer(Serializer):
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
                          obj, serialization_format, allow_tags=False, **kwargs):
 
-        if field_name == '_obj_name':
-            return force_text(obj)
-        elif field_name in resource_method_fields:
+        if field_name in resource_method_fields:
             return self._method_to_python(resource_method_fields[field_name], obj, serialization_format,
                                           allow_tags=allow_tags, **kwargs)
+        elif field_name == '_obj_name':
+            return self._data_to_python(str(obj), serialization_format, allow_tags=allow_tags, **kwargs)
         elif field_name in m2m_fields:
             return self._m2m_field_to_python(
                 m2m_fields[field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs

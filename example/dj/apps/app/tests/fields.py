@@ -187,7 +187,7 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(Issue.objects.all().count(), 3)
         for issue in Issue.objects.all():
             assert_equal(list(issue.watched_by.values_list('email', flat=True)),
-                              [user_data['email'], user_data2['email']])
+                         [user_data['email'], user_data2['email']])
 
     @data_provider('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)

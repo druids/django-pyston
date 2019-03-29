@@ -109,7 +109,6 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
         assert_equal(output_data.get('email'), data.get('email'))
-        assert_equal(output_data.get('_obj_name'), 'user: %s' % data.get('email'))
         assert_equal(output_data.get('id'), pk)
 
     @data_provider('get_users_data')
@@ -326,15 +325,19 @@ class StandardOperationsTestCase(PystonTestCase):
     def test_html_is_auto_escaped(self):
         issue = IssueFactory(name='<html>')
         resp = self.get('{}{}/'.format(self.ISSUE_API_URL, issue.pk))
-        assert_equal(self.deserialize(resp)['name'], '&lt;html&gt;')
+        output_data = self.deserialize(resp)
+        assert_equal(output_data['name'], '&lt;html&gt;')
+        assert_equal(output_data.get('_obj_name'), 'issue: &lt;b&gt;&lt;html&gt;&lt;/b&gt;')
 
     @override_settings(PYSTON_ALLOW_TAGS=True)
     def test_auto_escape_is_turned_off(self):
         issue = IssueFactory(name='<html>')
         resp = self.get('{}{}/'.format(self.ISSUE_API_URL, issue.pk))
-        assert_equal(self.deserialize(resp)['name'], '<html>')
+        output_data = self.deserialize(resp)
+        assert_equal(output_data['name'], '<html>')
+        assert_equal(output_data.get('_obj_name'), 'issue: <b><html></b>')
 
     def test_short_description_is_not_escaped(self):
-        IssueFactory(description='<html>')
+        issue = IssueFactory(description='<html>')
         resp = self.get(self.ISSUE_API_URL)
         assert_equal(self.deserialize(resp)[0]['short_description'], '<html>')

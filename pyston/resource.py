@@ -1065,6 +1065,9 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     def _get_form_fields(self, obj=None):
         return self.form_fields
 
+    def _obj_name(self, obj):
+        return str(obj)
+
     def _generate_form_class(self, inst, exclude=None):
         exclude = [] if exclude is None else exclude
         exclude = list(self._get_exclude(inst)) + exclude
