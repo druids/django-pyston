@@ -87,6 +87,9 @@ class StreamCSV:
 
 class TXTGenerator:
 
+    def _prepare_value(self, value):
+        return value.replace('&nbsp;', ' ')
+
     def generate(self, header, data, output_stream):
         output_stream.write('---\n')
         for data_row in data:
@@ -94,12 +97,17 @@ class TXTGenerator:
             for col, val in enumerate(data_row):
                 if header:
                     output_stream.write('{}:\n'.format(header[col]))
+                if isinstance(val, str):
+                    val = self._prepare_value(val)
                 output_stream.write('\t'.join(('\t' + force_text(val).lstrip()).splitlines(True)) + '\n\n')
             output_stream.write('---\n')
 
 
 if xlsxwriter:
     class XLSXGenerator:
+
+        def _prepare_value(self, value):
+            return value.replace('&nbsp;', ' ')
 
         def generate(self, header, data, output_stream):
             wb = xlsxwriter.Workbook(output_stream)
@@ -125,6 +133,7 @@ if xlsxwriter:
                     elif isinstance(val, (Decimal, float)):
                         ws.write(row, col, val, decimal_format)
                     elif isinstance(val, str):
+                        val = self._prepare_value(val)
                         ws.write(row, col, val)
                     else:
                         ws.write(row, col, val)
