@@ -78,8 +78,7 @@ class ModelFilterManager:
 
         # Filter is obtained from resource methods
         current_identifier = identifiers[0]
-        resource_method = get_method_or_none(resource, current_identifier)
-
+        resource_method = resource.get_method_returning_field_value(current_identifier) if resource else None
         if current_identifier in filters_fields_rfs and resource_method:
             return self._get_method_filter(
                 resource_method, identifiers_suffix, [current_identifier], identifiers[1:], model, resource, request,

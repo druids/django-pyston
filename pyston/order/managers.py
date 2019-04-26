@@ -66,7 +66,7 @@ class ModelOrderManager:
         :return: db order method string that is obtained from resource object.
         """
         full_identifiers_string = LOOKUP_SEP.join(identifiers)
-        resource_method = get_method_or_none(resource, full_identifiers_string)
+        resource_method = resource.get_method_returning_field_value(full_identifiers_string) if resource else None
         if full_identifiers_string in order_fields_rfs and resource_method:
             return self._get_sorter_from_method(resource_method, identifiers_prefix, identifiers, direction, model,
                                                 resource, request, order_fields_rfs)
