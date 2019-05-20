@@ -13,17 +13,33 @@ from chamber.utils import get_class_method
 from .compatibility import FieldDoesNotExist
 
 
-class QuerysetIteratorHelper:
+class ModelIteratorHelper:
+
+    def __init__(self, model):
+        self.model = model
+
+    def iterator(self):
+        raise NotImplementedError
+
+
+class QuerysetIteratorHelper(ModelIteratorHelper):
 
     def __init__(self, queryset):
+        super().__init__(queryset.model)
         self.queryset = queryset
 
     def iterator(self):
         return iter(self.queryset.iterator())
 
-    @property
-    def model(self):
-        return self.queryset.model
+
+class ModelIterableIteratorHelper(ModelIteratorHelper):
+
+    def __init__(self, iterable, model):
+        super().__init__(model)
+        self.iterable = iterable
+
+    def iterator(self):
+        return iter(self.iterable)
 
 
 class UniversalBytesIO:
