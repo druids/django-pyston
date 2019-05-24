@@ -1,37 +1,37 @@
-import os
-import decimal
 import datetime
+import decimal
 import inspect
 import mimetypes
+import os
 import types
-
 from collections import OrderedDict
 
 from django.db.models import Model
-from django.db.models.query import QuerySet
 from django.db.models.fields.files import FileField
+from django.db.models.query import QuerySet
+from django.utils import formats, timezone
+from django.utils.encoding import force_text
+from django.utils.html import conditional_escape
+from django.utils.translation import ugettext
+
+from chamber.utils import get_class_method
+from chamber.utils.datastructures import Enum
+
+from .conf import settings
+from .converters import get_converter
+from .exception import NotAllowedException, UnsupportedMediaTypeException
+from .forms import RESTDictError, RESTDictIndexError, RESTListError
+from .utils import rfs
+from .utils.compatibility import (get_last_parent_pk_field_name,
+                                  get_reverse_field_name)
+from .utils.helpers import (ModelIteratorHelper, UniversalBytesIO,
+                            serialized_data_to_python, str_to_class)
 
 try:
     from django.db.models.fields.related import ForeignRelatedObjectsDescriptor, SingleRelatedObjectDescriptor
 except ImportError:
     from django.db.models.fields.related import (ReverseManyToOneDescriptor as ForeignRelatedObjectsDescriptor,
                                                  ReverseOneToOneDescriptor as SingleRelatedObjectDescriptor)
-
-from django.utils import formats, timezone
-from django.utils.encoding import force_text
-from django.utils.translation import ugettext
-from django.utils.html import conditional_escape
-
-from chamber.utils.datastructures import Enum
-from chamber.utils import get_class_method
-
-from .conf import settings
-from .exception import UnsupportedMediaTypeException, NotAllowedException
-from .utils import rfs
-from .utils.compatibility import get_reverse_field_name, get_last_parent_pk_field_name
-from .utils.helpers import QuerysetIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
-from .converters import get_converter
-from .forms import RESTDictError, RESTListError, RESTDictIndexError
 
 
 default_serializers = []
@@ -93,7 +93,7 @@ def get_resource_or_none(request, thing, resource_typemapper=None):
 
 def get_serializer(thing, request=None, resource_typemapper=None):
     if request:
-        thing_class = thing.model if isinstance(thing, QuerySet) else type(thing)
+        thing_class = thing.model if isinstance(thing, (QuerySet, ModelIteratorHelper)) else type(thing)
         resource = get_resource_or_none(request, thing_class, resource_typemapper)
         if resource:
             return resource.serializer(resource, request=request)
@@ -318,7 +318,7 @@ class SerializableSerializer(Serializer):
         return data.serialize(serialization_format, request=self.request, **kwargs)
 
 
-@register((Model, QuerySet, QuerysetIteratorHelper))
+@register((Model, QuerySet, ModelIteratorHelper))
 class ModelSerializer(Serializer):
 
     def _get_model_fields(self, obj):
@@ -570,7 +570,7 @@ class ModelSerializer(Serializer):
                                       direct_serialization=direct_serialization, **kwargs)
 
     def serialize(self, data, serialization_format, **kwargs):
-        if isinstance(data, QuerysetIteratorHelper):
+        if isinstance(data, ModelIteratorHelper):
             return (self._obj_to_python(obj, serialization_format, **kwargs) for obj in data.iterator())
         elif isinstance(data, QuerySet):
             return (self._obj_to_python(obj, serialization_format, **kwargs) for obj in data)
@@ -587,7 +587,7 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
     def _serialize_recursive(self, data, serialization_format, **kwargs):
         if (isinstance(data, self.resource.model) or
-              isinstance(data, (QuerysetIteratorHelper, QuerySet)) and issubclass(data.model, self.resource.model)):
+              isinstance(data, (ModelIteratorHelper, QuerySet)) and issubclass(data.model, self.resource.model)):
             return self.resource.update_serialized_data(
                 ModelSerializer.serialize(self, data, serialization_format, **kwargs)
             )
