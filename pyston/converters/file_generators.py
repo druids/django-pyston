@@ -110,7 +110,7 @@ if xlsxwriter:
             return value.replace('&nbsp;', ' ')
 
         def generate(self, header, data, output_stream):
-            wb = xlsxwriter.Workbook(output_stream)
+            wb = xlsxwriter.Workbook(output_stream, {'strings_to_formulas': False, 'strings_to_urls': False})
             ws = wb.add_worksheet()
 
             date_format = wb.add_format({'num_format': 'd. mmmm yyyy'})
