@@ -205,6 +205,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     converter_classes = settings.CONVERTERS
     errors_response_class = settings.ERRORS_RESPONSE_CLASS
     error_response_class = settings.ERROR_RESPONSE_CLASS
+    field_labels = {}
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -222,6 +223,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         self.request = request
         self.args = []
         self.kwargs = {}
+
+    def get_field_labels(self):
+        return self.field_labels
 
     def get_allowed_methods(self):
         allowed_methods = super().get_allowed_methods()
@@ -343,11 +347,11 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         except ValueError:
             raise UnsupportedMediaTypeException
 
-    def _serialize(self, os, result, status_code, http_headers):
+    def _serialize(self, output_stream, result, status_code, http_headers):
         converter = self._get_converter()
         http_headers['Content-Type'] = converter.content_type
 
-        converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
+        converter.encode_to_stream(output_stream, self._get_converted_dict(result), resource=self, request=self.request,
                                    status_code=status_code, http_headers=http_headers, result=result)
 
     def _deserialize(self):
@@ -714,14 +718,16 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     partial_related_update = None
     serializer = ObjectResourceSerializer
 
-    def _serialize(self, os, result, status_code, http_headers):
+    def _serialize(self, output_stream, result, status_code, http_headers):
         try:
             converter = get_converter_from_request(self.request, self.converters)
             http_headers['Content-Type'] = converter.content_type
 
-            converter.encode_to_stream(os, self._get_converted_dict(result), resource=self, request=self.request,
-                                       status_code=status_code, http_headers=http_headers, result=result,
-                                       requested_fields=self._get_requested_fieldset(result))
+            converter.encode_to_stream(
+                output_stream, self._get_converted_dict(result), resource=self, request=self.request,
+                status_code=status_code, http_headers=http_headers, result=result,
+                requested_fields=self._get_requested_fieldset(result)
+            )
         except ValueError:
             raise UnsupportedMediaTypeException
 

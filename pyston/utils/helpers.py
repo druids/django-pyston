@@ -86,11 +86,9 @@ class UniversalBytesIO:
         # Handle non-string types
         return force_bytes(value, self.charset)
 
-    def get_string_value(self):
-        return self._container.getvalue().decode(self.charset)
 
     def getvalue(self):
-        return self._container.getvalue()
+        return self._container.getvalue().decode(self.charset)
 
     if sys.version_info[0:2] < (3, 5):
         def seek(self, *args, **kwargs):

@@ -5,7 +5,7 @@ from django.test.utils import override_settings
 
 from germanium.test_cases.rest import RESTTestCase
 from germanium.tools.trivials import assert_true, assert_false, assert_equal
-from germanium.anotations import data_provider
+from germanium.decorators import data_provider
 
 from pyston.resource import (ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS,
                              ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS,

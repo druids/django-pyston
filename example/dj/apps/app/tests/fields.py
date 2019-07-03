@@ -5,7 +5,7 @@ from django.conf import settings
 from django.test.utils import override_settings
 from django.utils.translation import ugettext
 
-from germanium.anotations import data_provider
+from germanium.decorators import data_provider
 from germanium.tools.trivials import assert_in, assert_equal, assert_not_equal
 from germanium.tools.http import assert_http_bad_request
 from germanium.tools.rest import assert_valid_JSON_created_response, assert_valid_JSON_response

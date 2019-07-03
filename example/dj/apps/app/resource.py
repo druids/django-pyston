@@ -68,6 +68,9 @@ class UserResource(BaseModelResource):
     filters = {
         'issues__overtime': OvertimeIssuesFilter
     }
+    field_labels = {
+        'email': 'E-mail address',
+    }
 
 
 class ExtraResource(BaseResource):

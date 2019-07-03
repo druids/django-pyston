@@ -4,7 +4,7 @@ import json
 
 from django.test.utils import override_settings
 
-from germanium.anotations import data_provider
+from germanium.decorators import data_provider
 from germanium.tools.trivials import assert_in, assert_equal, assert_true
 from germanium.tools.http import (assert_http_bad_request, assert_http_not_found, assert_http_method_not_allowed,
                                   assert_http_accepted)
@@ -338,6 +338,21 @@ class StandardOperationsTestCase(PystonTestCase):
         assert_equal(output_data.get('_obj_name'), 'issue: <b><html></b>')
 
     def test_short_description_is_not_escaped(self):
-        issue = IssueFactory(description='<html>')
+        IssueFactory(description='<html>')
         resp = self.get(self.ISSUE_API_URL)
         assert_equal(self.deserialize(resp)[0]['short_description'], '<html>')
+
+    @data_provider(UserFactory)
+    def test_csv_export_only_allowed_fields_should_be_exported(self, user):
+        resp = self.get(self.USER_API_URL, headers={'HTTP_ACCEPT': 'text/csv', 'HTTP_X_FIELDS': 'id,email,invalid'})
+        assert_equal(len(resp.content.split(b'\n')[0].split(b';')), 2)
+
+    @data_provider(IssueFactory)
+    def test_csv_export_of_non_object_resourse_should_have_only_one_column_without_header(self, issue):
+        resp = self.get(self.COUNT_ISSUES_PER_USER, headers={'HTTP_ACCEPT': 'text/csv'})
+        assert_equal(len(resp.content.split(b';')), 1)
+
+    @data_provider(UserFactory)
+    def test_csv_export_column_labels_should_be_able_to_set_in_resource(self, user):
+        resp = self.get(self.USER_API_URL, headers={'HTTP_ACCEPT': 'text/csv', 'HTTP_X_FIELDS': 'email'})
+        assert_equal(resp.content.split(b'\n')[0], b'\xef\xbb\xbf"E-mail address"\r')

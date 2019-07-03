@@ -206,7 +206,7 @@ class ResourceSerializerMixin:
 
     def __init__(self, resource, request=None):
         self.resource = resource
-        super(ResourceSerializerMixin, self).__init__(request=request)
+        super().__init__(request=request)
 
     def _get_serializer(self, data):
         return get_serializer(data, request=self.request, resource_typemapper=self.resource.resource_typemapper)
@@ -216,7 +216,7 @@ class ResourceSerializerMixin:
 
     def _serialize_recursive(self, data, serialization_format, **kwargs):
         if isinstance(data, dict):
-            return dict(
+            return OrderedDict(
                 [
                     (k, self._serialize_recursive(v, serialization_format, **kwargs)) for k, v in data.items()
                 ]
@@ -285,8 +285,9 @@ class DictSerializer(Serializer):
 
     def serialize(self, data, serialization_format, requested_fieldset=None,
                   extended_fieldset=None, exclude_fields=None, **kwargs):
-        return dict([(k, self._data_to_python(v, serialization_format, **kwargs))
-                     for k, v in data.items()])
+        return OrderedDict([
+            (k, self._data_to_python(v, serialization_format, **kwargs)) for k, v in data.items()
+        ])
 
 
 @register((list, tuple, set))
@@ -596,7 +597,7 @@ class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
-              converter_name=None, allow_tags=None):
+              converter_name=None, allow_tags=None, output_stream=None):
     from pyston.converters import get_default_converter_name
 
     converter_name = converter_name if converter_name is not None else get_default_converter_name()
@@ -610,9 +611,15 @@ def serialize(data, requested_fieldset=None, serialization_format=Serializer.SER
         data, serialization_format, requested_fieldset=requested_fieldset, direct_serialization=True,
         allow_tags=allow_tags or (converter and converter.allow_tags)
     )
-    if converter:
-        os = UniversalBytesIO()
-        converter.encode_to_stream(os, converted_dict)
-        return os.get_string_value()
-    else:
+    if not converter:
         return serialized_data_to_python(converted_dict)
+
+    if not output_stream:
+        output_stream = UniversalBytesIO()
+
+    converter.encode_to_stream(
+        output_stream, converted_dict,
+        requested_fields=str(requested_fieldset) if requested_fieldset else None,
+        direct_serialization=True
+    )
+    return output_stream.getvalue()
