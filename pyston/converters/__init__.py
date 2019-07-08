@@ -132,20 +132,20 @@ class Converter:
         """
         raise NotImplementedError
 
-    def _encode_to_stream(self, os, data, options=None, **kwargs):
+    def _encode_to_stream(self, output_stream, data, options=None, **kwargs):
         """
         Encodes data and writes it to the output stream
         """
-        os.write(self._encode(data, options=options, **kwargs))
+        output_stream.write(self._encode(data, options=options, **kwargs))
 
-    def encode_to_stream(self, os, data, options=None, **kwargs):
-        self._encode_to_stream(self._get_output_stream(os), data, options=options, **kwargs)
+    def encode_to_stream(self, output_stream, data, options=None, **kwargs):
+        self._encode_to_stream(self._get_output_stream(output_stream), data, options=options, **kwargs)
 
     def decode(self, data, **kwargs):
         return self._decode(data, **kwargs)
 
-    def _get_output_stream(self, os):
-        return os if isinstance(os, UniversalBytesIO) else UniversalBytesIO(os)
+    def _get_output_stream(self, output_stream):
+        return output_stream if isinstance(output_stream, UniversalBytesIO) else UniversalBytesIO(output_stream)
 
 
 class XMLConverter(Converter):
@@ -212,10 +212,10 @@ class JSONConverter(Converter):
     media_type = 'application/json'
     format = 'json'
 
-    def _encode_to_stream(self, os, data, options=None, **kwargs):
+    def _encode_to_stream(self, output_stream, data, options=None, **kwargs):
         options = settings.JSON_CONVERTER_OPTIONS if options is None else options
         if data is not None:
-            json.dump(data, os, cls=LazyDjangoJSONEncoder, ensure_ascii=False, **options)
+            json.dump(data, output_stream, cls=LazyDjangoJSONEncoder, ensure_ascii=False, **options)
 
     def _decode(self, data, **kwargs):
         return json.loads(data)
@@ -293,15 +293,18 @@ class GeneratorConverter(Converter):
 
         return (self._render_row(row, field_name_list) for row in constructed_data)
 
-    def _encode_to_stream(self, os, data, resource=None, requested_fields=None, **kwargs):
+    def _encode_to_stream(self, output_stream, data, resource=None, requested_fields=None, direct_serialization=False,
+                          **kwargs):
         fieldset = FieldsetGenerator(
             resource,
-            force_text(requested_fields) if requested_fields is not None else ''
+            force_text(requested_fields) if requested_fields is not None else '',
+            direct_serialization=direct_serialization
         ).generate()
+
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, data),
-            os
+            output_stream
         )
 
 
@@ -405,10 +408,12 @@ class HTMLConverter(Converter):
         http_headers['Content-Type'] = converter.content_type
         return http_headers
 
-    def encode_to_stream(self, os, data, options=None, **kwargs):
-        assert os is not HttpResponseBase, 'Output stream must be http response'
+    def encode_to_stream(self, output_stream, data, options=None, **kwargs):
+        assert output_stream is not HttpResponseBase, 'Output stream must be http response'
 
-        self._get_output_stream(os).write(self._encode(data, response=os, options=options, **kwargs))
+        self._get_output_stream(output_stream).write(
+            self._encode(data, response=output_stream, options=options, **kwargs)
+        )
 
     def _convert_url_to_links(self, data):
         if isinstance(data, list):
@@ -445,7 +450,7 @@ class HTMLConverter(Converter):
         context.update({
             'permissions': self._get_permissions(resource, obj),
             'forms': self._get_forms(resource, obj),
-            'output': data_stream.get_string_value(),
+            'output': data_stream.getvalue(),
             'name': resource._get_name() if resource and resource.has_permission() else response.status_code
         })
 

@@ -40,10 +40,8 @@ class JSONCamelCaseConverter(JSONConverter):
         else:
             return data
 
-    def _encode_to_stream(self, os, data, options=None, **kwargs):
-        super(JSONCamelCaseConverter, self)._encode_to_stream(
-            os, self._encode_snake_to_camel(data), options=None, **kwargs
-        )
+    def _encode_to_stream(self, output_stream, data, options=None, **kwargs):
+        super()._encode_to_stream(output_stream, self._encode_snake_to_camel(data), options=None, **kwargs)
 
     def _decode(self, data, **kwargs):
         return self._decode_camel_to_snake(super(JSONCamelCaseConverter, self)._decode(data))

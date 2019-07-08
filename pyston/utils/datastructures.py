@@ -9,7 +9,7 @@ from chamber.utils import get_class_method
 
 from collections import OrderedDict
 
-from pyston.utils import split_fields, is_match, get_model_from_relation_or_none, LOOKUP_SEP
+from pyston.utils import split_fields, is_match, get_model_from_relation_or_none, LOOKUP_SEP, rfs
 from pyston.utils.compatibility import get_all_related_objects_from_model, get_concrete_field, get_model_from_relation
 
 
@@ -34,14 +34,25 @@ class Field:
 
 class FieldsetGenerator:
 
-    def __init__(self, resource=None, fields_string=None):
+    def __init__(self, resource=None, fields_string=None, direct_serialization=False):
         self.resource = resource
         self.fields_string = fields_string
+        self.direct_serialization = direct_serialization
 
-    def _get_resource_class(self, obj):
-        from pyston.resource import typemapper
+    def _get_resource(self, obj):
+        from pyston.serializer import get_resource_or_none
 
-        return typemapper.get(obj)
+        if self.resource:
+            return get_resource_or_none(self.resource.request, obj, self.resource.resource_typemapper)
+        else:
+            return None
+
+    def _get_allowed_fieldset(self):
+        from pyston.resource import DefaultRESTObjectResource
+
+        # For security reasons only resource which defines allowed fields can be fully converted to the CSV/XLSX
+        # or similar formats
+        return self.resource.get_allowed_fields_rfs() if isinstance(self.resource, DefaultRESTObjectResource) else rfs()
 
     def _get_field_label_from_model_related_objects(self, model, field_name):
         for rel in get_all_related_objects_from_model(model):
@@ -72,7 +83,7 @@ class FieldsetGenerator:
 
     def _get_field_label_from_resource_method(self, resource, field_name):
         # Resources should be split to the serializers and views
-        method_field = resource(None).get_method_returning_field_value(field_name)
+        method_field = resource.get_method_returning_field_value(field_name)
         return getattr(method_field, 'short_description', pretty_name(field_name)) if method_field else None
 
     def _get_field_label_from_model(self, model, resource, field_name):
@@ -89,32 +100,51 @@ class FieldsetGenerator:
     def _get_label(self, field_name, model):
         if model:
             return (
-                self._get_field_label_from_model(model, self._get_resource_class(model), field_name)
+                self._get_field_label_from_model(model, self._get_resource(model), field_name)
                 if field_name != '_obj_name' and field_name else ''
             )
         else:
             return field_name
 
-    def _recursive_generator(self, fields, fields_string, model=None, key_path=None, label_path=None):
+    def _parse_fields_string(self, fields_string):
+        fields_string = fields_string or ''
+
+        parsed_fields = []
+        for field in split_fields(fields_string):
+            if LOOKUP_SEP in field:
+                field_name, subfields_string = field.split(LOOKUP_SEP, 1)
+            elif is_match('^[^\(\)]+\(.+\)$', field):
+                field_name, subfields_string = field[:len(field) - 1].split('(', 1)
+            else:
+                field_name, subfields_string = field, None
+
+            parsed_fields.append((field_name, subfields_string))
+        return parsed_fields
+
+    def _recursive_generator(self, fields, fields_string, model=None, key_path=None, label_path=None,
+                             extended_fieldset=None):
         key_path = key_path or []
         label_path = label_path or []
 
-        if not fields_string:
-            fields.append(Field(key_path, label_path))
-        else:
-            for field in split_fields(fields_string):
-                if is_match('^[^\(\)]+\(.+\)$', field):
-                    field_name, subfields_string = field[:len(field) - 1].split('(', 1)
-                else:
-                    field_name = field
-                    subfields_string = None
+        allowed_fieldset = self._get_allowed_fieldset()
+        if extended_fieldset:
+            allowed_fieldset.join(extended_fieldset)
 
-                if LOOKUP_SEP in field_name:
-                    field_name, subfields_string = field.split(LOOKUP_SEP, 1)
+        parsed_fields = [
+            (field_name, subfields_string) for field_name, subfields_string in self._parse_fields_string(fields_string)
+            if field_name in allowed_fieldset or self.direct_serialization
+        ]
 
-                self._recursive_generator(fields, subfields_string, get_model_from_relation_or_none(model, field_name),
-                                          key_path + [field_name],
-                                          label_path + [self._get_label(field_name, model)])
+        for field_name, subfields_string in parsed_fields:
+            self._recursive_generator(
+                fields, subfields_string, get_model_from_relation_or_none(model, field_name) if model else None,
+                key_path + [field_name],
+                label_path + [self._get_label(field_name, model)],
+                extended_fieldset=allowed_fieldset[field_name].subfieldset if allowed_fieldset[field_name] else None
+            )
+        if not parsed_fields:
+            label = self.resource.get_field_labels().get(LOOKUP_SEP.join(key_path)) if self.resource else None
+            fields.append(Field(key_path, [label] if label else label_path))
 
     def generate(self):
         fields = []
