@@ -598,7 +598,7 @@ class ManyToManyFieldFilter(RelatedFieldFilter):
             return value
         try:
             return self.get_last_rel_field(
-                self.field.related_model._meta.get_field(self.field.m2m_target_field_name())
+                self.field.related_model._meta.get_field(self.field.related_model._meta.pk.name)
             ).get_prep_value(value)
         except ValueError:
             raise FilterValueError(ugettext('Object with this PK cannot be found'))
