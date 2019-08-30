@@ -24,10 +24,10 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
     ],
     install_requires=[
-        'django>=1.10',
-        'python-mimeparse==0.1.4',
-        'django-chamber>=0.4.0',
-        'pyparsing>=2.2.0',
+        'django>=1.11',
+        'python-mimeparse>=1.6.0',
+        'django-chamber>=0.5.6',
+        'pyparsing>=2.4.2',
     ],
     zip_safe=False
 )
