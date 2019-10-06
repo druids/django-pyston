@@ -144,7 +144,7 @@ msgstr "Nevalidní identifikátor podmínky \"{}\""
 
 #: filters/managers.py:206
 msgid "Invalid value of condition \"{}\". {}"
-msgstr "Nevalidní hodnota podínky \"{}\". {}"
+msgstr "Nevalidní hodnota podmínky \"{}\". {}"
 
 #: filters/managers.py:210
 msgid "Invalid operator of condition \"{}\""
