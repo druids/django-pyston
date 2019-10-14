@@ -36,14 +36,21 @@ TWOPLACES = Decimal(10) ** -2
 
 class CSVGenerator:
 
-    def __init__(self, delimiter=chr(59), quotechar=chr(34), quoting=csv.QUOTE_ALL, encoding='utf-8'):
+    def __init__(self, delimiter=chr(59), quotechar=chr(34), quoting=csv.QUOTE_ALL, encoding='utf-8', **kwargs):
         self.encoding = encoding
         self.quotechar = quotechar
         self.quoting = quoting
         self.delimiter = delimiter
+        self.kwargs = kwargs
 
     def generate(self, header, data, output_stream):
-        writer = StreamCSV(output_stream, delimiter=self.delimiter, quotechar=self.quotechar, quoting=self.quoting)
+        writer = StreamCSV(
+            output_stream,
+            delimiter=self.delimiter,
+            quotechar=self.quotechar,
+            quoting=self.quoting,
+            **self.kwargs
+        )
 
         if header:
             writer.writerow(self._prepare_list(header))
@@ -71,10 +78,11 @@ class CSVGenerator:
 
 class StreamCSV:
 
-    def __init__(self, f, dialect=csv.excel, **kwds):
-        self.writer = csv.writer(f, dialect=dialect, **kwds)
+    def __init__(self, f, dialect=csv.excel, use_bom=True, **kwargs):
+        self.writer = csv.writer(f, dialect=dialect, **kwargs)
         self.stream = f
-        self.stream.write(force_text(codecs.BOM_UTF8))  # BOM for Excel
+        if use_bom:
+            self.stream.write(force_text(codecs.BOM_UTF8))  # BOM for Excel
 
     def writerow(self, row):
         self.writer.writerow(row)
