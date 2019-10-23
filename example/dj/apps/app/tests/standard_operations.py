@@ -1,7 +1,5 @@
 from six.moves.urllib.parse import urlencode
 
-import json
-
 from django.test.utils import override_settings
 
 from germanium.decorators import data_provider

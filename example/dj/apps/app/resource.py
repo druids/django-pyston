@@ -163,10 +163,10 @@ class UserWithFormResource(BaseModelResource):
 class IssueForm(RESTModelForm):
 
     created_by = SingleRelatedField('created_by')
-    leader = SingleRelatedField('leader')
+    leader = SingleRelatedField('leader', is_allowed_foreign_key=False)
     another_users = MultipleRelatedField('watched_by', form_field=forms.ModelMultipleChoiceField(
         queryset=User.objects.all(), required=False
-    ))
+    ), is_allowed_foreign_key=False)
     tags_list = RESTSimpleArrayField(label='tags', base_field=forms.CharField(max_length=5), required=False)
 
     def save(self, commit=True):
