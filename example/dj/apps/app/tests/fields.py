@@ -277,10 +277,15 @@ class FieldsTestCase(PystonTestCase):
     @data_provider('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issue_with_watchers_with_errors(self, number, issue_data, user_data):
         issue_data['created_by'] = user_data
-        issue_data['watched_by'] = {'add': [None, [], 'invalid_text', {}], 'remove': ['invalid_text', 5, {}]}
+        issue_data['watched_by'] = {'add': [None, [], 'invalid_text', {}], 'remove': [None, 'invalid_text', 5, {}]}
         resp = self.post(self.ISSUE_API_URL, data=issue_data)
         assert_http_bad_request(resp)
         assert_in('add', self.deserialize(resp).get('messages', {}).get('errors').get('watched_by'))
+        assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors').get('watched_by'))
+
+        issue_data['watched_by'] = {'remove': ['invalid_text', 5, {}]}
+        resp = self.post(self.ISSUE_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
         assert_in('remove', self.deserialize(resp).get('messages', {}).get('errors').get('watched_by'))
 
         issue_data['created_by'] = user_data
@@ -535,6 +540,7 @@ class FieldsTestCase(PystonTestCase):
         issue_data['created_by'] = self.get_user_data()
         issue_data['leader'] = self.get_user_data()
         issue_data['tags_list'] = ['taga', 'tagb']
+        issue_data['another_users'] = [self.get_user_data()]
         resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
 
         assert_valid_JSON_created_response(resp)
@@ -549,5 +555,37 @@ class FieldsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
 
         issue_data['tags_list'] = ['too long tag']
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
+
+    def test_create_issue_single_related_field_leader_should_not_be_set_via_id(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = 1
+        issue_data['tags_list'] = ['taga', 'tagb']
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
+
+    def test_create_issue_multiple_related_filed_another_users_should_not_be_set_via_id(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        issue_data['another_users'] = [1]
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
+
+    def test_create_issue_multiple_related_filed_another_users_should_not_contains_none(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        issue_data['another_users'] = [None]
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_bad_request(resp)
+
+    def test_create_issue_multiple_related_filed_another_users_should_not_contains_none(self):
+        issue_data = self.get_issue_data()
+        issue_data['created_by'] = self.get_user_data()
+        issue_data['leader'] = self.get_user_data()
+        issue_data['another_users'] = [None]
         resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
         assert_http_bad_request(resp)

@@ -105,11 +105,8 @@ else
 	$(PYTHON_BIN)/python manage.py makemigrations $(app) --empty $(DJANGO_POSTFIX)
 endif
 
-install: cleanvar bootstrap initlog linklibrary initdb syncdb initdata initenv
+install: cleanvar bootstrap initlog initdb syncdb initdata initenv
 
 update: clean cleanvirtualenv bootstrap syncdb initenv
 
 include build/Makefile.$(OS)
-
-linklibrary:
-	ln -sf $(LOCALPATH)/../pyston/ $(LOCALPATH)/var/ve/lib/python$(PYTHON_VERSION_MAJOR)/site-packages/;
