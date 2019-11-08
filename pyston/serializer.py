@@ -37,6 +37,10 @@ except ImportError:
 default_serializers = []
 
 
+class SerializerFieldNotFound(Exception):
+    pass
+
+
 class Serializable:
 
     def serialize(self, serialization_format, **kwargs):
@@ -323,18 +327,16 @@ class SerializableSerializer(Serializer):
 class ModelSerializer(Serializer):
 
     def _get_model_fields(self, obj):
-        out = {}
-        for f in obj._meta.fields:
-            if hasattr(f, 'serialize') and f.serialize:
-                out[f.name] = f
-        return out
+        return {f.name: f for f in obj._meta.fields if hasattr(f, 'serialize') and f.serialize}
 
     def _get_m2m_fields(self, obj):
-        out = {}
-        for mf in obj._meta.many_to_many:
-            if mf.serialize:
-                out[mf.name] = mf
-        return out
+        return {f.name: f for f in obj._meta.many_to_many if f.serialize}
+
+    def _get_reverse_fields(self, obj):
+        return {
+            f.name: f for f in obj._meta.get_fields()
+            if (f.one_to_many or f.one_to_one) and f.auto_created and not f.concrete
+        }
 
     def _get_verbose_value(self, raw, field_or_method, obj, **kwargs):
         if hasattr(field_or_method, 'humanized') and field_or_method.humanized:
@@ -444,8 +446,9 @@ class ModelSerializer(Serializer):
         val = getattr(obj, field.attname)
         return self._get_file_field_value(val) if isinstance(field, FileField) else val
 
-    def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields,
+    def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields, reverse_fields,
                          obj, serialization_format, allow_tags=False, **kwargs):
+
 
         if field_name in resource_method_fields:
             return self._method_to_python(resource_method_fields[field_name], obj, serialization_format,
@@ -460,8 +463,12 @@ class ModelSerializer(Serializer):
             return self._model_field_to_python(
                 model_fields[field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
             )
-        else:
-            val = getattr(obj, field_name, None) if hasattr(obj, field_name) else None
+        elif hasattr(obj.__class__, field_name):
+            if field_name in reverse_fields:
+                val = getattr(obj, field_name, None) if hasattr(obj, field_name) else None
+            else:
+                val = getattr(obj, field_name)
+
             if hasattr(val, 'all'):
                 return self._reverse_qs_to_python(
                     val, field_name, obj, serialization_format, allow_tags=allow_tags, **kwargs
@@ -480,6 +487,8 @@ class ModelSerializer(Serializer):
                     allow_tags=allow_tags or method is not None and getattr(method, 'allow_tags', False),
                     **kwargs
                 )
+        else:
+            raise SerializerFieldNotFound('Field "{}" was not found'.format(field_name))
 
     def _fields_to_python(self, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
         model_resource = self._get_model_resource(obj)
@@ -488,19 +497,20 @@ class ModelSerializer(Serializer):
         )
         model_fields = self._get_model_fields(obj)
         m2m_fields = self._get_m2m_fields(obj)
+        reverse_fields = self._get_reverse_fields(obj)
 
-        out = OrderedDict()
-
+        python_data = OrderedDict()
         for field in fieldset.fields:
             subkwargs = self._copy_kwargs(model_resource, kwargs)
             requested_field = None
             if requested_fieldset:
                 requested_field = requested_fieldset.get(field.name)
             field_name = self._get_field_name(field, requested_field, subkwargs)
-            out[field_name] = self._field_to_python(
-                field_name, resource_method_fields, model_fields, m2m_fields, obj, serialization_format, **subkwargs
+            python_data[field_name] = self._field_to_python(
+                field_name, resource_method_fields, model_fields, m2m_fields, reverse_fields,
+                obj, serialization_format, **subkwargs
             )
-        return out
+        return python_data
 
     def _get_model_resource(self, obj):
         return None
