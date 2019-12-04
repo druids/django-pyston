@@ -130,7 +130,7 @@ class RESTDictIndexError(RESTError):
 class RESTValidationError(RESTError):
 
     def __init__(self, message, code=None):
-        if isinstance(message, RESTValidationError):
+        if isinstance(message, (RESTValidationError, ValidationError)):
             self.message = message.message
             self.code = message.code
         else:

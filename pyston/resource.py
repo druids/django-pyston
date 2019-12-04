@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from collections import OrderedDict
 
 from django.conf import settings as django_settings
+from django.core.exceptions import ValidationError
 from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
@@ -22,17 +23,17 @@ from django.utils.module_loading import import_string
 from functools import update_wrapper
 
 from chamber.shortcuts import get_object_or_none
-from chamber.exceptions import PersistenceException
 from chamber.utils import remove_accent, transaction
 
 from .conf import settings
 from .paginator import BaseOffsetPaginator
 from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
-                       ResponseExceptionFactory)
+                       ResponseExceptionFactory, ResponseValidationExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
-                        UnsupportedMediaTypeException, MimerDataException, UnauthorizedException)
-from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory
+                        UnsupportedMediaTypeException, MimerDataException, UnauthorizedException,
+                        UnprocessableEntity)
+from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory, RESTValidationError
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
 from .serializer import (
@@ -255,8 +256,10 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
             (DuplicateEntryException, ResponseErrorFactory(_('Conflict/Duplicate'), 409, error_response_class)),
             (ConflictException, ResponseErrorFactory(_('Conflict/Duplicate'), 409, error_response_class)),
             (DataInvalidException, ResponseExceptionFactory(errors_response_class)),
+            (UnprocessableEntity, ResponseExceptionFactory(error_response_class, code=422)),
             (RESTException, ResponseExceptionFactory(error_response_class)),
-            (PersistenceException, ResponseExceptionFactory(error_response_class)),
+            (ValidationError, ResponseValidationExceptionFactory(error_response_class)),
+            (RESTValidationError, ResponseValidationExceptionFactory(error_response_class)),
         )
 
     @property

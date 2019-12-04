@@ -19,12 +19,16 @@ class RESTException(Exception):
     message = None
 
     def __init__(self, message=None):
-        super(RESTException, self).__init__()
+        super().__init__()
         self.message = message or self.message
 
     @property
     def errors(self):
         return {'error': self.message}
+
+
+class UnprocessableEntity(RESTException):
+    pass
 
 
 class ResourceNotFoundException(RESTException):
