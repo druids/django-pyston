@@ -155,6 +155,7 @@ class XMLConverter(Converter):
     """
     media_type = 'text/xml'
     format = 'xml'
+    root_element_name = 'response'
 
     def _to_xml(self, xml, data):
         from pyston.serializer import LAZY_SERIALIZERS
@@ -180,11 +181,11 @@ class XMLConverter(Converter):
 
             xml = SimplerXMLGenerator(stream, 'utf-8')
             xml.startDocument()
-            xml.startElement('response', {})
+            xml.startElement(self.root_element_name, {})
 
             self._to_xml(xml, data)
 
-            xml.endElement('response')
+            xml.endElement(self.root_element_name)
             xml.endDocument()
 
             return stream.getvalue()
