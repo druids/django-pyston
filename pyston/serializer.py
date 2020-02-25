@@ -281,7 +281,7 @@ class DefaultSerializer(Serializer):
 class DateTimeSerializer(Serializer):
 
     def serialize(self, data, serialization_format, **kwargs):
-        return timezone.localtime(data)
+        return timezone.localtime(data) if timezone.is_aware(data) else data
 
 
 @register(dict)
