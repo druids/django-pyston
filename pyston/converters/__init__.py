@@ -5,6 +5,7 @@ from io import StringIO
 
 from collections import OrderedDict
 
+from defusedxml import ElementTree as ET
 from django.core.serializers.json import DjangoJSONEncoder
 from django.http.response import HttpResponseBase
 from django.template.loader import get_template
@@ -191,6 +192,9 @@ class XMLConverter(Converter):
             return stream.getvalue()
         else:
             return ''
+
+    def _decode(self, data, **kwargs):
+        return ET.fromstring(data)
 
 
 class LazyDjangoJSONEncoder(DjangoJSONEncoder):

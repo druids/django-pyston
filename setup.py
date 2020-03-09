@@ -28,6 +28,7 @@ setup(
         'python-mimeparse>=1.6.0',
         'django-chamber>=0.5.6',
         'pyparsing>=2.4.2',
+        'defusedxml>=0.6.0',
     ],
     zip_safe=False
 )
