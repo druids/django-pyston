@@ -301,7 +301,7 @@ class StandardOperationsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
 
     def test_not_valid_input_media_type(self):
-        resp = self.c.post(self.USER_API_URL, data='string_data', content_type='text/xml')
+        resp = self.c.post(self.USER_API_URL, data='string_data', content_type='text/html')
         return assert_equal(resp.status_code, 415)
 
     def test_camel_snake_case_transformation(self):
