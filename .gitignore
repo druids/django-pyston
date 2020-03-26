@@ -59,3 +59,7 @@ build/config
 # Test generated files #
 ########################
 media/
+
+# Egg #
+######
+django_pyston.egg-info/
