@@ -15,7 +15,7 @@ DJANGO_POSTFIX = --settings=$(DJANGO_SETTINGS_MODULE) --pythonpath=$(PYTHONPATH)
 PYTHON_BIN = $(VIRTUAL_ENV)/bin
 TYPE = dev
 OS = $(shell uname)
-PYTHON_VERSION_MAJOR = 3.6
+PYTHON_VERSION_MAJOR = 3
 PYTHON = python$(PYTHON_VERSION_MAJOR)
 
 INIT_DATA_PATH = data
@@ -37,7 +37,7 @@ cleanvar: clean cleanvirtualenv
 cleanall: cleanvar
 
 pip:
-	$(PYTHON_BIN)/pip install --process-dependency-links --allow-all-external -r requirements/base.txt
+	$(PYTHON_BIN)/pip install -r requirements/base.txt
 
 initvirtualenv:
 	virtualenv -p $(PYTHON) --no-site-packages $(VIRTUAL_ENV)
