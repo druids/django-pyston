@@ -385,16 +385,15 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
         fieldset = True
         try:
-            self.request = self._deserialize()
-
             rm = self.request.method.lower()
             meth = getattr(self, rm, None)
 
             if not meth or rm not in self.get_allowed_methods():
                 raise NotAllowedMethodException
-            else:
-                self._check_permission(rm)
-                result = meth()
+
+            self.request = self._deserialize()
+            self._check_permission(rm)
+            result = meth()
         except Exception as ex:
             result = self._get_error_response_from_exception(ex)
             if result is None:
