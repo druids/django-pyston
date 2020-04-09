@@ -35,6 +35,7 @@ OPERATORS = Enum(
     ('IN', 'in'),
     ('RANGE', 'range'),
     ('ALL', 'all'),
+    ('ISNULL', 'isnull'),
 )
 
 
