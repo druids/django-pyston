@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.core.exceptions import FieldDoesNotExist
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
 
@@ -174,6 +175,37 @@ class ModelFilterManager:
         raise NotImplementedError
 
 
+def get_flat_lookups(q):
+    if isinstance(q, Q):
+        result = []
+        for child in q.children:
+            result += get_flat_lookups(child)
+        return result
+    else:
+        return [q[0]]
+
+
+def is_required_distinct_for_lookup(model, lookup, fail_first=False):
+    if '__' in lookup:
+        curr_lookup, next_lookup = lookup.split('__', 1)
+    else:
+        curr_lookup, next_lookup = lookup, None
+    try:
+        field = model._meta.get_field(curr_lookup)
+        if not field.is_relation:
+            return False
+        elif field.many_to_many or field.one_to_many:
+            # m2m or o2m relations can cause duplications
+            return True
+        elif not next_lookup:
+            return False
+        else:
+            return is_required_distinct_for_lookup(field.related_model, next_lookup, True)
+    except FieldDoesNotExist:
+        # For annotations is distinct automatically required
+        return fail_first
+
+
 class ParserModelFilterManager(ModelFilterManager):
     """
     Manager that uses parser to parse input filter data to the logical conditions tree.
@@ -215,15 +247,23 @@ class ParserModelFilterManager(ModelFilterManager):
                     mark_safe(ugettext('Invalid operator of condition "{}"').format(condition.source))
                 )
 
+    def _is_required_distinct(self, qs, q):
+        for lookup in get_flat_lookups(q):
+            if is_required_distinct_for_lookup(qs.model, lookup):
+                return True
+        return False
+
     def filter(self, resource, qs, request):
         try:
             parsed_conditions = self.parser.parse(request)
-            return (
-                qs.filter(pk__in=qs.filter(
-                    self._convert_logical_conditions(parsed_conditions, resource, request)).values('pk')
-                )
-                if parsed_conditions else qs
-            )
+            if parsed_conditions:
+                q = self._convert_logical_conditions(parsed_conditions, resource, request)
+                if self._is_required_distinct(qs, q):
+                    return qs.filter(pk__in=qs.filter(q).values('pk'))
+                else:
+                    return qs.filter(q)
+            else:
+                return qs
         except FilterParserError as ex:
             raise RESTException(ex)
 
