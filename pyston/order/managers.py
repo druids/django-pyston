@@ -25,6 +25,9 @@ class ModelOrderManager:
     and fields.
     """
 
+    def _get_real_field_name(self, resource, field_name):
+        return resource.renamed_fields.get(field_name, field_name) if resource else field_name
+
     def _get_sorter_from_method(self, method, identifiers_prefix, identifiers, direction, model, resource, request,
                                 order_fields_rfs):
         """
@@ -65,7 +68,8 @@ class ModelOrderManager:
         :param order_fields_rfs: RFS of fields that is allowed to order.
         :return: db order method string that is obtained from resource object.
         """
-        full_identifiers_string = LOOKUP_SEP.join(identifiers)
+        full_identifiers_string = self._get_real_field_name(resource, LOOKUP_SEP.join(identifiers))
+
         resource_method = resource.get_method_returning_field_value(full_identifiers_string) if resource else None
         if full_identifiers_string in order_fields_rfs and resource_method:
             return self._get_sorter_from_method(resource_method, identifiers_prefix, identifiers, direction, model,
@@ -84,7 +88,7 @@ class ModelOrderManager:
         :param order_fields_rfs: RFS of fields that is allowed to order.
         :return: db order method string that is obtained from model fields or methods.
         """
-        current_identifier = identifiers[0]
+        current_identifier = self._get_real_field_name(resource, identifiers[0])
         identifiers_suffix = identifiers[1:]
 
         if current_identifier not in order_fields_rfs:
@@ -189,6 +193,7 @@ class ParserModelOrderManager(ModelOrderManager):
             parsed_order_terms = self.parser.parse(request)
             sorters = self._get_sorters(parsed_order_terms or (), resource, request)
             qs = self._update_queryset(qs, sorters)
+            print('teee', self._convert_order_terms(sorters))
             return qs.order_by(*self._convert_order_terms(sorters)) if sorters else qs
         except OrderParserError as ex:
             raise RESTException(ex)

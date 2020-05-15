@@ -69,7 +69,7 @@ class RESTErrorsResponseMixin:
             return RESTValidationError(data).message
 
 
-class RESTErrorsResponse(RESTErrorsResponseMixin, HeadersResponse):
+class RESTErrorsResponse(RESTErrorsResponseMixin, NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=400):
         http_headers = {} if http_headers is None else http_headers

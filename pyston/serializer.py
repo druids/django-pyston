@@ -57,9 +57,18 @@ class SerializableObj(Serializable):
             val, request=request, resource_typemapper=self.resource_typemapper
         ).serialize(val, serialization_format, **kwargs)
 
-    def serialize(self, serialization_format, request=None, **kwargs):
-        return {field_name: self._get_value(field_name, serialization_format, request, **kwargs)
-                for field_name in self.get_fields()}
+    def serialize(self, serialization_format, request=None, requested_fieldset=None, **kwargs):
+        return {
+            field_name: self._get_value(
+                field_name,
+                serialization_format,
+                request,
+                requested_fieldset=requested_fieldset.get(field_name).subfieldset if requested_fieldset else None,
+                **kwargs
+            )
+            for field_name in self.get_fields()
+            if not requested_fieldset or field_name in requested_fieldset
+        }
 
     def get_fields(self):
         return self.RESTMeta.fields
@@ -212,23 +221,35 @@ class ResourceSerializerMixin:
         self.resource = resource
         super().__init__(request=request)
 
+    def _get_resource(self):
+        return self.resource
+
     def _get_serializer(self, data):
         return get_serializer(data, request=self.request, resource_typemapper=self.resource.resource_typemapper)
 
     def deserialize(self, data):
         return data
 
-    def _serialize_recursive(self, data, serialization_format, **kwargs):
+    def _serialize_recursive(self, data, serialization_format, requested_fieldset=None, **kwargs):
         if isinstance(data, dict):
             return OrderedDict(
                 [
-                    (k, self._serialize_recursive(v, serialization_format, **kwargs)) for k, v in data.items()
+                    (k, self._serialize_recursive(
+                        v,
+                        serialization_format,
+                        requested_fieldset=requested_fieldset.get(k).subfieldset if requested_fieldset else None,
+                        **kwargs)
+                     ) for k, v in data.items()
+                    if not requested_fieldset or k in requested_fieldset
                 ]
             )
         elif isinstance(data, (list, tuple, set)):
-            return (self._serialize_recursive(v, serialization_format, **kwargs) for v in data)
+            return (
+                self._serialize_recursive(v, serialization_format, requested_fieldset=requested_fieldset, **kwargs)
+                for v in data
+            )
         else:
-            return self._serialize_other(data, serialization_format, **kwargs)
+            return self._serialize_other(data, serialization_format, requested_fieldset=requested_fieldset, **kwargs)
 
     def _serialize_other(self, data, serialization_format, **kwargs):
         copy_kwargs = kwargs.copy()
@@ -241,13 +262,12 @@ class ResourceSerializerMixin:
 
 class ResourceSerializer(ResourceSerializerMixin, Serializer):
 
-    def _serialize_recursive(self, data, serialization_format, **kwargs):
-        if isinstance(data, dict):
-            return self.resource.update_serialized_data(
-                super(ResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
-            )
+    def serialize(self, data, serialization_format, **kwargs):
+        serialized_data = self._serialize_recursive(data, serialization_format, **kwargs)
+        if isinstance(serialized_data, dict):
+            return LazyMappedSerializedData(serialized_data, {v: k for k, v in self.resource.renamed_fields.items()})
         else:
-            return super(ResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
+            return serialized_data
 
 
 class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
@@ -256,11 +276,9 @@ class ObjectResourceSerializer(ResourceSerializerMixin, Serializer):
         if isinstance(data, self.resource.model):
             if not self.resource.has_read_obj_permission(obj=data, via=kwargs.get('via')):
                 raise NotAllowedException
-            return self.resource.update_serialized_data(
-                data.serialize(serialization_format, request=self.request, **kwargs)
-            )
+            return data.serialize(serialization_format, request=self.request, **kwargs)
         else:
-            return super(ObjectResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
+            return super()._serialize_recursive(data, serialization_format, **kwargs)
 
 
 @register(str)
@@ -290,15 +308,20 @@ class DictSerializer(Serializer):
     def serialize(self, data, serialization_format, requested_fieldset=None,
                   extended_fieldset=None, exclude_fields=None, **kwargs):
         return OrderedDict([
-            (k, self._data_to_python(v, serialization_format, **kwargs)) for k, v in data.items()
+            (k, self._data_to_python(
+                v,
+                serialization_format,
+                requested_fieldset=requested_fieldset.get(k).subfieldset if requested_fieldset else None,
+                **kwargs
+            )) for k, v in data.items()
+            if not requested_fieldset or k in requested_fieldset
         ])
 
 
 @register((list, tuple, set))
 class CollectionsSerializer(Serializer):
 
-    def serialize(self, data, serialization_format, requested_fieldset=None,
-                   extended_fieldset=None, exclude_fields=None, **kwargs):
+    def serialize(self, data, serialization_format, extended_fieldset=None, exclude_fields=None, **kwargs):
         return (self._data_to_python(v, serialization_format, **kwargs) for v in data)
 
 
@@ -325,6 +348,13 @@ class SerializableSerializer(Serializer):
 
 @register((Model, QuerySet, ModelIteratorHelper))
 class ModelSerializer(Serializer):
+
+    def _get_resource(self):
+        return None
+
+    def _get_real_field_name(self, field_name):
+        resource = self._get_resource()
+        return resource.renamed_fields.get(field_name, field_name) if resource else field_name
 
     def _get_model_fields(self, obj):
         return {f.name: f for f in obj._meta.fields if hasattr(f, 'serialize') and f.serialize}
@@ -361,12 +391,19 @@ class ModelSerializer(Serializer):
             data_to_python_callback=self._data_to_python
         )
 
-    def _method_to_python(self, method, obj, serialization_format, allow_tags=False, **kwargs):
+    def _method_to_python(self, method, obj, serialization_format, allow_tags=False, requested_fieldset=None, **kwargs):
         method_kwargs_names = inspect.getargspec(method)[0][1:]
 
         method_kwargs = {}
 
-        fun_kwargs = {'request': self.request, 'obj': obj} if self.request else {'obj': obj}
+        fun_kwargs = {
+            'request': self.request,
+            'obj': obj,
+            'requested_fieldset': requested_fieldset
+        } if self.request else {
+            'obj': obj,
+            'requested_fieldset': requested_fieldset
+        }
 
         for arg_name in method_kwargs_names:
             if arg_name in fun_kwargs:
@@ -374,9 +411,12 @@ class ModelSerializer(Serializer):
 
         if len(method_kwargs_names) == len(method_kwargs):
             return self._data_to_python(
-                self._value_to_raw_verbose(method(**method_kwargs), method, obj,
-                                           **{k: v for k, v in method_kwargs.items() if k != 'obj'}),
-                serialization_format, allow_tags=allow_tags or getattr(method, 'allow_tags', False), **kwargs
+                self._value_to_raw_verbose(
+                    method(**method_kwargs), method, obj, **{k: v for k, v in method_kwargs.items() if k != 'obj'}
+                ),
+                serialization_format, allow_tags=allow_tags or getattr(method, 'allow_tags', False),
+                requested_fieldset=requested_fieldset,
+                **kwargs
             )
         else:
             raise SerializationException('Invalid method parameters')
@@ -449,38 +489,39 @@ class ModelSerializer(Serializer):
     def _field_to_python(self, field_name, resource_method_fields, model_fields, m2m_fields, reverse_fields,
                          obj, serialization_format, allow_tags=False, **kwargs):
 
-
-        if field_name in resource_method_fields:
-            return self._method_to_python(resource_method_fields[field_name], obj, serialization_format,
-                                          allow_tags=allow_tags, **kwargs)
-        elif field_name == '_obj_name':
+        real_field_name = self._get_real_field_name(field_name)
+        if real_field_name in resource_method_fields:
+            return self._method_to_python(
+                resource_method_fields[real_field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
+            )
+        elif real_field_name == '_obj_name':
             return self._data_to_python(str(obj), serialization_format, allow_tags=allow_tags, **kwargs)
-        elif field_name in m2m_fields:
+        elif real_field_name in m2m_fields:
             return self._m2m_field_to_python(
-                m2m_fields[field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
+                m2m_fields[real_field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
             )
-        elif field_name in model_fields:
+        elif real_field_name in model_fields:
             return self._model_field_to_python(
-                model_fields[field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
+                model_fields[real_field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
             )
-        elif hasattr(obj.__class__, field_name):
-            if field_name in reverse_fields:
-                val = getattr(obj, field_name, None) if hasattr(obj, field_name) else None
+        elif hasattr(obj.__class__, real_field_name):
+            if real_field_name in reverse_fields:
+                val = getattr(obj, real_field_name, None) if hasattr(obj, real_field_name) else None
             else:
-                val = getattr(obj, field_name)
+                val = getattr(obj, real_field_name)
 
             if hasattr(val, 'all'):
                 return self._reverse_qs_to_python(
-                    val, field_name, obj, serialization_format, allow_tags=allow_tags, **kwargs
+                    val, real_field_name, obj, serialization_format, allow_tags=allow_tags, **kwargs
                 )
             elif isinstance(val, Model):
                 return self._reverse_to_python(
-                    val, field_name, obj, serialization_format, allow_tags=allow_tags, **kwargs
+                    val, real_field_name, obj, serialization_format, allow_tags=allow_tags, **kwargs
                 )
             elif callable(val):
                 return self._method_to_python(val, obj, serialization_format, allow_tags=allow_tags, **kwargs)
             else:
-                method = get_class_method(obj, field_name)
+                method = get_class_method(obj, real_field_name)
                 return self._data_to_python(
                     self._value_to_raw_verbose(val, method, obj),
                     serialization_format,
@@ -491,9 +532,9 @@ class ModelSerializer(Serializer):
             raise SerializerFieldNotFound('Field "{}" was not found'.format(field_name))
 
     def _fields_to_python(self, obj, serialization_format, fieldset, requested_fieldset, **kwargs):
-        model_resource = self._get_model_resource(obj)
+        resource = self._get_resource()
         resource_method_fields = (
-            model_resource.get_methods_returning_field_value(fieldset.flat()) if model_resource else {}
+            resource.get_methods_returning_field_value(fieldset.flat()) if resource else {}
         )
         model_fields = self._get_model_fields(obj)
         m2m_fields = self._get_m2m_fields(obj)
@@ -501,7 +542,7 @@ class ModelSerializer(Serializer):
 
         python_data = OrderedDict()
         for field in fieldset.fields:
-            subkwargs = self._copy_kwargs(model_resource, kwargs)
+            subkwargs = self._copy_kwargs(resource, kwargs)
             requested_field = None
             if requested_fieldset:
                 requested_field = requested_fieldset.get(field.name)
@@ -512,20 +553,17 @@ class ModelSerializer(Serializer):
             )
         return python_data
 
-    def _get_model_resource(self, obj):
-        return None
-
-    def _get_fieldset_from_resource(self, model_resource, obj, via, has_read_permission):
+    def _get_fieldset_from_resource(self, resource, obj, via, has_read_permission):
         if not has_read_permission:
-            return model_resource.get_guest_fields_rfs(obj)
+            return resource.get_guest_fields_rfs(obj)
         else:
-            return model_resource.get_general_fields_rfs(obj)
+            return resource.get_general_fields_rfs(obj)
 
-    def _get_allowed_fieldset_from_resource(self, model_resource, obj, via, has_read_permission):
+    def _get_allowed_fieldset_from_resource(self, resource, obj, via, has_read_permission):
         if not has_read_permission:
-            return model_resource.get_guest_fields_rfs(obj)
+            return resource.get_guest_fields_rfs(obj)
         else:
-            return model_resource.get_allowed_fields_rfs(obj)
+            return resource.get_allowed_fields_rfs(obj)
 
     def _get_direct_serialization_fields(self, obj):
         return rfs(obj._rest_meta.direct_serialization_fields).join(rfs(obj._rest_meta.default_fields))
@@ -536,12 +574,11 @@ class ModelSerializer(Serializer):
         if self._get_obj_serialization_name(obj) in serialized_objects:
             return rfs((get_last_parent_pk_field_name(obj),))
 
-        model_resource = self._get_model_resource(obj)
-
-        if model_resource:
-            has_read_permission = model_resource.has_read_obj_permission(obj=obj, via=via)
-            default_fieldset = self._get_fieldset_from_resource(model_resource, obj, via, has_read_permission)
-            allowed_fieldset = self._get_allowed_fieldset_from_resource(model_resource, obj, via, has_read_permission)
+        resource = self._get_resource()
+        if resource:
+            has_read_permission = resource.has_read_obj_permission(obj=obj, via=via)
+            default_fieldset = self._get_fieldset_from_resource(resource, obj, via, has_read_permission)
+            allowed_fieldset = self._get_allowed_fieldset_from_resource(resource, obj, via, has_read_permission)
         else:
             direct_serialization_fields = self._get_direct_serialization_fields(obj)
             allowed_fieldset = rfs(
@@ -593,17 +630,19 @@ class ModelSerializer(Serializer):
 
 class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
-    def _get_model_resource(self, obj):
-        return self.resource
+    def _serialize_recursive(self, data, serialization_format, requested_fieldset=None, **kwargs):
+        if isinstance(data, self.resource.model) and not kwargs.get('via') and not requested_fieldset:
+            requested_fieldset = self.resource.get_detailed_fields_rfs(obj=data)
 
-    def _serialize_recursive(self, data, serialization_format, **kwargs):
         if (isinstance(data, self.resource.model) or
               isinstance(data, (ModelIteratorHelper, QuerySet)) and issubclass(data.model, self.resource.model)):
-            return self.resource.update_serialized_data(
-                ModelSerializer.serialize(self, data, serialization_format, **kwargs)
+            return ModelSerializer.serialize(
+                self, data, serialization_format, requested_fieldset=requested_fieldset, **kwargs
             )
         else:
-            return super(ModelResourceSerializer, self)._serialize_recursive(data, serialization_format, **kwargs)
+            return super(ModelResourceSerializer, self)._serialize_recursive(
+                data, serialization_format, requested_fieldset=requested_fieldset, **kwargs
+            )
 
 
 def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,

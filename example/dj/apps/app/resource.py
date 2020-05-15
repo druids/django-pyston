@@ -48,17 +48,30 @@ class IssueResource(BaseModelResource):
 class UserResource(BaseModelResource):
 
     model = User
-    DATA_KEY_MAPPING = {
-        'created_at': 'createdAt',
-        'solving_issue': 'solvingIssue',
-        'first_name': 'firstName',
-        'last_name': 'lastName',
-        'is_superuser': 'isSuperuser',
-        'watched_issues': 'watchedIssues',
-        'created_issues': 'createdIssues',
-        'manual_created_date': 'manualCreatedDate',
-        'watched_issues_count': 'watchedIssuesCount',
+    renamed_fields = {
+        'createdAt': 'created_at',
+        'solvingIssue': 'solving_issue',
+        'firstName': 'first_name',
+        'lastName': 'last_name',
+        'isSuperuser': 'is_superuser',
+        'watchedIssues': 'watched_issues',
+        'createdIssues': 'created_issues',
+        'manualCreatedDate': 'manual_created_date',
+        'watchedIssuesCount': 'watched_issues_count',
     }
+    fields = (
+        'createdAt', 'email', 'contract', 'solvingIssue', 'firstName', 'lastName', 'isSuperuser', 'manualCreatedDate',
+        'watchedIssuesCount'
+    )
+    detailed_fields = (
+        'createdAt', '_obj_name', 'email', 'contract', 'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
+        'createdIssues__id', 'manualCreatedDate'
+    )
+    general_fields = (
+        'email', 'firstName', 'lastName', 'watchedIssues__name', 'watchedIssues__id', 'manualCreatedDate',
+        'watchedIssuesCount'
+    )
+    extra_fields = ()
     can_create_obj = True
     can_read_obj = True
     can_update_obj = True
@@ -114,9 +127,9 @@ class TestTextObjectCamelCaseResource(BaseObjectResource):
 
 class TestCamelCaseResource(BaseResource):
 
-    DATA_KEY_MAPPING = {
-        'bar_baz': 'barBaz',
-        'foo_bar': 'fooBar',
+    renamed_fields = {
+        'barBaz': 'bar_baz',
+        'fooBar': 'foo_bar',
     }
 
     def get(self):

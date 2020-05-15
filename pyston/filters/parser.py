@@ -96,6 +96,7 @@ class DefaultFilterParser(FilterParser):
     VALUE_MAPPERS = {
         'null': None
     }
+    DELIMITER = '__'
 
     def _clean_value(self, value):
         if isinstance(value, list):
@@ -142,8 +143,10 @@ class DefaultFilterParser(FilterParser):
         NOT = pp.Literal(LOGICAL_OPERATORS.NOT)
 
         identifier = pp.Regex(r"[a-zA-Z]+[a-zA-Z0-9]*(_[a-zA-Z0-9]+)*")
-        identifiers = pp.Group(pp.delimitedList(identifier, delim="__", combine=False))
-
+        identifiers = pp.Group(
+            pp.delimitedList(identifier, delim=self.DELIMITER, combine=False)
+            if self.DELIMITER else identifier
+        )
         comparison_term = pp.Forward()
         list_term = (
             pp.Group(
@@ -212,6 +215,7 @@ class QueryStringFilterParser(FlatAndFilterParser):
     MULTIPLE_VALUES_OPERATORS = {
         OPERATORS.IN, OPERATORS.ALL
     }
+    DELIMITER = '__'
 
     def _clean_multiple_values(self, operator_slug, value):
         for pattern in ('\[(.*)\]', '\((.*)\)', '\{(.*)\}'):
@@ -247,7 +251,7 @@ class QueryStringFilterParser(FlatAndFilterParser):
 
         conditions_list = []
         for filter_term, value in filter_terms_with_values:
-            identifiers = filter_term.split(LOOKUP_SEP)
+            identifiers = filter_term.split(self.DELIMITER) if self.DELIMITER else [filter_term]
 
             if len(identifiers) > 1 and identifiers[-1].upper() == LOGICAL_OPERATORS.NOT:
                 identifiers = identifiers[:-1]
