@@ -202,7 +202,7 @@ class RelatedField:
             raise RESTValidationError(ugettext('Data must be object'), code='invalid_structure')
 
         try:
-            return resource.create_or_update(resource.update_deserialized_data(data), via, partial_update)
+            return resource.create_or_update(resource.update_data(data), via, partial_update)
         except DataInvalidException as ex:
             raise ex.errors
         except RESTException as ex:
@@ -501,7 +501,7 @@ class ReverseManyField(MultipleRelatedfieldValidationMixin, ReverseField):
             try:
                 self._delete_related_object(
                     resource,
-                    resource.update_deserialized_data(obj_data) if isinstance(obj_data, dict) else obj_data,
+                    resource.update_data(obj_data) if isinstance(obj_data, dict) else obj_data,
                     via
                 )
             except RESTDictError as ex:

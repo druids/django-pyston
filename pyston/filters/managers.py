@@ -53,6 +53,9 @@ class ModelFilterManager:
             raise FilterIdentifierError
         return method.filter(identifiers_prefix, identifiers, identifiers_suffix, model, method=method)
 
+    def _get_real_field_name(self, resource, field_name):
+        return resource.renamed_fields.get(field_name, field_name) if resource else field_name
+
     def _get_resource_filter(self, identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs):
         """
         :param identifiers_prefix: because filters are recursive if model relations property contains list of
@@ -64,11 +67,12 @@ class ModelFilterManager:
         :param filters_fields_rfs: RFS of fields that is allowed to filter.
         :return: method returns filter that is obtained from resource and its methods.
         """
+
         # Filter is obtained from resource filters dict
         for i in range(1, len(identifiers) + 1):
             # Because resource filters can contains filter key with __ we must try all combinations with suffixes
             current_identifiers = identifiers[:i]
-            identifiers_string = LOOKUP_SEP.join(current_identifiers)
+            identifiers_string = self._get_real_field_name(resource, LOOKUP_SEP.join(current_identifiers))
             identifiers_suffix = identifiers[i:]
             suffix_string = LOOKUP_SEP.join(identifiers_suffix)
             if (resource and identifiers_string in resource.filters and
@@ -78,7 +82,7 @@ class ModelFilterManager:
                 )
 
         # Filter is obtained from resource methods
-        current_identifier = identifiers[0]
+        current_identifier = self._get_real_field_name(resource, identifiers[0])
         resource_method = resource.get_method_returning_field_value(current_identifier) if resource else None
         if current_identifier in filters_fields_rfs and resource_method:
             return self._get_method_filter(
@@ -99,7 +103,7 @@ class ModelFilterManager:
         :param filters_fields_rfs: RFS of fields that is allowed to filter.
         :return: method returns filter from model fields or methods
         """
-        current_identifier = identifiers[0]
+        current_identifier = self._get_real_field_name(resource, identifiers[0])
         identifiers_suffix = identifiers[1:]
 
         if current_identifier not in filters_fields_rfs:
@@ -127,6 +131,8 @@ class ModelFilterManager:
                 model_method, identifiers_prefix, [current_identifier], identifiers_suffix,
                 model, resource, request, filters_fields_rfs
             )
+        else:
+            return None
 
     def _get_filter_recursive(self, identifiers_prefix, identifiers, model, resource, request,
                               extra_filter_fields_rfs=None):
@@ -146,11 +152,14 @@ class ModelFilterManager:
                 resource.get_filter_fields_rfs() if resource else get_allowed_filter_fields_rfs_from_model(model)
             )
         )
+
         filter_obj = (
             self._get_resource_filter(
-                identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs) or
-            self._get_model_filter(
-                identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs)
+                identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs
+            )
+            or self._get_model_filter(
+                identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs
+            )
         )
         if not filter_obj:
             raise FilterIdentifierError

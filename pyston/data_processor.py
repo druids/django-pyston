@@ -59,6 +59,7 @@ class DataProcessorCollection:
             processors += list(self.data_processors_map.get(obj_class, set()))
         return processors
 
+
 data_preprocessors = DataProcessorCollection()
 data_postprocessors = DataProcessorCollection()
 

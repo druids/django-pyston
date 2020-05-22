@@ -119,7 +119,7 @@ class StandardOperationsTestCase(PystonTestCase):
         output_data = self.deserialize(resp)
         assert_equal(set(output_data.keys()), {'id', 'createdAt', '_obj_name', 'email', 'contract',
                                                'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
-                                               'manualCreatedDate'})
+                                               'manualCreatedDate', 'createdIssues'})
 
     @data_provider('get_users_data')
     def test_read_user_general_fields_set_with_metaclass(self, number, data):
@@ -136,7 +136,7 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.post(self.USER_API_URL, data=data)
         assert_valid_JSON_created_response(resp)
 
-        headers = {'HTTP_X_FIELDS': 'is_superuser'}
+        headers = {'HTTP_X_FIELDS': 'isSuperuser'}
         resp = self.get(self.USER_API_URL, headers=headers)
 
         output_data = self.deserialize(resp)
@@ -310,13 +310,13 @@ class StandardOperationsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(data, self.deserialize(resp))
 
-    def test_camel_snake_case_nested(self):
+    def test_rename_fields_should_not_be_nested(self):
         resp = self.get(self.TEST_CC_API_URL)
         assert_valid_JSON_response(resp)
 
         data = {
             'fooBar': 'foo bar',
-            'connected': {'fizBaz': 'test object property content'}
+            'connected': {'fiz_baz': 'test object property content'}
         }
         assert_equal(data, self.deserialize(resp))
 

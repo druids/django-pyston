@@ -37,11 +37,12 @@ from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory, REST
 from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
 from .utils.helpers import str_to_class
 from .serializer import (
-    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer
+    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, SerializableObj
 )
 from .converters import get_converter_name_from_request, get_converter_from_request
 from .filters.managers import MultipleFilterManager
 from .order.managers import DefaultModelOrderManager
+from .requested_fields.managers import DefaultRequestedFieldsManager
 
 
 ACCESS_CONTROL_ALLOW_ORIGIN = 'Access-Control-Allow-Origin'
@@ -207,6 +208,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     errors_response_class = settings.ERRORS_RESPONSE_CLASS
     error_response_class = settings.ERROR_RESPONSE_CLASS
     field_labels = {}
+    requested_fields_manager = DefaultRequestedFieldsManager()
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -218,12 +220,20 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         'filter': ('HTTP_X_FILTER', 'filter'),
         'order': ('HTTP_X_ORDER', 'order'),
     }
-    DATA_KEY_MAPPING = {}
+    renamed_fields = {}
 
     def __init__(self, request):
         self.request = request
         self.args = []
         self.kwargs = {}
+
+    def _get_requested_fieldset(self, result):
+        if self.requested_fields_manager:
+            requested_fields = self.requested_fields_manager.get_requested_fields(self, self.request)
+            if requested_fields is not None:
+                return requested_fields
+
+        return None
 
     def get_field_labels(self):
         return self.field_labels
@@ -274,22 +284,21 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     def cors_max_age(self):
         return settings.CORS_MAX_AGE
 
-    def _demap_key(self, lookup_key):
-        return {v: k for k, v in self.DATA_KEY_MAPPING.items()}.get(lookup_key, lookup_key)
-
-    def update_serialized_data(self, data):
-        if data and self.DATA_KEY_MAPPING:
-            data = LazyMappedSerializedData(data, self.DATA_KEY_MAPPING).serialize()
+    def update_errors(self, data):
+        if data and self.renamed_fields:
+            data = LazyMappedSerializedData(data, {v: k for k, v in self.renamed_fields.items()}).serialize()
         return data
 
-    def update_deserialized_data(self, data):
-        return (
-            {self._demap_key(k): v for k, v in data.items() if k not in self.DATA_KEY_MAPPING}
-            if isinstance(data, dict) else {}
-        )
+    def update_data(self, data):
+        if data and isinstance(data, dict) and self.renamed_fields:
+            return {self.renamed_fields.get(k, k): v for k, v in data.items()}
+        else:
+            return data
 
     def get_dict_data(self):
-        return self.update_deserialized_data(self.request.data if hasattr(self.request, 'data') else {})
+        return self.update_data(
+            self.request.data if hasattr(self.request, 'data') and isinstance(self.request.data, dict) else {}
+        )
 
     def _get_serialization_format(self):
         serialization_format = self.request._rest_context.get('serialization_format',
@@ -341,7 +350,8 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
     def _get_converted_serialized_data(self, result):
         return self.serializer(self, request=self.request).serialize(
-            result, self._get_serialization_format(), lazy=True, allow_tags=self._get_converter().allow_tags
+            result, self._get_serialization_format(), lazy=True, allow_tags=self._get_converter().allow_tags,
+            requested_fieldset=self._get_requested_fieldset(result)
         )
 
     def _get_converter(self):
@@ -353,9 +363,11 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     def _serialize(self, output_stream, result, status_code, http_headers):
         converter = self._get_converter()
         http_headers['Content-Type'] = converter.content_type
-
-        converter.encode_to_stream(output_stream, self._get_converted_dict(result), resource=self, request=self.request,
-                                   status_code=status_code, http_headers=http_headers, result=result)
+        converter.encode_to_stream(
+            output_stream, self._get_converted_dict(result), resource=self, request=self.request,
+            status_code=status_code, http_headers=http_headers, result=result,
+            requested_fieldset=self._get_requested_fieldset(result)
+        )
 
     def _deserialize(self):
         rm = self.request.method.upper()
@@ -438,8 +450,8 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         if isinstance(result, HttpResponseBase):
             return result
         else:
-            if not fieldset and 'fields' in self.request._rest_context:
-                del self.request._rest_context['fields']
+            if not fieldset:
+                self.request._rest_context.pop('fields', None)
             response = HttpResponse()
             try:
                 response.status_code = status_code
@@ -652,10 +664,11 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
         :return: dict of resource methods. Key is a field name, value is a method that returns field value.
         """
         method_fields = {}
-        for field_name in fields:
-            method = self.get_method_returning_field_value(field_name)
+        for method_name in fields:
+            real_method_name = self.renamed_fields.get(method_name, method_name)
+            method = self.get_method_returning_field_value(real_method_name)
             if method:
-                method_fields[field_name] = method
+                method_fields[real_method_name] = method
         return method_fields
 
     def get_method_returning_field_value(self, field_name):
@@ -739,17 +752,6 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
             lazy=True, allow_tags=self._get_converter().allow_tags
         )
 
-    def _get_requested_fieldset(self, result):
-        requested_fields = self.request._rest_context.get('fields')
-        if requested_fields:
-            return RFS.create_from_string(requested_fields)
-        elif isinstance(result, Model):
-            return self.get_detailed_fields_rfs(obj=result)
-        elif isinstance(result, QuerySet):
-            return self.get_general_fields_rfs()
-        else:
-            return None
-
     def _get_obj_or_404(self, pk=None):
         obj = self._get_obj_or_none(pk)
         if not obj:
@@ -759,19 +761,10 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def render_response(self, result, http_headers, status_code, fieldset):
         return super(BaseObjectResource, self).render_response(result, http_headers, status_code, fieldset)
 
-    def _get_allowed_fields_options_header(self):
-        return ','.join(self.get_allowed_fields_rfs(self._get_obj_or_none()).flat())
-
     def _get_allow_header(self):
         return ','.join((
             method.upper() for method in self.check_permissions_and_get_allowed_methods(obj=self._get_obj_or_none())
         ))
-
-    def _get_headers(self, default_http_headers):
-        http_headers = super(BaseObjectResource, self)._get_headers(default_http_headers)
-        if self.has_permission():
-            http_headers['X-Fields-Options'] = self._get_allowed_fields_options_header()
-        return http_headers
 
     def _get_queryset(self):
         """
@@ -926,10 +919,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         try:
             return self._create_or_update(data, via, partial_update=partial_update)
         except DataInvalidException as ex:
-            raise DataInvalidException(self._update_errors(ex.errors))
-
-    def _update_errors(self, errors):
-        return self.update_serialized_data(errors)
+            raise DataInvalidException(self.update_errors(ex.errors))
 
     def _create_or_update(self, data, via=None, partial_update=False):
         """
