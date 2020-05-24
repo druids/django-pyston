@@ -193,7 +193,6 @@ class ParserModelOrderManager(ModelOrderManager):
             parsed_order_terms = self.parser.parse(request)
             sorters = self._get_sorters(parsed_order_terms or (), resource, request)
             qs = self._update_queryset(qs, sorters)
-            print('teee', self._convert_order_terms(sorters))
             return qs.order_by(*self._convert_order_terms(sorters)) if sorters else qs
         except OrderParserError as ex:
             raise RESTException(ex)
