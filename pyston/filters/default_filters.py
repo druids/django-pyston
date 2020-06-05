@@ -36,6 +36,8 @@ OPERATORS = Enum(
     ('RANGE', 'range'),
     ('ALL', 'all'),
     ('ISNULL', 'isnull'),
+    ('ABS__GTE', 'absgte'),
+    ('ABS__LTE', 'abslte'),
 )
 
 
