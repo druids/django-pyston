@@ -100,8 +100,7 @@ class FieldsetGenerator:
     def _get_label(self, field_name, model):
         if model:
             return (
-                self._get_field_label_from_model(model, self._get_resource(model), field_name)
-                if field_name != '_obj_name' and field_name else ''
+                self._get_field_label_from_model(model, self._get_resource(model), field_name) if field_name else ''
             )
         else:
             return field_name

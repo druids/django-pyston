@@ -209,6 +209,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     error_response_class = settings.ERROR_RESPONSE_CLASS
     field_labels = {}
     requested_fields_manager = DefaultRequestedFieldsManager()
+    renamed_fields = {}
 
     DEFAULT_REST_CONTEXT_MAPPING = {
         'serialization_format': ('HTTP_X_SERIALIZATION_FORMAT', '_serialization_format'),
@@ -220,7 +221,17 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         'filter': ('HTTP_X_FILTER', 'filter'),
         'order': ('HTTP_X_ORDER', 'order'),
     }
-    renamed_fields = {}
+
+    def update_errors(self, data):
+        if data and self.renamed_fields:
+            data = LazyMappedSerializedData(data, {v: k for k, v in self.renamed_fields.items()}).serialize()
+        return data
+
+    def update_data(self, data):
+        if data and isinstance(data, dict) and self.renamed_fields:
+            return {self.renamed_fields.get(k, k): v for k, v in data.items()}
+        else:
+            return data
 
     def __init__(self, request):
         self.request = request
@@ -283,17 +294,6 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     @property
     def cors_max_age(self):
         return settings.CORS_MAX_AGE
-
-    def update_errors(self, data):
-        if data and self.renamed_fields:
-            data = LazyMappedSerializedData(data, {v: k for k, v in self.renamed_fields.items()}).serialize()
-        return data
-
-    def update_data(self, data):
-        if data and isinstance(data, dict) and self.renamed_fields:
-            return {self.renamed_fields.get(k, k): v for k, v in data.items()}
-        else:
-            return data
 
     def get_dict_data(self):
         return self.update_data(
@@ -816,11 +816,14 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         pk = self._get_pk()
         if pk:
             return self._get_obj_or_404(pk=pk)
-        qs = self._preload_queryset(self._get_queryset().all())
+        qs = self._preload_queryset(self._get_queryset())
         qs = self._filter_queryset(qs)
         qs = self._order_queryset(qs)
-        paginator = self.paginator(qs, self.request)
-        return HeadersResponse(paginator.page_qs, paginator.headers)
+        if self.paginator:
+            paginator = self.paginator(qs, self.request)
+            return HeadersResponse(paginator.page_qs, paginator.headers)
+        else:
+            return qs
 
     def put(self):
         pk = self._get_pk()
@@ -1062,9 +1065,6 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
 
     def _get_form_fields(self, obj=None):
         return self.form_fields
-
-    def _obj_name(self, obj):
-        return str(obj)
 
     def _generate_form_class(self, inst, exclude=None):
         exclude = [] if exclude is None else exclude

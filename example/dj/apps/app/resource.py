@@ -43,6 +43,9 @@ class IssueResource(BaseModelResource):
     can_update_obj = True
     can_delete_obj = True
 
+    def _obj_name(self, obj):
+        return str(obj)
+
 
 class UserResource(BaseModelResource):
 
@@ -63,7 +66,7 @@ class UserResource(BaseModelResource):
         'watchedIssuesCount'
     )
     detailed_fields = (
-        'createdAt', '_obj_name', 'email', 'contract', 'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
+        'createdAt', 'email', 'contract', 'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
         'createdIssues__id', 'manualCreatedDate'
     )
     general_fields = (
@@ -108,7 +111,7 @@ class TestTextObject(SerializableObj):
     def __init__(self, fiz_baz):
         self.fiz_baz = fiz_baz
 
-    class RESTMeta:
+    class Meta:
         fields = ('fiz_baz',)
 
 
@@ -119,28 +122,20 @@ class TestTextObjectCamelCaseResource(BaseObjectResource):
 
     can_read_obj = True
 
-    DATA_KEY_MAPPING = {
-        'fiz_baz': 'fizBaz',
+    renamed_fields = {
+        'fizBaz': 'fiz_baz',
     }
+    fields = ('fizBaz',)
 
 
 class TestCamelCaseResource(BaseResource):
 
-    renamed_fields = {
-        'barBaz': 'bar_baz',
-        'fooBar': 'foo_bar',
-    }
-
     def get(self):
         connected = TestTextObject('test object property content')
         return {
-            'foo_bar': 'foo bar',
+            'fooBar': 'foo bar',
             'connected': connected,
         }
-
-    def post(self):
-        data = self.get_dict_data()
-        return RESTCreatedResponse({'bar_baz': data.get('bar_baz')})
 
 
 class UserForm(RESTModelForm):

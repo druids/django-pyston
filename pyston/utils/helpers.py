@@ -18,7 +18,7 @@ class ModelIteratorHelper:
     def __init__(self, model):
         self.model = model
 
-    def iterator(self):
+    def __iter__(self):
         raise NotImplementedError
 
 
@@ -28,7 +28,7 @@ class QuerysetIteratorHelper(ModelIteratorHelper):
         super().__init__(queryset.model)
         self.queryset = queryset
 
-    def iterator(self):
+    def __iter__(self):
         return iter(self.queryset.iterator())
 
 
@@ -38,7 +38,7 @@ class ModelIterableIteratorHelper(ModelIteratorHelper):
         super().__init__(model)
         self.iterable = iterable
 
-    def iterator(self):
+    def __iter__(self):
         return iter(self.iterable)
 
 
