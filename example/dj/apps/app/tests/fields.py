@@ -7,7 +7,7 @@ from django.utils.translation import ugettext
 
 from germanium.decorators import data_provider
 from germanium.tools.trivials import assert_in, assert_equal, assert_not_equal
-from germanium.tools.http import assert_http_bad_request
+from germanium.tools.http import assert_http_bad_request, assert_http_created
 from germanium.tools.rest import assert_valid_JSON_created_response, assert_valid_JSON_response
 
 import responses
@@ -582,10 +582,14 @@ class FieldsTestCase(PystonTestCase):
         resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
         assert_http_bad_request(resp)
 
-    def test_create_issue_multiple_related_filed_another_users_should_not_contains_none(self):
+    def test_issue_with_correct_iso_date_should_be_created(self):
         issue_data = self.get_issue_data()
-        issue_data['created_by'] = self.get_user_data()
-        issue_data['leader'] = self.get_user_data()
-        issue_data['another_users'] = [None]
+        issue_data['iso_date'] = '2017-01-20T01:33:00+01:00'
+        resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
+        assert_http_created(resp)
+
+    def test_issue_with_incorrect_iso_date_should_not_be_created(self):
+        issue_data = self.get_issue_data()
+        issue_data['iso_date'] = '2020-01-01'
         resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
         assert_http_bad_request(resp)

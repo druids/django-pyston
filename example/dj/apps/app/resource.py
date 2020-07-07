@@ -1,16 +1,15 @@
 from django import forms
 from django.db.models import F, Q
-
 from pyston.converters import XMLConverter
-from pyston.resource import BaseModelResource, BaseResource, BaseObjectResource
-from pyston.response import RESTCreatedResponse, RESTOkResponse
-from pyston.serializer import SerializableObj
+from pyston.filters.default_filters import BooleanFilterMixin, SimpleEqualFilter
 from pyston.forms import (
-    RESTModelForm, ReverseOneToOneField, ReverseManyField, RESTValidationError, SingleRelatedField,
-    MultipleRelatedField
+    ISODateTimeField, MultipleRelatedField, RESTModelForm, RESTValidationError, ReverseManyField, ReverseOneToOneField,
+    SingleRelatedField
 )
 from pyston.forms.postgres import RESTSimpleArrayField
-from pyston.filters.default_filters import SimpleEqualFilter, BooleanFilterMixin
+from pyston.resource import BaseModelResource, BaseObjectResource, BaseResource
+from pyston.response import RESTCreatedResponse
+from pyston.serializer import SerializableObj
 
 from .models import Issue, User
 from .serializable import CountIssuesPerUserTable, CountWatchersPerIssue
@@ -181,6 +180,7 @@ class IssueForm(RESTModelForm):
         queryset=User.objects.all(), required=False
     ), is_allowed_foreign_key=False)
     tags_list = RESTSimpleArrayField(label='tags', base_field=forms.CharField(max_length=5), required=False)
+    iso_date = ISODateTimeField(required=False)
 
     def save(self, commit=True):
         instance = super().save(commit=False)
