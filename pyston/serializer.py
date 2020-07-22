@@ -22,8 +22,7 @@ from .converters import get_converter
 from .exception import NotAllowedException, UnsupportedMediaTypeException
 from .forms import RESTDictError, RESTDictIndexError, RESTListError
 from .utils import rfs
-from .utils.compatibility import (get_last_parent_pk_field_name,
-                                  get_reverse_field_name)
+from .utils.compatibility import get_last_parent_pk_field_name, get_reverse_field_name
 from .utils.helpers import ModelIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
 
 try:
@@ -303,7 +302,16 @@ class ObjectSerializer(Serializer):
     def _field_to_python(self, field_name, real_field_name, obj, serialization_format, allow_tags=False, **kwargs):
         obj_fields = set(obj.__class__.__dict__.keys())
 
-        if real_field_name in obj_fields:
+        print(real_field_name)
+
+        if real_field_name == '_obj_name':
+            return self._data_to_python(
+                str(obj),
+                serialization_format,
+                allow_tags=allow_tags,
+                **kwargs
+            )
+        elif real_field_name in obj_fields:
             return self._data_to_python(
                 self._value_to_raw_verbose(
                     getattr(obj, real_field_name),
@@ -735,6 +743,13 @@ class ModelSerializer(ObjectSerializer):
         elif real_field_name in model_fields:
             return self._model_field_to_python(
                 model_fields[real_field_name], obj, serialization_format, allow_tags=allow_tags, **kwargs
+            )
+        elif real_field_name == '_obj_name':
+            return self._data_to_python(
+                str(obj),
+                serialization_format,
+                allow_tags=allow_tags,
+                **kwargs
             )
         elif hasattr(obj.__class__, real_field_name):
             if real_field_name in reverse_fields:
