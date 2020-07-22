@@ -57,7 +57,7 @@ def coerce_rest_request_method(request):
 
 
 def model_all_available_fields(model):
-    return {'_obj_name'} | {field.name for field in model._meta.fields}
+    return {field.name for field in model._meta.fields}
 
 
 def flat_list(list_obj):

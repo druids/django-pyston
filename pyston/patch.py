@@ -34,7 +34,7 @@ class RESTOptions(Options):
 
         fields = self._getattr('fields', ())
 
-        self.default_fields = self._getattr('default_fields', (pk_field_name, '_obj_name'))
+        self.default_fields = self._getattr('default_fields', (pk_field_name,))
         self.detailed_fields = self._getattr('detailed_fields', fields)
         self.general_fields = self._getattr('general_fields', fields)
         self.direct_serialization_fields = self._getattr('direct_serialization_fields', fields)
@@ -42,7 +42,7 @@ class RESTOptions(Options):
             self._getattr('extra_fields', ()),
             set(fields) - set(self.detailed_fields) - set(self.general_fields) - set(self.default_fields)
         )
-        self.guest_fields = self._getattr('guest_fields', (pk_field_name, '_obj_name'))
+        self.guest_fields = self._getattr('guest_fields', (pk_field_name,))
         self.filter_fields = self._getattr('filter_fields', None)
         self.order_fields = self._getattr('order_fields', None)
         self.extra_filter_fields = self._getattr('extra_filter_fields', ())

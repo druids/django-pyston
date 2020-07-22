@@ -6,6 +6,10 @@ from .exception import RESTException
 
 class BasePaginator:
 
+    def __init__(self, qs, request):
+        self.qs = qs
+        self.request = request
+
     @property
     def page_qs(self):
         raise NotImplementedError
@@ -23,10 +27,10 @@ class BaseOffsetPaginator(BasePaginator):
     MAX_BIG_INT = pow(2, 63) - 1
 
     def __init__(self, qs, request):
-        self.qs = qs
-        self.offset = self._get_offset(request)
+        super().__init__(qs, request)
         self.base = self._get_base(request)
         self.total = self._get_total()
+        self.offset = self._get_offset(request)
         self.next_offset = self._get_next_offset()
         self.prev_offset = self._get_prev_offset()
 

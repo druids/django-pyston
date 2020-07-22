@@ -117,7 +117,7 @@ class StandardOperationsTestCase(PystonTestCase):
         pk = self.get_pk(resp)
         resp = self.get('%s%s/' % (self.USER_API_URL, pk),)
         output_data = self.deserialize(resp)
-        assert_equal(set(output_data.keys()), {'id', 'createdAt', '_obj_name', 'email', 'contract',
+        assert_equal(set(output_data.keys()), {'id', 'createdAt', 'email', 'contract',
                                                'solvingIssue', 'firstName', 'lastName', 'watchedIssues',
                                                'manualCreatedDate', 'createdIssues'})
 
@@ -128,7 +128,7 @@ class StandardOperationsTestCase(PystonTestCase):
 
         resp = self.get(self.USER_API_URL)
         output_data = self.deserialize(resp)
-        assert_equal(set(output_data[0].keys()), {'id', '_obj_name', 'email', 'firstName', 'lastName',
+        assert_equal(set(output_data[0].keys()), {'id', 'email', 'firstName', 'lastName',
                                                   'watchedIssues', 'manualCreatedDate', 'watchedIssuesCount'})
 
     @data_provider('get_users_data')
@@ -304,19 +304,13 @@ class StandardOperationsTestCase(PystonTestCase):
         resp = self.c.post(self.USER_API_URL, data='string_data', content_type='text/html')
         return assert_equal(resp.status_code, 415)
 
-    def test_camel_snake_case_transformation(self):
-        data = {'barBaz': 'testing data'}
-        resp = self.post(self.TEST_CC_API_URL, data=data)
-        assert_valid_JSON_created_response(resp)
-        assert_equal(data, self.deserialize(resp))
-
-    def test_rename_fields_should_not_be_nested(self):
+    def test_rename_fields_should_be_nested(self):
         resp = self.get(self.TEST_CC_API_URL)
         assert_valid_JSON_response(resp)
 
         data = {
             'fooBar': 'foo bar',
-            'connected': {'fiz_baz': 'test object property content'}
+            'connected': {'fizBaz': 'test object property content'}
         }
         assert_equal(data, self.deserialize(resp))
 
