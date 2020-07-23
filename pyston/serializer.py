@@ -7,7 +7,7 @@ import types
 from collections import OrderedDict
 
 from django.db.models import Model
-from django.db.models.fields.files import FileField
+from django.db.models.fields.files import FieldFile
 from django.db.models.query import QuerySet
 from django.utils import formats, timezone
 from django.utils.encoding import force_text
@@ -301,9 +301,6 @@ class ObjectSerializer(Serializer):
 
     def _field_to_python(self, field_name, real_field_name, obj, serialization_format, allow_tags=False, **kwargs):
         obj_fields = set(obj.__class__.__dict__.keys())
-
-        print(real_field_name)
-
         if real_field_name == '_obj_name':
             return self._data_to_python(
                 str(obj),
@@ -522,6 +519,23 @@ class ObjectResourceSerializer(ResourceSerializerMixin, ObjectSerializer):
             return self._serialize_other(data, serialization_format, **kwargs)
 
 
+@register(FieldFile)
+class FileSerializer(Serializer):
+
+    def serialize(self, data, serialization_format, allow_tags=False, **kwargs):
+        if data:
+            filename = os.path.basename(data.name)
+            return {
+                'filename': filename,
+                'content_type': (
+                    mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
+                ),
+                'url': data.url,
+            }
+        else:
+            return None
+
+
 @register(str)
 class StringSerializer(Serializer):
 
@@ -669,22 +683,8 @@ class ModelSerializer(ObjectSerializer):
                 serialization_format=serialization_format, **kwargs
             )
 
-    def _get_file_field_value(self, val):
-        if val:
-            filename = os.path.basename(val.name)
-            return {
-                'filename': filename,
-                'content_type': (
-                    mimetypes.types_map.get('.{}'.format(filename.split('.')[-1])) if '.' in filename else None
-                ),
-                'url': val.url,
-            }
-        else:
-            return None
-
     def _get_model_field_raw_value(self, obj, field):
-        val = getattr(obj, field.attname)
-        return self._get_file_field_value(val) if isinstance(field, FileField) else val
+        return getattr(obj, field.attname)
 
     def _model_field_to_python(self, field, obj, serialization_format, allow_tags=False, **kwargs):
         return (self._lazy_data_to_python if field.is_relation else self._data_to_python)(
