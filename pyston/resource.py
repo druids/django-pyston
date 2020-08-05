@@ -26,7 +26,7 @@ from chamber.shortcuts import get_object_or_none
 from chamber.utils import remove_accent, transaction
 
 from .conf import settings
-from .paginator import BaseOffsetPaginator
+from .paginator import OffsetBasedPaginator
 from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
                        ResponseExceptionFactory, ResponseValidationExceptionFactory)
 from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
@@ -202,7 +202,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     abstract = True
     csrf_exempt = True
     cache = None
-    paginator = BaseOffsetPaginator
+    paginator = OffsetBasedPaginator
     resource_typemapper = {}
     converter_classes = settings.CONVERTERS
     errors_response_class = settings.ERRORS_RESPONSE_CLASS
@@ -220,6 +220,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         'content_type': ('CONTENT_TYPE', '_content_type'),
         'filter': ('HTTP_X_FILTER', 'filter'),
         'order': ('HTTP_X_ORDER', 'order'),
+        'cursor': ('HTTP_X_CURSOR', 'cursor'),
     }
 
     def update_errors(self, data):
