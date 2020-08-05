@@ -379,7 +379,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         if rm in {'POST', 'PUT', 'PATCH'}:
             try:
                 converter = get_converter_from_request(self.request, self.converters, True)
-                self.request.data = self.serializer(self).deserialize(converter.decode(force_text(self.request.body)))
+                self.request.data = self.serializer(self).deserialize(
+                    converter.decode(force_text(self.request.body), resource=self)
+                )
             except (TypeError, ValueError):
                 raise MimerDataException
             except NotImplementedError:
