@@ -765,8 +765,16 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         return super(BaseObjectResource, self).render_response(result, http_headers, status_code, fieldset)
 
     def _get_allow_header(self):
+        try:
+            obj = self._get_obj_or_none()
+        except Exception:
+            # Since this code is run during response rendering, raising exception here actually prevents already
+            # assembled error response (as a reaction to this exception) to be rendered.
+            # For the sake of permission check, we can just use None in this case.
+            obj = None
+
         return ','.join((
-            method.upper() for method in self.check_permissions_and_get_allowed_methods(obj=self._get_obj_or_none())
+            method.upper() for method in self.check_permissions_and_get_allowed_methods(obj=obj)
         ))
 
     def _get_queryset(self):
