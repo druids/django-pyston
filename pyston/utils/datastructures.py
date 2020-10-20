@@ -83,7 +83,7 @@ class FieldsetGenerator:
 
     def _get_field_label_from_resource_method(self, resource, field_name):
         # Resources should be split to the serializers and views
-        method_field = resource.get_method_returning_field_value(field_name)
+        method_field = resource.get_method_returning_field_value(field_name) if resource else None
         return getattr(method_field, 'short_description', pretty_name(field_name)) if method_field else None
 
     def _get_field_label_from_model(self, model, resource, field_name):
