@@ -1,12 +1,12 @@
 from decimal import Decimal, InvalidOperation
 
-from django.utils.translation import ugettext
-from django.utils.translation import ugettext_lazy as _
 from django.db.models import Q
 from django.core.validators import validate_ipv4_address, validate_ipv46_address
 from django.core.exceptions import ValidationError
+from django.utils.translation import ugettext
+from django.utils.translation import ugettext_lazy as _
+from django.utils.timezone import make_aware
 
-from chamber.utils.datetimes import make_aware
 from chamber.utils.datastructures import Enum
 
 from dateutil.parser import DEFAULTPARSER
@@ -508,7 +508,7 @@ class DateFilterMixin:
     def _clean_datetime(self, value):
         try:
             datetime_value = DEFAULTPARSER.parse(value, dayfirst='-' not in value)
-            return make_aware(datetime_value) if datetime_value.tzinfo is None else datetime_value
+            return make_aware(datetime_value, is_dst=True) if datetime_value.tzinfo is None else datetime_value
         except ValueError:
             raise FilterValueError(ugettext('Value must be in format ISO 8601.'))
 
