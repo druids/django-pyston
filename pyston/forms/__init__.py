@@ -92,6 +92,12 @@ class RESTDictError(RESTError):
     def __delitem__(self, key):
         del self._dict[key]
 
+    def get(self, key, default):
+        if key in self:
+            return self[key]
+        else:
+            return default
+
     def clear(self):
         return self._dict.clear()
 
