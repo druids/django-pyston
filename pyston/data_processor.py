@@ -94,9 +94,9 @@ class FileDataPreprocessor(DataProcessor):
 
     def _validate_not_empty(self, data_item, key, item):
         if not data_item.get(item):
-            error = self.errors.get(key, {})
-            error.update({item: ugettext('This field is required')})
-            self.errors[key] = RESTDictError({key: RESTValidationError(error)})
+            error = self.errors.get(key, RESTDictError())
+            error.update(RESTDictError({item: RESTValidationError(ugettext('This field is required'))}))
+            self.errors[key] = error
 
     def _get_content_type(self, content_type, filename, file_content):
         if content_type:
