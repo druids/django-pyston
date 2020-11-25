@@ -1,6 +1,10 @@
 import json
 import xml.dom.minidom
 
+from decimal import Decimal
+from uuid import uuid4
+from datetime import date, datetime, time, timedelta
+
 from collections import OrderedDict
 
 from germanium.tools import assert_true, assert_equal
@@ -48,4 +52,35 @@ class DirectSerializationTestCase(TestCase):
         assert_equal(
             serialize(data, converter_name='csv', requested_fieldset=('a', 'b', 'c')),
             '\ufeff"A";"B";"C"\r\n"1";"2";""\r\n'
+        )
+
+    def test_direct_serialization_to_python_format_should_return_only_base_python_data(self):
+        now_value = datetime.now().replace(microsecond=0)
+        today_value = date.today()
+        timedelta_value = timedelta(days=5, hours=2, seconds=5)
+        localtime_value = now_value.time()
+        uuid_value = uuid4()
+        decimal_value = Decimal('105.689')
+
+        data = OrderedDict(
+            now=now_value,
+            today=today_value,
+            timedelta=timedelta_value,
+            localtime=localtime_value,
+            uuid=uuid_value,
+            decimal=decimal_value,
+            set={1, 2, 3}
+        )
+
+        assert_equal(
+            serialize(data, converter_name='python'),
+            {
+                'now': now_value.isoformat(),
+                'today': today_value.isoformat(),
+                'timedelta': '5 days, 2:00:05',
+                'localtime': localtime_value.isoformat(),
+                'uuid': str(uuid_value),
+                'decimal': str(decimal_value),
+                'set': [1, 2, 3]
+            }
         )

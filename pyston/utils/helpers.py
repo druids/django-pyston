@@ -3,10 +3,17 @@ import sys
 
 from io import BytesIO
 
+import datetime
+import decimal
+import uuid
+
 from collections import OrderedDict
 
 from django.utils.encoding import force_bytes
 from django.conf import settings
+from django.utils.duration import duration_iso_string
+from django.utils.functional import Promise
+from django.utils.timezone import is_aware
 
 from chamber.utils import get_class_method
 
@@ -103,7 +110,27 @@ def serialized_data_to_python(data):
     elif isinstance(data, LAZY_SERIALIZERS):
         return serialized_data_to_python(data.serialize())
     elif isinstance(data, dict):
-        return OrderedDict(((key, serialized_data_to_python(val)) for key, val in data.items()))
+        return {key: serialized_data_to_python(val) for key, val in data.items()}
+    if isinstance(data, datetime.datetime):
+        r = data.isoformat()
+        if data.microsecond:
+            r = r[:23] + r[26:]
+        if r.endswith('+00:00'):
+            r = r[:-6] + 'Z'
+        return r
+    elif isinstance(data, datetime.date):
+        return data.isoformat()
+    elif isinstance(data, datetime.time):
+        if is_aware(data):
+            raise ValueError("JSON can't represent timezone-aware times.")
+        r = data.isoformat()
+        if data.microsecond:
+            r = r[:12]
+        return r
+    elif isinstance(data, datetime.timedelta):
+        return duration_iso_string(data)
+    elif isinstance(data, (decimal.Decimal, uuid.UUID, Promise)):
+        return str(data)
     else:
         return data
 
