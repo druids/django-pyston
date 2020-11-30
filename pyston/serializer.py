@@ -566,7 +566,7 @@ class BaseRawVerboseValueSerializer(Serializer):
             return self._data_to_python(
                 RawVerboseValue(
                     value,
-                    self._get_verbose_value(value, **kwargs) if value else settings.NONE_HUMANIZED_VALUE
+                    settings.NONE_HUMANIZED_VALUE if value is None else self._get_verbose_value(value, **kwargs)
                 ),
                 serialization_format=serialization_format,
                 **kwargs
