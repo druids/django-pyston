@@ -808,6 +808,9 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def _get_pk(self):
         return self.kwargs.get(self.pk_name)
 
+    def _get_paginator(self):
+        return self.paginator
+
     def post(self):
         pk = self._get_pk()
         data = self.get_dict_data()
@@ -822,8 +825,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         qs = self._preload_queryset(self._get_queryset())
         qs = self._filter_queryset(qs)
         qs = self._order_queryset(qs)
-        if self.paginator:
-            paginator = self.paginator(qs, self.request)
+
+        paginator = self._get_paginator()
+
+        if paginator:
+            paginator = paginator(qs, self.request)
             return HeadersResponse(paginator.page_qs, paginator.headers)
         else:
             return qs

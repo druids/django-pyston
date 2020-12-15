@@ -26,8 +26,11 @@ def _get_attr(obj, attr):
 class BasePaginator:
 
     def __init__(self, qs, request):
-        self.qs = qs
+        self.qs = self._prepare_qs(qs)
         self.request = request
+
+    def _prepare_qs(self, qs):
+        return qs
 
     @property
     def page_qs(self):
@@ -45,34 +48,35 @@ class OffsetBasedPaginator(BasePaginator):
 
     MAX_OFFSET = pow(2, 63) - 1
     MAX_BASE = 100
+    DEFAULT_BASE = 20
 
     def __init__(self, qs, request):
+        self.base = self._get_base(qs, request)
+        self.total = self._get_total(qs, request)
+        self.offset = self._get_offset(qs, request)
         super().__init__(qs, request)
-        self.base = self._get_base(request)
-        self.total = self._get_total()
-        self.offset = self._get_offset(request)
         self.next_offset = self._get_next_offset()
         self.prev_offset = self._get_prev_offset()
+
+    def _prepare_qs(self, qs):
+        return qs[self.offset:(self.offset + self.base + 1)]
 
     def _get_next_offset(self):
         if self.total:
             return self.offset + self.base if self.base and self.offset + self.base < self.total else None
         else:
-            if not self.base:
-                return None
-            next_offset = self.offset + self.base
-            return next_offset if self.qs[next_offset:next_offset + 1].exists() else None
+            return self.offset + self.base if len(self.qs) > self.base else None
 
     def _get_prev_offset(self):
         return None if self.offset == 0 or not self.base else max(self.offset - self.base, 0)
 
-    def _get_total(self):
-        if isinstance(self.qs, QuerySet):
-            return self.qs.count()
+    def _get_total(self, qs, request):
+        if isinstance(qs, QuerySet):
+            return qs.count()
         else:
-            return len(self.qs)
+            return len(qs)
 
-    def _get_offset(self, request):
+    def _get_offset(self, qs, request):
         offset = request._rest_context.get('offset', '0')
         if offset.isdigit():
             offset_int = int(offset)
@@ -83,10 +87,10 @@ class OffsetBasedPaginator(BasePaginator):
         else:
             raise RESTException(ugettext('Offset must be natural number'))
 
-    def _get_base(self, request):
+    def _get_base(self, qs, request):
         base = request._rest_context.get('base')
         if not base:
-            return None
+            return self.DEFAULT_BASE
         elif base.isdigit():
             base_int = int(base)
             if base_int > self.MAX_BASE:
@@ -98,10 +102,7 @@ class OffsetBasedPaginator(BasePaginator):
 
     @property
     def page_qs(self):
-        if self.base is not None:
-            return self.qs[self.offset:(self.offset + self.base)]
-        else:
-            return self.qs[self.offset:]
+        return ModelIterableIteratorHelper(self.qs[:self.base], self.qs.model)
 
     @property
     def headers(self):
@@ -116,7 +117,7 @@ class OffsetBasedPaginator(BasePaginator):
 
 class OffsetBasedPaginatorWithoutTotal(OffsetBasedPaginator):
 
-    def _get_total(self):
+    def _get_total(self, qs, request):
         return None
 
 
