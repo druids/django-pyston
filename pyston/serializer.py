@@ -300,7 +300,6 @@ class ObjectSerializer(Serializer):
                                       direct_serialization=direct_serialization, **self._get_subkwargs(kwargs))
 
     def _field_to_python(self, field_name, real_field_name, obj, serialization_format, allow_tags=False, **kwargs):
-        obj_fields = set(obj.__class__.__dict__.keys())
         if real_field_name == '_obj_name':
             return self._data_to_python(
                 str(obj),
@@ -308,7 +307,7 @@ class ObjectSerializer(Serializer):
                 allow_tags=allow_tags,
                 **kwargs
             )
-        elif real_field_name in obj_fields:
+        elif hasattr(obj.__class__, real_field_name):
             return self._data_to_python(
                 self._value_to_raw_verbose(
                     getattr(obj, real_field_name),
