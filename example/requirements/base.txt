@@ -1,13 +1,12 @@
-html5lib==0.9999999
-Pillow==6.1.0
+html5lib==1.1
+pillow>=8.0.1
 XlsxWriter==0.7.7
 pep8==1.6.2
-six==1.10.0
 django-germanium==2.1.2
-xhtml2pdf==0.2.3
-coverage==5.0.4
-factory-boy==2.8.1
-responses==0.5.1
-pytz==2017.2
-psycopg2-binary==2.8.4
+xhtml2pdf==0.2.5
+coverage==5.3.1
+factory-boy==3.2.0
+responses==0.12.1
+pytz==2020.5
+psycopg2-binary==2.8.6
 -e ../

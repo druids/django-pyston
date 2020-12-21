@@ -1,9 +1,8 @@
 from django.utils.encoding import force_text
 from django.db import models
-from django.db.models.fields import FieldDoesNotExist
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
-from django.forms.forms import pretty_name
+from django.forms.utils import pretty_name
 
 from chamber.utils import get_class_method
 
