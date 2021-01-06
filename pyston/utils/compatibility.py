@@ -1,9 +1,7 @@
 import django
 from django.template import Context
 from django.template.loader import get_template
-from django.core.exceptions import FieldError
-
-from django.db.models import FieldDoesNotExist
+from django.core.exceptions import FieldError, FieldDoesNotExist
 
 
 def get_field_or_none(model, field_name):
