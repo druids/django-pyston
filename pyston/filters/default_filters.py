@@ -323,6 +323,8 @@ class BooleanFilterMixin:
     def clean_value(self, value, operator_slug, request):
         if isinstance(value, bool):
             return value
+        elif value in {'true', 'false'}:
+            return value == 'true'
         elif value in {'0', '1'}:
             return value == '1'
         else:
