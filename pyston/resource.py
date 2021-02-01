@@ -140,7 +140,7 @@ class PermissionsResourceMixin:
                 return False
         try:
             return getattr(self, 'has_{}_permission'.format(name))(*args, **kwargs)
-        except Http404:
+        except (Http404, NotAllowedException, UnauthorizedException):
             return False
 
     def has_get_permission(self, **kwargs):
@@ -462,7 +462,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
                 self._serialize(response, result, status_code, http_headers)
             except UnsupportedMediaTypeException:
                 response.status_code = 415
-                http_headers['Content-Type'] = self.request.get('HTTP_ACCEPT')
+                http_headers['Content-Type'] = self.request.META['HTTP_ACCEPT']
 
             self._set_response_headers(response, http_headers)
             return response
@@ -526,7 +526,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
 
             return self.dispatch(request, *args, **kwargs)
         view.csrf_exempt = cls.csrf_exempt
-
+        view.view_class = cls
         # take name and docstring from class
         update_wrapper(view, cls, updated=())
 
@@ -746,7 +746,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
                 status_code=status_code, http_headers=http_headers, result=result,
                 requested_fields=self._get_requested_fieldset(result)
             )
-        except ValueError:
+        except ValueError as ex:
             raise UnsupportedMediaTypeException
 
     def _get_converted_serialized_data(self, result):
