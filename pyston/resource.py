@@ -65,7 +65,7 @@ class ResourceMetaClass(type):
     def __new__(cls, name, bases, attrs):
         abstract = attrs.pop('abstract', False)
         new_cls = type.__new__(cls, name, bases, attrs)
-        if not abstract and new_cls.register and settings.AUTO_REGISTER_RESOURCE:
+        if not abstract and getattr(new_cls,'register', False) and settings.AUTO_REGISTER_RESOURCE:
             def already_registered(model):
                 return typemapper.get(model)
 
@@ -81,7 +81,7 @@ class ResourceMetaClass(type):
 
         if not abstract:
             converters = OrderedDict()
-            for converter_class_path in new_cls.converter_classes:
+            for converter_class_path in getattr(new_cls, 'converter_classes', []):
                 converter_class = (
                     import_string(converter_class_path) if isinstance(converter_class_path, str)
                     else converter_class_path
