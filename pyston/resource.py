@@ -202,7 +202,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     abstract = True
     csrf_exempt = True
     cache = None
-    paginator = OffsetBasedPaginator
+    paginator = OffsetBasedPaginator()
     resource_typemapper = {}
     converter_classes = settings.CONVERTERS
     errors_response_class = settings.ERRORS_RESPONSE_CLASS
@@ -746,7 +746,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
                 status_code=status_code, http_headers=http_headers, result=result,
                 requested_fields=self._get_requested_fieldset(result)
             )
-        except ValueError as ex:
+        except ValueError:
             raise UnsupportedMediaTypeException
 
     def _get_converted_serialized_data(self, result):
@@ -829,8 +829,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         paginator = self._get_paginator()
 
         if paginator:
-            paginator = paginator(qs, self.request)
-            return HeadersResponse(paginator.page_qs, paginator.headers)
+            return paginator.get_response(qs, self.request)
         else:
             return qs
 
@@ -1007,21 +1006,29 @@ class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
     filter_manager = MultipleFilterManager()
     order_manager = DefaultModelOrderManager()
 
+    def _get_filter_manager(self):
+        return self.filter_manager
+
     def _filter_queryset(self, qs):
         """
         :return: filtered queryset via filter manager if filter manager is not None.
         """
-        if self.filter_manager:
-            return self.filter_manager.filter(self, qs, self.request)
+        filter_manager = self._get_filter_manager()
+        if filter_manager:
+            return filter_manager.filter(self, qs, self.request)
         else:
             return qs
+
+    def _get_order_manager(self):
+        return self.order_manager
 
     def _order_queryset(self, qs):
         """
         :return: ordered queryset via order manager if order manager is not None.
         """
-        if self.order_manager:
-            return self.order_manager.sort(self, qs, self.request)
+        order_manager = self._get_order_manager()
+        if order_manager:
+            return order_manager.sort(self, qs, self.request)
         else:
             return qs
 
