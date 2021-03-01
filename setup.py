@@ -26,7 +26,7 @@ setup(
     install_requires=[
         'django>=2.2',
         'python-mimeparse>=1.6.0',
-        'django-chamber>=0.6.0',
+        'django-chamber>=0.6.2',
         'pyparsing>=2.4.7',
         'defusedxml>=0.6.0',
     ],
