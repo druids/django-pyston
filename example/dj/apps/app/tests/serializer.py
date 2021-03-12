@@ -39,7 +39,7 @@ class DirectSerializationTestCase(TestCase):
         data = OrderedDict((('a', 1), ('b', 2)))
         assert_equal(
             serialize(data, converter_name='csv'),
-            '\ufeff"a: 1\nb: 2"\r\n'
+            '\ufeff\r\n'
         )
         assert_equal(
             serialize(data, converter_name='csv', requested_fieldset=('a',)),

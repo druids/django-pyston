@@ -103,7 +103,6 @@ def is_match(regex, text):
 
 
 def split_fields(fields_string):
-
     brackets = 0
 
     field = ''

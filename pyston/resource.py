@@ -1,5 +1,6 @@
 import re
 import warnings
+import types
 
 from functools import reduce
 
@@ -250,6 +251,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     def get_field_labels(self):
         return self.field_labels
 
+    def get_field_label(self, field_name):
+        return self.field_labels.get(field_name) if self.field_labels else None
+
     def get_allowed_methods(self):
         allowed_methods = super().get_allowed_methods()
         if self.is_allowed_cors:
@@ -462,7 +466,6 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
                 self._serialize(response, result, status_code, http_headers)
             except UnsupportedMediaTypeException:
                 response.status_code = 415
-                http_headers['Content-Type'] = self.request.META['HTTP_ACCEPT']
 
             self._set_response_headers(response, http_headers)
             return response
@@ -671,16 +674,18 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
             real_method_name = self.renamed_fields.get(method_name, method_name)
             method = self.get_method_returning_field_value(real_method_name)
             if method:
-                method_fields[real_method_name] = method
+                method_fields[real_method_name] = types.MethodType(method, self)
         return method_fields
 
-    def get_method_returning_field_value(self, field_name):
+    @classmethod
+    def get_method_returning_field_value(cls, field_name):
         """
         Returns method which can be used with serializer to get a field value.
         :param field_name: name of th field
         :return: resource method
         """
-        method = getattr(self, field_name, None)
+
+        method = getattr(cls, field_name, None)
         return method if method and callable(method) else None
 
 
