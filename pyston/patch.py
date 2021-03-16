@@ -2,7 +2,7 @@ from chamber.patch import Options
 
 import django.db.models.options as options
 from django.db import models
-from django.db.models.fields import (
+from django.db.models import (
     Field, URLField, AutoField, DateField, DateTimeField, DecimalField, GenericIPAddressField, IPAddressField,
     BooleanField, TextField, CharField, IntegerField, FloatField, SlugField, EmailField, NullBooleanField
 )
@@ -109,3 +109,11 @@ ForeignKey.default_filter = ForeignKeyFilter
 ForeignObjectRel.default_filter = ForeignObjectRelFilter
 SlugField.default_filter = CaseSensitiveStringFieldFilter
 EmailField.default_filter = CaseSensitiveStringFieldFilter
+
+try:
+    # JSONField is supported only from version Django 3.1
+    from django.db.models import JSONField
+
+    JSONField.default_filter = StringFieldFilter
+except ImportError:
+    pass
