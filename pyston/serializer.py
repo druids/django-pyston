@@ -359,8 +359,7 @@ class ObjectSerializer(Serializer):
         return id(obj)
 
     def _method_to_python(self, method, obj, serialization_format, allow_tags=False, requested_fieldset=None, **kwargs):
-        method_kwargs_names = inspect.getargspec(method)[0][1:]
-
+        method_kwargs_names = list(inspect.signature(method).parameters.keys())
         method_kwargs = {}
 
         fun_kwargs = {

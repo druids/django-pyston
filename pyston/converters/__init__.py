@@ -92,6 +92,7 @@ def get_converter_name_from_request(request, converters=None, input_serializatio
         except ValueError:
             pass
         default_converter_name = converter_map.get(preferred_content_type, default_converter_name)
+
     return default_converter_name
 
 
@@ -302,10 +303,9 @@ class GeneratorConverter(Converter):
                           **kwargs):
         fieldset = FieldsetGenerator(
             resource,
-            force_text(requested_fields) if requested_fields is not None else '',
+            force_text(requested_fields) if requested_fields is not None else None,
             direct_serialization=direct_serialization
         ).generate()
-
         self.generator_class().generate(
             self._render_headers(fieldset),
             self._render_content(fieldset, data),

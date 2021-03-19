@@ -38,34 +38,36 @@
         <div class="row">
             <div class="col-md-12">
                 {% block above-table %}{% endblock %}
-                <table data-show-actions="false" data-filter="filter-report" class="{% block table-classes %}report-grid table table-striped{% endblock %}" data-cols="{{ list_display|join:',' }}"
-                       data-currency="Kč" data-no-data-message="{% trans 'No data are available' %}"
-                        {% block table-attributes %}{% endblock %}>
-                    <thead>
-                    {% block table-header %}
-                        <tr>
-                            {% for header in headers %}
-                                <th class="{{ header }}">
-                                    <span>{{ header|capfirst }}</span>
-                                </th>
-                            {% endfor %}
-                        </tr>
-                    {% endblock %}
-                    </thead>
-                    <tfoot>
-                    {% block table-footer %}
-                    {% endblock %}
-                    </tfoot>
-                    <tbody>
-                    {% for row in data %}
-                        <tr>
-                            {% for cell in row %}
-                                <td>{{ cell }}</td>
-                            {% endfor %}
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+                {%  if headers %}
+                    <table data-show-actions="false" data-filter="filter-report" class="{% block table-classes %}report-grid table table-striped{% endblock %}" data-cols="{{ list_display|join:',' }}"
+                           data-currency="Kč" data-no-data-message="{% trans 'No data are available' %}"
+                            {% block table-attributes %}{% endblock %}>
+                        <thead>
+                        {% block table-header %}
+                            <tr>
+                                {% for header in headers %}
+                                    <th class="{{ header }}">
+                                        <span>{{ header|capfirst }}</span>
+                                    </th>
+                                {% endfor %}
+                            </tr>
+                        {% endblock %}
+                        </thead>
+                        <tfoot>
+                        {% block table-footer %}
+                        {% endblock %}
+                        </tfoot>
+                        <tbody>
+                        {% for row in data %}
+                            <tr>
+                                {% for cell in row %}
+                                    <td>{{ cell }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
                 {% block below-table %}{% endblock %}
             </div>
         </div>
