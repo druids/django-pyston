@@ -114,7 +114,8 @@ class ModelFilterManager:
         model_field = get_field_or_none(model, current_identifier)
         model_method = get_method_or_none(model, current_identifier)
 
-        if model_field and model_field.filter and (not suffix or suffix in model_field.filter.get_suffixes()):
+        if (model_field and hasattr(model_field, 'filter') and model_field.filter
+                and (not suffix or suffix in model_field.filter.get_suffixes())):
             return model_field.filter(
                 identifiers_prefix, [current_identifier], identifiers_suffix, model, field=model_field
             )
