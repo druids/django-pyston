@@ -8,6 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-04-22 14:41+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,165 +18,229 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
 
+#: data_processor.py:98
 msgid "This field is required"
 msgstr "Toto pole je povinné"
 
+#: data_processor.py:123
 msgid "Content type cannot be evaluated from input data please send it"
 msgstr ""
 "Typ souboru nemůže být vyhodnocen ze vstupních dat, prosím pošlete typ "
 "souboru"
 
+#: data_processor.py:127
 msgid "File name cannot be evaluated from input data please send it"
 msgstr ""
 "Název souboru nemůže být vyhodnocen ze vstupních dat, prosím pošlete název "
 "souboru"
 
+#: data_processor.py:144
 msgid "File content must be in base64 format"
 msgstr "Obsah souboru musí být formátu base64"
 
+#: data_processor.py:160
 msgid "Response too large, maximum size is {} bytes"
 msgstr "Odpověď je příliš velká, maximální velikost je {} bytů"
 
+#: data_processor.py:166
 msgid "File is unreachable on the URL address"
 msgstr "Soubor není možné na URL adrese nalézt"
 
+#: data_processor.py:193
 msgid "File data item must contains {} or {}"
 msgstr "Data obrázku musí obsahovat {} nebo {}"
 
+#: data_processor.py:211 forms/__init__.py:291
 msgid "Data must be a collection"
 msgstr "Formát dat musí být kolekce"
 
+#: exception.py:35
 msgid "Select a valid choice. That choice is not one of the available choices."
 msgstr "Vyberte platnou možnost. Vybraná hodnota není dostupná."
 
+#: exception.py:39
 msgid "Not allowed."
 msgstr "Operace není dovolena."
 
+#: exception.py:43
 msgid "Unauthorized."
 msgstr "Neoprávněný přístup."
 
+#: exception.py:47
 msgid "Not allowed method."
 msgstr "Nepodporovaná metoda."
 
+#: exception.py:51
 msgid "Conflict/Duplicate."
 msgstr "Konflikt/Duplikace."
 
+#: exception.py:55
 msgid "Object already exists but you do not allowed to change it."
 msgstr "Objekt již existuje nebo není dovoleno jej změnit."
 
+#: filters/default_filters.py:42
 msgid "(None)"
 msgstr "---"
 
+#: filters/default_filters.py:103
 msgid "Invalid value inside list at position {}, {}"
 msgstr "Neplatná hodnota uvnitř listu na pozici {}, {}"
 
+#: filters/default_filters.py:118 filters/default_filters.py:149
 msgid "Value must be list"
 msgstr "Hodnota musí být list"
 
+#: filters/default_filters.py:136
 msgid "Value must be list with two values"
 msgstr "Hodnota musí být list dvou hodnot"
 
+#: filters/default_filters.py:319 filters/default_filters.py:341
+#: serializer.py:602
 msgid "Yes"
 msgstr "Ano"
 
+#: filters/default_filters.py:320 filters/default_filters.py:342
+#: serializer.py:602
 msgid "No"
 msgstr "Ne"
 
+#: filters/default_filters.py:331
 msgid "Value must be boolean"
 msgstr "Hodnota musí být boolean"
 
+#: filters/default_filters.py:396 filters/default_filters.py:508
 msgid "Value must be integer"
 msgstr "Hodnota musí být integer"
 
+#: filters/default_filters.py:411
 msgid "Value must be float"
 msgstr "Hodnota musí být reálné číslo"
 
+#: filters/default_filters.py:422
 msgid "Value must be decimal"
 msgstr "Hodnota musí být desítkové číslo"
 
+#: filters/default_filters.py:472
 msgid "Value must be in format IPv4."
 msgstr "Hodnota musí být ve formátu IPv4"
 
+#: filters/default_filters.py:485
 msgid "Value must be in format IPv4 or IPv6."
 msgstr "Hodnota musí být ve formátu IPv4 nebo IPv6"
 
+#: filters/default_filters.py:500
 msgid "Value cannot be parsed to partial datetime"
 msgstr "Hodnota nemůže být vyhodnocena"
 
+#: filters/default_filters.py:515
 msgid "Value must be in format ISO 8601."
 msgstr "Hodnota musí být ve formátu ISO 8601"
 
+#: filters/default_filters.py:586 filters/default_filters.py:607
+#: filters/default_filters.py:628
 msgid "Object with this PK cannot be found"
-msgstr "Objekt s tímto privátním klíčem nemůže být nalezen"
+msgstr "Objekt s tímto primárním klíčem nemůže být nalezen"
 
+#: filters/managers.py:249
 msgid "Invalid identifier of condition \"{}\""
 msgstr "Nevalidní identifikátor podmínky \"{}\""
 
+#: filters/managers.py:253
 msgid "Invalid value of condition \"{}\". {}"
 msgstr "Nevalidní hodnota podmínky \"{}\". {}"
 
+#: filters/managers.py:257
 msgid "Invalid operator of condition \"{}\""
 msgstr "Nevalidní operátor podmínky \"{}\""
 
+#: filters/parser.py:188
 msgid "Invalid filter value \"{}\""
 msgstr "Nevalidní hodnota filteru \"{}\""
 
+#: forms/__init__.py:192
 msgid "Data must contain primary key: {}"
 msgstr "Data musí obsahovat primární klíč: {}"
 
+#: forms/__init__.py:205
 msgid "Object does not exist"
 msgstr "Objekt neexistuje"
 
+#: forms/__init__.py:209
 msgid "Data must be object"
 msgstr "Neplatný formát dat, vyžadován objekt"
 
+#: forms/__init__.py:279 forms/__init__.py:303
 msgid "Invalid format"
 msgstr "Neplatný formát"
 
+#: forms/__init__.py:324
 msgid "set cannot be together with add or remove"
 msgstr "set nemůže být poslán dohromady s add nebo remove"
 
+#: forms/__init__.py:373
 msgid "Object does not exist in selected data"
 msgstr "Objekt neexistuje ve vybraných datech"
 
+#: forms/postgres.py:32
 msgid "Enter a list."
 msgstr "Vložte list"
 
+#: order/managers.py:173
 msgid "Invalid identifier of ordering \"{}\""
 msgstr "Nevalidní identifikátor řazení \"{}\""
 
+#: paginator.py:61
 msgid "Offset must be lower or equal to {}"
 msgstr "Offset musí být menší nebo roven {}"
 
+#: paginator.py:65
 msgid "Offset must be natural number"
 msgstr "Offset musí být přirozené číslo"
 
+#: paginator.py:74 paginator.py:204
 msgid "Base must lower or equal to {}"
 msgstr "Base musí být menší nebo roven {}"
 
+#: paginator.py:78 paginator.py:208
 msgid "Base must be natural number or empty"
 msgstr "Base musí být ve formátu přirozeného čísla nebo prázdný"
 
+#: paginator.py:192
+msgid "Cursor object was not found"
+msgstr ""
+
+#: resource.py:274
 msgid "Bad Request"
 msgstr "Neplatný dotaz"
 
+#: resource.py:275
 msgid "Unauthorized"
 msgstr "Neoprávněný přístup"
 
+#: resource.py:276
 msgid "Forbidden"
 msgstr "Nepovolený dotaz"
 
+#: resource.py:277
 msgid "Unsupported Media Type"
 msgstr "Nepodporovaný typ"
 
+#: resource.py:279 resource.py:280
 msgid "Not Found"
 msgstr "Nenalezeno"
 
+#: resource.py:281
 msgid "Method Not Allowed"
 msgstr "Metoda není podporována"
 
+#: resource.py:282 resource.py:283
 msgid "Conflict/Duplicate"
 msgstr "Konflikt/Duplikace"
 
+#: templates/default_pdf_table.html:43
 msgid "No data are available"
 msgstr "Žádná data nejsou dostupná"
+
+#: validators.py:11
+msgid "Enter a valid date/time."
+msgstr "Vložte validní datum/čas"
