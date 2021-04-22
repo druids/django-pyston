@@ -573,12 +573,12 @@ class ForeignKeyFilter(RelatedFieldFilter):
         (OPERATORS.LTE, LTE),
         (OPERATORS.GTE, GTE),
         (OPERATORS.IN, IN),
-        (OPERATORS.ICONTAINS, ICONTAINS),
-        (OPERATORS.CONTAINS, CONTAINS),
+        (OPERATORS.CONTAINS, PK_CONTAINS),
+        (OPERATORS.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None:
+        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(self.field).get_prep_value(value)
