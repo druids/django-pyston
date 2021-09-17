@@ -84,7 +84,7 @@ class OffsetBasedPaginator(BasePaginator):
             return len(qs)
 
     def _get_next_offset(self, qs, offset, base, total):
-        if total:
+        if total is not None:
             return offset + base if base and offset + base < total else None
         else:
             return offset + base if len(qs) > base else None
