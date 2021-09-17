@@ -101,7 +101,7 @@ class ModelOrderManager:
             return DefaultSorter(identifiers_prefix + identifiers, direction)
         elif model_field and model_field.is_relation and model_field.related_model:
             next_model = model_field.related_model
-            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper'))
+            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
             return self._get_sorter_recursive(
                 identifiers_prefix + [identifiers[0]], identifiers[1:], direction,
                 next_model, next_resource, request, order_fields_rfs[current_identifier].subfieldset
