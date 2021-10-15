@@ -4,7 +4,8 @@ import django.db.models.options as options
 from django.db import models
 from django.db.models import (
     Field, URLField, AutoField, DateField, DateTimeField, DecimalField, GenericIPAddressField, IPAddressField,
-    BooleanField, TextField, CharField, IntegerField, FloatField, SlugField, EmailField, NullBooleanField
+    BooleanField, TextField, CharField, IntegerField, FloatField, SlugField, EmailField, NullBooleanField,
+    UUIDField
 )
 from django.db.models.fields.related import ForeignKey, ManyToManyField, ForeignObjectRel
 
@@ -109,6 +110,7 @@ ForeignKey.default_filter = ForeignKeyFilter
 ForeignObjectRel.default_filter = ForeignObjectRelFilter
 SlugField.default_filter = CaseSensitiveStringFieldFilter
 EmailField.default_filter = CaseSensitiveStringFieldFilter
+UUIDField.default_filter = StringFieldFilter
 
 try:
     # JSONField is supported only from version Django 3.1
