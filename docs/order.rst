@@ -4,9 +4,9 @@ Ordering
 ========
 
 Ordering is very similar to filtering. It is provided via method ``_order_queryset`` that you can override to change
-its default implementation. Resource class ``BaseModelResource`` again uses manager to simplify custom modifications::
+its default implementation. Resource class ``DjangoResource`` again uses manager to simplify custom modifications::
 
-    class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
+    class DjangoResource(BaseDjangoResource, BaseModelResource):
         order_manager = DefaultModelOrderManager()
 
         def _order_queryset(self, qs):
@@ -49,7 +49,7 @@ Ordering field configuration
 By default the fields that can be ordered is generated as a join of ``order_fields`` and ``extra_order_fields``. But
 you can change this behaviour by overriding the method ``get_order_fields_rfs``. Values of ``order_fields`` and
 ``extra_order_fields`` are firstly taken from a resource and if they are not set in resource thay are obtained from
-model RESTMeta. If ``order_fields`` is not defined in RESTMeta it is replaced with response of the method
+model RestMeta. If ``order_fields`` is not defined in RestMeta it is replaced with response of the method
 ``get_allowed_fields_rfs`` which returns all fields that a client of the resource can read.
 
 As example we define two models ``Issue`` and ``User`` and two resources::
@@ -64,7 +64,7 @@ As example we define two models ``Issue`` and ``User`` and two resources::
         last_name = models.CharField(null=True, blank=True, max_length=100)
         manual_created_date = models.DateTimeField(verbose_name=_('manual created date'), null=True, blank=True)
 
-        class RESTMeta:
+        class RestMeta:
             fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser',
                       'manual_created_date')
             detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name',
@@ -87,11 +87,11 @@ As example we define two models ``Issue`` and ``User`` and two resources::
         leader = models.OneToOneField('app.User', null=False, blank=False, related_name='leading_issue')
         description = models.TextField(null=True, blank=True)
 
-        class RESTMeta:
+        class RestMeta:
             extra_order_fields = ('solver__created_at',)
 
 
-    class IssueResource(BaseModelResource):
+    class IssueResource(DjangoResource):
 
         model = Issue
         fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'solver',
@@ -105,7 +105,7 @@ As example we define two models ``Issue`` and ``User`` and two resources::
         delete_obj_permission = True
 
 
-    class UserResource(BaseModelResource):
+    class UserResource(DjangoResource):
 
         model = User
         create_obj_permission = True
@@ -114,7 +114,7 @@ As example we define two models ``Issue`` and ``User`` and two resources::
         delete_obj_permission = True
         extra_order_fields = ()
 
-As you can see ``order_fields`` and ``extra_order_fields`` are set inside model RESTMeta for User model. From RESTMeta
+As you can see ``order_fields`` and ``extra_order_fields`` are set inside model RestMeta for User model. From RestMeta
 is allowed to filter three fields ('email', 'solving_issue', 'created_at'). But because extra_order_fields is overridden
 inside UserResource client can order only with ('email', 'solving_issue').
 

@@ -13,8 +13,6 @@ from django.core.exceptions import ValidationError
 from django.http.response import HttpResponse, HttpResponseBase
 from django.utils.decorators import classonlymethod
 from django.utils.encoding import force_text
-from django.db.models.base import Model
-from django.db.models.query import QuerySet
 from django.db.models.fields import DateTimeField
 from django.http.response import Http404
 from django.core.exceptions import ObjectDoesNotExist
@@ -27,22 +25,22 @@ from chamber.shortcuts import get_object_or_none
 from chamber.utils import remove_accent, transaction
 
 from .conf import settings
-from .paginator import OffsetBasedPaginator
-from .response import (HeadersResponse, RESTCreatedResponse, RESTNoContentResponse, ResponseErrorFactory,
+from .paginator import DjangoOffsetBasedPaginator
+from .response import (HeadersResponse, RestCreatedResponse, RestNoContentResponse, ResponseErrorFactory,
                        ResponseExceptionFactory, ResponseValidationExceptionFactory)
-from .exception import (RESTException, ConflictException, NotAllowedException, DataInvalidException,
+from .exception import (RestException, ConflictException, NotAllowedException, DataInvalidException,
                         ResourceNotFoundException, NotAllowedMethodException, DuplicateEntryException,
                         UnsupportedMediaTypeException, MimerDataException, UnauthorizedException,
                         UnprocessableEntity)
-from .forms import ISODateTimeField, RESTModelForm, rest_modelform_factory, RESTValidationError
-from .utils import coerce_rest_request_method, set_rest_context_to_request, RFS, rfs
+from .forms import ISODateTimeField, RestModelForm, rest_modelform_factory, RestValidationError
+from .utils import coerce_rest_request_method, set_rest_context_to_request, rfs
 from .utils.helpers import str_to_class
 from .serializer import (
-    ResourceSerializer, ModelResourceSerializer, LazyMappedSerializedData, ObjectResourceSerializer, SerializableObj
+    ResourceSerializer, DjangoResourceSerializer, LazyMappedSerializedData, ModelResourceSerializer
 )
 from .converters import get_converter_name_from_request, get_converter_from_request
-from .filters.managers import MultipleFilterManager
-from .order.managers import DefaultModelOrderManager
+from .filters.managers import DjangoFilterManager
+from .order.managers import DjangoOrderManager
 from .requested_fields.managers import DefaultRequestedFieldsManager
 
 
@@ -66,7 +64,7 @@ class ResourceMetaClass(type):
     def __new__(cls, name, bases, attrs):
         abstract = attrs.pop('abstract', False)
         new_cls = type.__new__(cls, name, bases, attrs)
-        if not abstract and getattr(new_cls,'register', False) and settings.AUTO_REGISTER_RESOURCE:
+        if not abstract and getattr(new_cls, 'register', False) and settings.AUTO_REGISTER_RESOURCE:
             def already_registered(model):
                 return typemapper.get(model)
 
@@ -124,7 +122,9 @@ class PermissionsResourceMixin:
 
         if not hasattr(self, 'has_{}_permission'.format(name)):
             if django_settings.DEBUG:
-                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
+                raise NotImplementedError(
+                    'Please implement method has_{}_permission to {}'.format(name, self.__class__)
+                )
             else:
                 raise NotAllowedException
 
@@ -136,7 +136,9 @@ class PermissionsResourceMixin:
 
         if not hasattr(self, 'has_{}_permission'.format(name)):
             if django_settings.DEBUG:
-                raise NotImplementedError('Please implement method has_{}_permission to {}'.format(name, self.__class__))
+                raise NotImplementedError(
+                    'Please implement method has_{}_permission to {}'.format(name, self.__class__)
+                )
             else:
                 return False
         try:
@@ -166,7 +168,7 @@ class PermissionsResourceMixin:
         return 'options' in self.get_allowed_methods() and hasattr(self, 'options')
 
 
-class ObjectPermissionsResourceMixin(PermissionsResourceMixin):
+class ModelPermissionsResourceMixin(PermissionsResourceMixin):
 
     can_create_obj = False
     can_read_obj = False
@@ -203,7 +205,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
     abstract = True
     csrf_exempt = True
     cache = None
-    paginator = OffsetBasedPaginator()
+    paginator = None
     resource_typemapper = {}
     converter_classes = settings.CONVERTERS
     errors_response_class = settings.ERRORS_RESPONSE_CLASS
@@ -283,9 +285,9 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
             (ConflictException, ResponseErrorFactory(_('Conflict/Duplicate'), 409, error_response_class)),
             (DataInvalidException, ResponseExceptionFactory(errors_response_class)),
             (UnprocessableEntity, ResponseExceptionFactory(error_response_class, code=422)),
-            (RESTException, ResponseExceptionFactory(error_response_class)),
+            (RestException, ResponseExceptionFactory(error_response_class)),
             (ValidationError, ResponseValidationExceptionFactory(error_response_class)),
-            (RESTValidationError, ResponseValidationExceptionFactory(error_response_class)),
+            (RestValidationError, ResponseValidationExceptionFactory(error_response_class)),
         )
 
     @property
@@ -543,7 +545,7 @@ def join_rfs(*iterable):
     return reduce(lambda a, b: a.join(b), iterable, rfs())
 
 
-class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
+class ModelResourceMixin(ModelPermissionsResourceMixin):
 
     fields = None
     allowed_fields = None
@@ -587,32 +589,26 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
 
     def get_fields_rfs(self, obj=None):
         fields = self.get_fields(obj=obj)
-
         return rfs(fields) if fields is not None else rfs()
 
     def get_default_fields_rfs(self, obj=None):
         default_fields = self.get_default_fields(obj=obj)
-
         return rfs(default_fields) if default_fields is not None else rfs()
 
     def get_detailed_fields_rfs(self, obj=None):
         detailed_fields = self.get_detailed_fields(obj=obj)
-
         return (rfs(detailed_fields) if detailed_fields is not None else rfs()).join(self.get_default_fields_rfs())
 
     def get_general_fields_rfs(self, obj=None):
         general_fields = self.get_general_fields(obj=obj)
-
         return (rfs(general_fields) if general_fields is not None else rfs()).join(self.get_default_fields_rfs())
 
     def get_guest_fields_rfs(self, obj=None):
         guest_fields = self.get_guest_fields(obj=obj)
-
         return rfs(guest_fields) if guest_fields is not None else rfs()
 
     def get_extra_fields_rfs(self, obj=None):
         extra_fields = self.get_extra_fields(obj=obj)
-
         return rfs(extra_fields) if extra_fields is not None else rfs()
 
     def get_extra_filter_fields(self):
@@ -689,7 +685,7 @@ class DefaultRESTObjectResource(ObjectPermissionsResourceMixin):
         return method if method and callable(method) else None
 
 
-class DefaultRESTModelResource(DefaultRESTObjectResource):
+class DjangoResourceMixin(ModelResourceMixin):
 
     allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
     model = None
@@ -731,7 +727,9 @@ class DefaultRESTModelResource(DefaultRESTObjectResource):
         return self.model._rest_meta.order_fields if order_fields is None else order_fields
 
 
-class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
+class BaseModelResource(ModelResourceMixin, BaseResource):
+
+    model = None
 
     allowed_methods = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
     pk_name = 'pk'
@@ -739,7 +737,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     abstract = True
     partial_put_update = None
     partial_related_update = None
-    serializer = ObjectResourceSerializer
+    serializer = ModelResourceSerializer
+
+    filters = {}
+    filter_manager = None
+    order_manager = None
 
     def _serialize(self, output_stream, result, status_code, http_headers):
         try:
@@ -767,7 +769,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         return obj
 
     def render_response(self, result, http_headers, status_code, fieldset):
-        return super(BaseObjectResource, self).render_response(result, http_headers, status_code, fieldset)
+        return super().render_response(result, http_headers, status_code, fieldset)
 
     def _get_allow_header(self):
         return ','.join((
@@ -786,11 +788,31 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         """
         raise NotImplementedError
 
+    def _get_filter_manager(self):
+        return self.filter_manager
+
     def _filter_queryset(self, qs):
         """
-        Should contain implementation for objects filtering
+        :return: filtered queryset via filter manager if filter manager is not None.
         """
-        return qs
+        filter_manager = self._get_filter_manager()
+        if filter_manager:
+            return filter_manager.filter(self, qs, self.request)
+        else:
+            return qs
+
+    def _get_order_manager(self):
+        return self.order_manager
+
+    def _order_queryset(self, qs):
+        """
+        :return: ordered queryset via order manager if order manager is not None.
+        """
+        order_manager = self._get_order_manager()
+        if order_manager:
+            return order_manager.sort(self, qs, self.request)
+        else:
+            return qs
 
     def _preload_queryset(self, qs):
         """
@@ -798,17 +820,11 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         """
         return qs
 
-    def _order_queryset(self, qs):
-        """
-        Should contain implementation for objects ordering
-        """
-        return qs
-
     def _exists_obj(self, **kwargs):
         """
         Should return true if object exists
         """
-        raise NotImplementedError
+        return bool(self._get_obj_or_none(**kwargs))
 
     def _get_pk(self):
         return self.kwargs.get(self.pk_name)
@@ -821,7 +837,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         data = self.get_dict_data()
         if pk and self._exists_obj(pk=pk):
             raise DuplicateEntryException
-        return RESTCreatedResponse(self.atomic_create_or_update(data))
+        return RestCreatedResponse(self.atomic_create_or_update(data))
 
     def get(self):
         pk = self._get_pk()
@@ -867,7 +883,7 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
     def delete(self):
         pk = self.kwargs.get(self.pk_name)
         self.delete_obj_with_pk(pk)
-        return RESTNoContentResponse()
+        return RestNoContentResponse()
 
     def delete_obj_with_pk(self, pk, via=None):
         via = via or []
@@ -999,43 +1015,17 @@ class BaseObjectResource(DefaultRESTObjectResource, BaseResource):
         pass
 
 
-class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
+class DjangoResource(DjangoResourceMixin, BaseModelResource):
 
     register = True
     abstract = True
-    form_class = RESTModelForm
-    serializer = ModelResourceSerializer
+    form_class = RestModelForm
+    serializer = DjangoResourceSerializer
     form_fields = None
 
-    filters = {}
-    filter_manager = MultipleFilterManager()
-    order_manager = DefaultModelOrderManager()
-
-    def _get_filter_manager(self):
-        return self.filter_manager
-
-    def _filter_queryset(self, qs):
-        """
-        :return: filtered queryset via filter manager if filter manager is not None.
-        """
-        filter_manager = self._get_filter_manager()
-        if filter_manager:
-            return filter_manager.filter(self, qs, self.request)
-        else:
-            return qs
-
-    def _get_order_manager(self):
-        return self.order_manager
-
-    def _order_queryset(self, qs):
-        """
-        :return: ordered queryset via order manager if order manager is not None.
-        """
-        order_manager = self._get_order_manager()
-        if order_manager:
-            return order_manager.sort(self, qs, self.request)
-        else:
-            return qs
+    filter_manager = DjangoFilterManager()
+    order_manager = DjangoOrderManager()
+    paginator = DjangoOffsetBasedPaginator()
 
     def _get_queryset(self):
         return self.model.objects.all()

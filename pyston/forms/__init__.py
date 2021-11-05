@@ -12,7 +12,7 @@ from django.utils.encoding import force_text, force_str
 
 from chamber.shortcuts import get_object_or_none
 
-from pyston.exception import DataInvalidException, RESTException
+from pyston.exception import DataInvalidException, RestException
 from pyston.validators import ISODateTimeValidator
 from pyston.utils.compatibility import (
     get_reverse_field_name, get_model_from_relation, is_reverse_many_to_many, is_reverse_one_to_one,
@@ -24,11 +24,11 @@ from pyston.utils.helpers import str_to_class
 DEFAULT_CODE = 'invalid'
 
 
-class RESTError(Exception):
+class RestError(Exception):
     pass
 
 
-class RESTListError(RESTError):
+class RestListError(RestError):
     """
     List exception is standard list object that can be raised like exception.
     """
@@ -62,7 +62,7 @@ class RESTListError(RESTError):
         self._list.append(val)
 
 
-class RESTDictError(RESTError):
+class RestDictError(RestError):
     """
     Dict exception is standard dict object that can be raised like exception.
     """
@@ -120,12 +120,12 @@ class RESTDictError(RESTError):
         return self._dict.pop(key)
 
 
-class RESTDictIndexError(RESTError):
+class RestDictIndexError(RestError):
 
     def __init__(self, index, data):
         super().__init__()
         self.index = index
-        self.data = RESTDictError(data)
+        self.data = RestDictError(data)
 
     def __repr__(self):
         return "<{0} {1}: {2}>".format(self.__class__.__name__, self.index, self.data)
@@ -134,10 +134,10 @@ class RESTDictIndexError(RESTError):
         return str(self.data)
 
 
-class RESTValidationError(RESTError):
+class RestValidationError(RestError):
 
     def __init__(self, message, code=None):
-        if isinstance(message, (RESTValidationError, ValidationError)):
+        if isinstance(message, (RestValidationError, ValidationError)):
             self.message = message.message
             self.code = message.code
         else:
@@ -188,7 +188,7 @@ class RelatedField:
             try:
                 return data[pk_field_name]
             except KeyError:
-                raise RESTValidationError(
+                raise RestValidationError(
                     ugettext('Data must contain primary key: {}').format(pk_field_name), code='invalid_structure'
                 )
         else:
@@ -196,24 +196,24 @@ class RelatedField:
 
     def _delete_related_object(self, resource, data, via):
         try:
-             resource.delete_obj_with_pk(self._flat_object_to_pk(resource.pk_field_name, data), via)
+            resource.delete_obj_with_pk(self._flat_object_to_pk(resource.pk_field_name, data), via)
         except DataInvalidException as ex:
             raise ex.errors
-        except RESTException as ex:
-            raise RESTValidationError(ex.message)
+        except RestException as ex:
+            raise RestValidationError(ex.message)
         except Http404:
-            raise RESTValidationError(ugettext('Object does not exist'), code='invalid_structure')
+            raise RestValidationError(ugettext('Object does not exist'), code='invalid_structure')
 
     def _create_or_update_related_object(self, resource, data, via, partial_update):
         if not isinstance(data, dict):
-            raise RESTValidationError(ugettext('Data must be object'), code='invalid_structure')
+            raise RestValidationError(ugettext('Data must be object'), code='invalid_structure')
 
         try:
             return resource.create_or_update(resource.update_data(data), via, partial_update)
         except DataInvalidException as ex:
             raise ex.errors
-        except RESTException as ex:
-            raise RESTValidationError(ex.errors)
+        except RestException as ex:
+            raise RestValidationError(ex.errors)
 
     def create_update_or_remove(self, parent_inst, data, via, request, partial_update, form):
         return self._create_update_or_remove(
@@ -233,7 +233,7 @@ class RelatedField:
 
     def _create_and_return_new_object_pk_list(self, resource, parent_inst, via, data, partial_update,
                                               created_via_field_name=None):
-        errors = RESTListError()
+        errors = RestListError()
         result = []
         for i, obj_data in enumerate(data):
             if not isinstance(obj_data, dict):
@@ -247,10 +247,10 @@ class RelatedField:
                     result.append(self._create_or_update_related_object(resource, obj_data, via, partial_update).pk)
                 else:
                     result.append(obj_data[resource.pk_field_name])
-            except RESTDictError as ex:
-                errors.append(RESTDictIndexError(i, ex))
-            except RESTError as ex:
-                errors.append(RESTDictIndexError(i, {'error': ex}))
+            except RestDictError as ex:
+                errors.append(RestDictIndexError(i, ex))
+            except RestError as ex:
+                errors.append(RestDictIndexError(i, {'error': ex}))
 
         if errors:
             raise errors
@@ -276,7 +276,7 @@ class SingleRelatedfieldValidationMixin:
 
         cleaned_data = copy.deepcopy(data)
         if not self._is_allowed_foreign_key and not isinstance(data, dict):
-            raise RESTValidationError(ugettext('Invalid format'), code='invalid_structure')
+            raise RestValidationError(ugettext('Invalid format'), code='invalid_structure')
 
         resource = self._get_resource(self._get_model(parent_inst), request)
         if not self._is_allowed_foreign_key and resource.pk_field_name in data:
@@ -288,9 +288,9 @@ class MultipleRelatedfieldValidationMixin(SingleRelatedfieldValidationMixin):
 
     def clean(self, data, request, parent_inst):
         if not isinstance(data, (tuple, list)):
-            raise RESTValidationError(ugettext('Data must be a collection'), code='invalid_structure')
+            raise RestValidationError(ugettext('Data must be a collection'), code='invalid_structure')
 
-        errors = RESTListError()
+        errors = RestListError()
 
         cleaned_data = []
 
@@ -299,13 +299,13 @@ class MultipleRelatedfieldValidationMixin(SingleRelatedfieldValidationMixin):
                 cleaned_data.append(super().clean(obj_data, request, parent_inst))
                 if obj_data is None:
                     errors.append(
-                        RESTDictIndexError(
-                            i, {'error': RESTValidationError(ugettext('Invalid format'), code='invalid_structure')}
+                        RestDictIndexError(
+                            i, {'error': RestValidationError(ugettext('Invalid format'), code='invalid_structure')}
                         )
                     )
-            except RESTError as ex:
+            except RestError as ex:
                 errors.append(
-                    RESTDictIndexError(i, {'error': ex})
+                    RestDictIndexError(i, {'error': ex})
                 )
 
         if errors:
@@ -320,16 +320,16 @@ class MultipleStructuredRelatedfieldValidationMixin:
             cleaned_data = {}
 
             if 'set' in data and {'remove', 'add'} & set(data.keys()):
-                raise RESTValidationError(
+                raise RestValidationError(
                     ugettext('set cannot be together with add or remove'), code='invalid_structure'
                 )
 
-            errors = RESTDictError()
+            errors = RestDictError()
             for k in ('add', 'remove', 'set'):
                 if k in data:
                     try:
                         cleaned_data[k] = super().clean(data[k], request, parent_inst)
-                    except RESTError as ex:
+                    except RestError as ex:
                         errors[k] = ex
             if errors:
                 raise errors
@@ -362,7 +362,7 @@ class MultipleRelatedField(MultipleRelatedfieldValidationMixin, DirectRelatedFie
 class MultipleStructuredRelatedField(MultipleStructuredRelatedfieldValidationMixin, MultipleRelatedField):
 
     def _remove_related_objects(self, resource, parent_inst, via, data, values):
-        errors = RESTListError()
+        errors = RestListError()
         result = [force_text(val) for val in values]
         for i, obj in enumerate(data):
             try:
@@ -371,10 +371,10 @@ class MultipleStructuredRelatedField(MultipleStructuredRelatedfieldValidationMix
                     result.remove(pk)
                 else:
                     errors.append({'error': ugettext('Object does not exist in selected data'), '_index': i})
-            except RESTDictError as ex:
-                errors.append(RESTDictIndexError(i, ex))
-            except RESTError as ex:
-                errors.append(RESTDictIndexError(i, {'error': ex}))
+            except RestDictError as ex:
+                errors.append(RestDictIndexError(i, ex))
+            except RestError as ex:
+                errors.append(RestDictIndexError(i, {'error': ex}))
 
         if errors:
             raise errors
@@ -384,17 +384,17 @@ class MultipleStructuredRelatedField(MultipleStructuredRelatedfieldValidationMix
         return values + self._create_and_return_new_object_pk_list(resource, parent_inst, via, data, partial_update)
 
     def _add_and_remove_structured_objects(self, resource, parent_inst, via, data, partial_update, form):
-        errors = RESTDictError()
+        errors = RestDictError()
         values = self.form_field.prepare_value(form.initial.get(self.field_name, self.form_field.initial)) or []
         if 'remove' in data:
             try:
                 values = self._remove_related_objects(resource, parent_inst, via, data.get('remove'), values)
-            except RESTError as ex:
+            except RestError as ex:
                 errors['remove'] = ex
         if 'add' in data:
             try:
                 values = self._add_related_objects(resource, parent_inst, via, data.get('add'), values, partial_update)
-            except RESTError as ex:
+            except RestError as ex:
                 errors['add'] = ex
         if errors:
             raise errors
@@ -407,8 +407,8 @@ class MultipleStructuredRelatedField(MultipleStructuredRelatedfieldValidationMix
                 return super()._update_related_objects(
                     resource, parent_inst, via, data.get('set'), partial_update, form
                 )
-            except RESTError as ex:
-                raise RESTDictError({'set': ex})
+            except RestError as ex:
+                raise RestDictError({'set': ex})
         else:
             return self._add_and_remove_structured_objects(resource, parent_inst, via, data, partial_update, form)
 
@@ -484,8 +484,7 @@ class ReverseOneToOneField(ReverseSingleField):
         delete_cached_value(parent_inst, self.reverse_field_name)
 
     def _create_or_update(self, resource, parent_inst, related_obj, field_name, via, data, partial_update):
-        obj = super()._create_or_update(resource, parent_inst, related_obj, field_name, via,
-                                                                  data, partial_update)
+        obj = super()._create_or_update(resource, parent_inst, related_obj, field_name, via, data, partial_update)
         setattr(parent_inst, self.reverse_field_name, obj)
         return obj
 
@@ -503,7 +502,7 @@ class ReverseManyField(MultipleRelatedfieldValidationMixin, ReverseField):
             return super()._add_parent_inst_to_obj_data(parent_inst, field_name, data)
 
     def _delete_reverse_objects(self, resource, data, via):
-        errors = RESTListError()
+        errors = RestListError()
         for i, obj_data in enumerate(data):
             try:
                 self._delete_related_object(
@@ -511,10 +510,10 @@ class ReverseManyField(MultipleRelatedfieldValidationMixin, ReverseField):
                     resource.update_data(obj_data) if isinstance(obj_data, dict) else obj_data,
                     via
                 )
-            except RESTDictError as ex:
-                errors.append(RESTDictIndexError(i, ex))
-            except RESTError as ex:
-                errors.append(RESTDictIndexError(i, {'error': ex}))
+            except RestDictError as ex:
+                errors.append(RestDictIndexError(i, ex))
+            except RestError as ex:
+                errors.append(RestDictIndexError(i, {'error': ex}))
 
         if errors:
             raise errors
@@ -550,19 +549,19 @@ class ReverseStructuredManyField(MultipleStructuredRelatedfieldValidationMixin, 
         return model.objects.filter(pk__in=new_object_pks)
 
     def _add_and_remove_structured_objects(self, resource, model, parent_inst, field_name, via, data, partial_update):
-        errors = RESTDictError()
+        errors = RestDictError()
         if 'remove' in data:
             try:
                 objects_qs = model.objects.none()
                 self._remove_reverse_related_objects(resource, parent_inst, via, data.get('remove'), field_name)
-            except RESTError as ex:
+            except RestError as ex:
                 errors['remove'] = ex
         if 'add' in data:
             try:
                 objects_qs = self._add_reverse_related_objects(
                     resource, model, parent_inst, via, data.get('add'), partial_update, field_name
                 )
-            except RESTError as ex:
+            except RestError as ex:
                 errors['add'] = ex
         if errors:
             raise errors
@@ -575,8 +574,8 @@ class ReverseStructuredManyField(MultipleStructuredRelatedfieldValidationMixin, 
                 return super()._update_reverse_related_objects(
                     resource, model, parent_inst, field_name, via, data.get('set'), partial_update
                 )
-            except RESTError as ex:
-                raise RESTDictError({'set': ex})
+            except RestError as ex:
+                raise RestDictError({'set': ex})
         else:
             return self._add_and_remove_structured_objects(resource, model, parent_inst, field_name, via, data,
                                                            partial_update)
@@ -601,7 +600,7 @@ class ISODateTimeField(forms.DateTimeField):
         return parser.parse(force_str(value))
 
 
-class RESTFormMixin:
+class RestFormMixin:
 
     def __init__(self, *args, **kwargs):
         self.origin_initial = kwargs.get('initial', {})
@@ -609,18 +608,18 @@ class RESTFormMixin:
         super().__init__(*args, **kwargs)
 
     def _parse_rest_errors(self, errors):
-        if isinstance(errors, RESTError):
+        if isinstance(errors, RestError):
             return errors
         elif isinstance(errors, dict):
-            return RESTDictError({k: self._parse_rest_errors(v) for k, v in errors.items()})
+            return RestDictError({k: self._parse_rest_errors(v) for k, v in errors.items()})
         else:
-            return RESTValidationError(list(errors.as_data()[0])[0], errors.as_data()[0].code)
+            return RestValidationError(list(errors.as_data()[0])[0], errors.as_data()[0].code)
 
     def is_invalid(self):
         """
         Validate input data. It uses django forms
         """
-        errors = RESTDictError() if self.is_valid() else self._parse_rest_errors(self.errors)
+        errors = RestDictError() if self.is_valid() else self._parse_rest_errors(self.errors)
 
         if '__all__' in errors:
             del errors['__all__']
@@ -650,8 +649,7 @@ class RESTFormMixin:
     """
     def _merge_from_initial(self, initial):
         self.data = self.data.copy()
-        filt = lambda v: v not in self.data.keys()
-        for field_name in filter(filt, self.fields.keys()):
+        for field_name in filter(lambda v: v not in self.data.keys(), self.fields.keys()):
             field = self.fields[field_name]
             self.data[field_name] = field.prepare_value(initial.get(field_name, field.initial))
 
@@ -659,12 +657,12 @@ class RESTFormMixin:
         """
         Standard django form does not support more structured errors
         (for example error dict that contains another error dict).
-        For this purpose pyston creates RESTError class and we must rewrite this method to allow these
+        For this purpose pyston creates RestError class and we must rewrite this method to allow these
         complex error messages.
         """
-        if isinstance(error, RESTError):
+        if isinstance(error, RestError):
             if not field:
-                raise ValueError('Field must be set for RESTError')
+                raise ValueError('Field must be set for RestError')
             self._errors[field] = error
         else:
             if not isinstance(error, ValidationError):
@@ -694,7 +692,7 @@ class RESTFormMixin:
                     del self.cleaned_data[field]
 
 
-def get_resource_class( model, resource_typemapper):
+def get_resource_class(model, resource_typemapper):
     from pyston.serializer import get_resource_class_or_none
 
     return get_resource_class_or_none(model, resource_typemapper)
@@ -752,7 +750,7 @@ def reverse_related_fields_for_model(model, fields=None, exclude=None, resource_
     return OrderedDict(field_list)
 
 
-class RESTModelFormOptions:
+class RestModelFormOptions:
 
     def __init__(self, options=None):
         self.resource_typemapper = getattr(options, 'resource_typemapper', None)
@@ -760,7 +758,7 @@ class RESTModelFormOptions:
         self.auto_related_reverse_fields = getattr(options, 'auto_related_reverse_fields', False)
 
 
-class RESTFormMetaclass(ModelFormMetaclass):
+class RestFormMetaclass(ModelFormMetaclass):
     """
     Form metaclass that improves django model form with reverse fields.
     """
@@ -779,7 +777,7 @@ class RESTFormMetaclass(ModelFormMetaclass):
 
         new_class = super().__new__(cls, name, bases, attrs)
 
-        rest_opts = new_class._rest_meta = RESTModelFormOptions(getattr(new_class, 'RESTMeta', None))
+        rest_opts = new_class._rest_meta = RestModelFormOptions(getattr(new_class, 'RestMeta', None))
 
         # Walk through the MRO.
         declared_related_fields = OrderedDict()
@@ -825,7 +823,7 @@ class RESTFormMetaclass(ModelFormMetaclass):
         return new_class
 
 
-class RESTModelForm(RESTFormMixin, AllFieldsUniqueValidationModelForm, metaclass=RESTFormMetaclass):
+class RestModelForm(RestFormMixin, AllFieldsUniqueValidationModelForm, metaclass=RestFormMetaclass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -839,7 +837,7 @@ class RESTModelForm(RESTFormMixin, AllFieldsUniqueValidationModelForm, metaclass
             if field.is_reverse and hasattr(self, 'clean_{}'.format(name)):
                 try:
                     getattr(self, 'clean_{}'.format(name))()
-                except (ValidationError, RESTError) as e:
+                except (ValidationError, RestError) as e:
                     self.add_error(name, e)
 
     def _post_save_clean(self):
@@ -883,10 +881,10 @@ class RESTModelForm(RESTFormMixin, AllFieldsUniqueValidationModelForm, metaclass
         return obj
 
 
-def rest_modelform_factory(model, form=RESTModelForm, form_factory=modelform_factory, resource_typemapper=None,
+def rest_modelform_factory(model, form=RestModelForm, form_factory=modelform_factory, resource_typemapper=None,
                            auto_related_direct_fields=None, auto_related_reverse_fields=None, **kwargs):
     """
-    Purpose of the rest factory form method is prepare RESTMeta for standard django model form.
+    Purpose of the rest factory form method is prepare RestMeta for standard django model form.
     The final form is created using a factory defined in form_factory argument.
     :param model: Django model class
     :param form: base model form class
@@ -906,17 +904,17 @@ def rest_modelform_factory(model, form=RESTModelForm, form_factory=modelform_fac
         attrs['auto_related_reverse_fields'] = auto_related_reverse_fields
 
     parent = (object,)
-    if hasattr(form, 'RESTMeta'):
-        parent = (form.RESTMeta, object)
+    if hasattr(form, 'RestMeta'):
+        parent = (form.RestMeta, object)
 
-    RESTMeta = type(str('RESTMeta'), parent, attrs)
+    RestMeta = type(str('RestMeta'), parent, attrs)
 
     # Give this new form class a reasonable name.
     form_class_name = model.__name__ + str('Form')
 
     # Class attributes for the new form class.
     form_class_attrs = {
-        'RESTMeta': RESTMeta,
+        'RestMeta': RestMeta,
     }
     # Instantiate type(form) in order to use the same metaclass as form.
     return form_factory(model, form=type(form)(form_class_name, (form,), form_class_attrs), **kwargs)

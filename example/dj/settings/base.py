@@ -171,11 +171,11 @@ TEMPLATES = [
 ]
 
 PYSTON_CONVERTERS = (
-    'pyston.converters.JSONConverter',
-    'pyston.converters.XMLConverter',
-    'pyston.converters.CSVConverter',
-    'pyston.converters.XLSXConverter',
-    'pyston.converters.PDFConverter',
-    'pyston.converters.HTMLConverter',
+    'pyston.converters.JsonConverter',
+    'pyston.converters.XmlConverter',
+    'pyston.converters.CsvConverter',
+    'pyston.converters.XlsxConverter',
+    'pyston.converters.PdfConverter',
+    'pyston.converters.HtmlConverter',
 )
 PYSTON_PARTIAL_RELATED_UPDATE = True

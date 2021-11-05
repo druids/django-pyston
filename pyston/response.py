@@ -1,7 +1,4 @@
-from django.utils.translation import ugettext
-from django.utils.encoding import force_text
-
-from .forms import RESTDictError, RESTDictIndexError, RESTListError, RESTValidationError
+from .forms import RestDictError, RestDictIndexError, RestListError, RestValidationError
 
 
 class HeadersResponse:
@@ -20,14 +17,14 @@ class NoFieldsetResponse(HeadersResponse):
     fieldset = False
 
 
-class RESTResponse(NoFieldsetResponse):
+class RestResponse(NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=200):
         http_headers = {} if http_headers is None else http_headers
         super().__init__(result={'messages': msg}, http_headers=http_headers, code=code)
 
 
-class RESTOkResponse(NoFieldsetResponse):
+class RestOkResponse(NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=200):
         http_headers = {} if http_headers is None else http_headers
@@ -36,53 +33,53 @@ class RESTOkResponse(NoFieldsetResponse):
         )
 
 
-class RESTCreatedResponse(HeadersResponse):
+class RestCreatedResponse(HeadersResponse):
 
     def __init__(self, result, http_headers=None, code=201):
         http_headers = {} if http_headers is None else http_headers
         super().__init__(result=result, http_headers=http_headers, code=code)
 
 
-class RESTNoContentResponse(NoFieldsetResponse):
+class RestNoContentResponse(NoFieldsetResponse):
 
     def __init__(self, http_headers=None, code=204):
         http_headers = {} if http_headers is None else http_headers
         super().__init__(result=None, http_headers=http_headers, code=code)
 
 
-class RESTErrorsResponseMixin:
+class RestErrorsResponseMixin:
 
     def _get_errors(self, data):
-        if isinstance(data, RESTDictIndexError):
+        if isinstance(data, RestDictIndexError):
             result = {
                 '_index': data.index
             }
             result.update(self._get_errors(data.data))
             return result
-        elif isinstance(data, (RESTDictError, dict)):
+        elif isinstance(data, (RestDictError, dict)):
             return {
                 key: self._get_errors(val) for key, val in data.items()
             }
-        elif isinstance(data, (RESTListError, list, tuple)):
+        elif isinstance(data, (RestListError, list, tuple)):
             return [self._get_errors(error) for error in data]
         else:
-            return RESTValidationError(data).message
+            return RestValidationError(data).message
 
 
-class RESTErrorsResponse(RESTErrorsResponseMixin, NoFieldsetResponse):
+class RestErrorsResponse(RestErrorsResponseMixin, NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=400):
         http_headers = {} if http_headers is None else http_headers
-        super(RESTErrorsResponse, self).__init__(
+        super(RestErrorsResponse, self).__init__(
             result={'messages': {'errors': self._get_errors(msg)}}, http_headers=http_headers, code=code
         )
 
 
-class RESTErrorResponse(RESTErrorsResponseMixin, NoFieldsetResponse):
+class RestErrorResponse(RestErrorsResponseMixin, NoFieldsetResponse):
 
     def __init__(self, msg, http_headers=None, code=400):
         http_headers = {} if http_headers is None else http_headers
-        super(RESTErrorResponse, self).__init__(
+        super(RestErrorResponse, self).__init__(
             result={'messages': {'error': self._get_errors(msg)}}, http_headers=http_headers, code=code
         )
 
@@ -101,7 +98,7 @@ class ResponseFactory:
 
 class ResponseErrorFactory(ResponseFactory):
 
-    def __init__(self, msg, code, response_class=RESTErrorResponse):
+    def __init__(self, msg, code, response_class=RestErrorResponse):
         super().__init__(response_class)
         self.msg = msg
         self.code = code

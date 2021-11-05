@@ -7,10 +7,10 @@ REST form
 Pyston REST form adds some features that improve usability of Django form for REST purposes.
 
 
-RESTMeta
+RestMeta
 --------
 
-Similary to Django form Meta you can use RESTMeta where you can set these attributes
+Similary to Django form Meta you can use RestMeta where you can set these attributes
 
 .. attribute:: RestMeta.resource_typemapper
 
@@ -28,15 +28,15 @@ Turns on generation of pyston reverse related fields. Default value is `False`.
 Direct fields
 -------------
 
-Because pyston supports atomic update (object can be updated with one request via another object resource) pyston adds related fields. These fields are automatically generated for `RESTModelForm` if `RestMeta.auto_related_reverse_fields` is set to `True`.
+Because pyston supports atomic update (object can be updated with one request via another object resource) pyston adds related fields. These fields are automatically generated for `RestModelForm` if `RestMeta.auto_related_reverse_fields` is set to `True`.
 
 Pyston resources by default generates REST forms with `RestMeta.auto_related_direct_fields` set to `True`. You can change this behavior with setting `AUTO_RELATED_DIRECT_FIELDS`.
 
 You can define direct fields in your form manually too (it also works with automatic direct field generation turned off)::
 
-    from pyston.forms import RESTModelForm, SingleRelatedField, MultipleRelatedField
+    from pyston.forms import RestModelForm, SingleRelatedField, MultipleRelatedField
 
-    class IssueForm(RESTModelForm):
+    class IssueForm(RestModelForm):
 
         created_by = SingleRelatedField('created_by')
         leader = SingleRelatedField('leader')
@@ -72,10 +72,10 @@ Pyston resources by default generates REST forms with `RestMeta.auto_related_rev
 
 You can define reverse fields in your form manually too (it works with turned off auto reverse fields too). As AN example we can use user form from the example application::
 
-    from pyston.forms import RESTModelForm, ReverseOneToOneField, ReverseStructuredManyField
+    from pyston.forms import RestModelForm, ReverseOneToOneField, ReverseStructuredManyField
 
 
-    class UserForm(RESTModelForm):
+    class UserForm(RestModelForm):
 
         watched_issues = ReverseStructuredManyField('watched_issues')
         created_issues_renamed = ReverseStructuredManyField('created_issues')

@@ -37,7 +37,7 @@ cleanvar: clean cleanvirtualenv
 cleanall: cleanvar
 
 pip:
-	$(PYTHON_BIN)/pip install -r requirements/base.txt
+	$(PYTHON_BIN)/pip install -r requirements.txt
 
 initvirtualenv:
 	virtualenv -p $(PYTHON) $(VIRTUAL_ENV)
@@ -79,6 +79,13 @@ initenv:
 	echo -e '\nDJANGO_SETTINGS_MODULE="$(DJANGO_SETTINGS_MODULE)"' >> $(VIRTUAL_ENV)/bin/activate
 	echo -e 'export DJANGO_SETTINGS_MODULE' >> $(VIRTUAL_ENV)/bin/activate
 
+runservices:
+	docker run --name=pyston-dynamodb -d -p 8000:8000 amazon/dynamodb-local
+	docker run --name=pyston-elasticsearch -d -e "discovery.type=single-node" -e "xpack.security.enabled=false" -p 9200:9200 docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+
+stopservices:
+	docker rm $$(docker stop $$(docker ps -a -q --filter="name=pyston-dynamodb"))
+	docker rm $$(docker stop $$(docker ps -a -q --filter="name=pyston-elasticsearch"))
 
 callcommand:
 	@$(PYTHON_BIN)/python manage.py $(command) $(DJANGO_POSTFIX)

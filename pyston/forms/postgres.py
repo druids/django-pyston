@@ -4,7 +4,7 @@ from django.contrib.postgres.forms.array import SimpleArrayField
 from django.utils.translation import ugettext
 
 
-class RESTSimpleArrayField(SimpleArrayField):
+class RestSimpleArrayField(SimpleArrayField):
     """
     Django array form field doesn't accept list. Therefore we must rewrite to_python method
     """

@@ -1,6 +1,5 @@
 .. _exceptions:
 
-=================
 Pyston exceptions
 =================
 
@@ -28,10 +27,10 @@ Pyston core exception classes are defined in ``pyston.exception``.
 
     Exception raises resource if content type cannot be evaluated.
 
-``RESTException``
+``RestException``
 -----------------
 
-.. exception:: RESTException
+.. exception:: RestException
 
     Base rest exception that contains string message.
 
@@ -86,41 +85,41 @@ Pyston Form Exceptions
 
 Pyston forms exception classes are defined in ``pyston.forms``.
 
-``RESTError``
+``RestError``
 -------------
 
-.. exception:: RESTError
+.. exception:: RestError
 
     This is base exception for all form errors.
 
-``RESTListError``
+``RestListError``
 -----------------
 
-.. exception:: RESTListError
+.. exception:: RestListError
 
-    Exception that contains list of another ``RESTError`` classes. Exception simulates python list object and provides
+    Exception that contains list of another ``RestError`` classes. Exception simulates python list object and provides
     all of lists methods but can be raised like exception.
 
-``RESTDictError``
+``RestDictError``
 -----------------
 
-.. exception:: RESTDictError
+.. exception:: RestDictError
 
-    Exception that contains dict of another ``RESTError`` classes. Exception simulates python dict object and provides
+    Exception that contains dict of another ``RestError`` classes. Exception simulates python dict object and provides
     all of lists methods but can be raised like exception.
 
-``RESTDictIndexError``
+``RestDictIndexError``
 ----------------------
 
-.. exception:: RESTDictIndexError
+.. exception:: RestDictIndexError
 
-    ``RESTDictIndexError`` is often used inside ``RESTListError``. It contains idex of element where error was happend
-    and data in ``RESTDictError`` format.
+    ``RestDictIndexError`` is often used inside ``RestListError``. It contains idex of element where error was happend
+    and data in ``RestDictError`` format.
 
-``RESTValidationError``
+``RestValidationError``
 -----------------------
 
-.. exception:: RESTValidationError
+.. exception:: RestValidationError
 
-    ``RESTValidationError`` is similar to Django ``ValidationError`` but it can contain only one error message with one
+    ``RestValidationError`` is similar to Django ``ValidationError`` but it can contain only one error message with one
     code.

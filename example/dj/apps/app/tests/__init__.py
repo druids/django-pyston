@@ -1,3 +1,4 @@
+from django.conf import settings
 from .fields import *
 from .fieldsets import *
 from .filter import *
@@ -8,3 +9,5 @@ from .cors import *
 from .standard_operations import *
 from .compatibility import *
 from .serializer import *
+from .elasticsearch import *
+from .dynamo import *

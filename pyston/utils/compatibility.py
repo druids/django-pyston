@@ -1,6 +1,3 @@
-import django
-from django.template import Context
-from django.template.loader import get_template
 from django.core.exceptions import FieldError, FieldDoesNotExist
 
 

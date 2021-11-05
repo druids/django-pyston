@@ -5,10 +5,7 @@ import pyparsing as pp
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
 
-from pyston.utils import LOOKUP_SEP
-
-from .default_filters import OPERATORS
-from .exceptions import FilterValueError, OperatorFilterError, FilterIdentifierError
+from .filters import OPERATORS
 from .utils import LOGICAL_OPERATORS
 
 
@@ -35,7 +32,7 @@ class ComposedCondition(Condition):
     """
 
     def __init__(self, operator_slug, condition_right, condition_left=None):
-        super(ComposedCondition, self).__init__(True)
+        super().__init__(True)
         self.operator_slug = operator_slug
         self.condition_left = condition_left
         self.condition_right = condition_right
@@ -110,7 +107,7 @@ class DefaultFilterParser(FilterParser):
     def _parse_to_conditions(self, parsed_result_list, condition_positions, condition, input):
         def _parse_to_conditions_recursive(term):
             if len(term) == 2 and term[0] == LOGICAL_OPERATORS.NOT:
-                return LogicalCondition(LOGICAL_OPERATORS.NOT, _parse_to_conditions(term[1]))
+                return ComposedCondition(LOGICAL_OPERATORS.NOT, _parse_to_conditions_recursive(term[1]))
             elif len(term) == 3 and term[1] in {LOGICAL_OPERATORS.AND, LOGICAL_OPERATORS.OR}:
                 return ComposedCondition(
                     term[1],
@@ -163,7 +160,7 @@ class DefaultFilterParser(FilterParser):
             pp.QuotedString("'", escChar='\\', unquoteResults=True) | pp.QuotedString('"', escChar='\\',
                                                                                       unquoteResults=True)
         )
-        null = pp.Literal('null').setParseAction(lambda s,l,t: None)
+        null = pp.Literal('null').setParseAction(lambda s, l, t: None)
         boolean = pp.Regex('|'.join(('true', 'false'))).setParseAction(lambda s, l, t: t[0] == 'true')
 
         comparison_term << (string | number | list_term | null | boolean)
@@ -183,7 +180,7 @@ class DefaultFilterParser(FilterParser):
             return self._parse_to_conditions(
                 expr.parseString(input, parseAll=True).asList()[0], list(condition_positions), condition, input
             )
-        except pp.ParseException as ex:
+        except pp.ParseException:
             raise FilterParserError(
                 mark_safe(ugettext('Invalid filter value "{}"').format(input))
             )
@@ -218,7 +215,7 @@ class QueryStringFilterParser(FlatAndFilterParser):
     DELIMITER = '__'
 
     def _clean_multiple_values(self, operator_slug, value):
-        for pattern in ('\[(.*)\]', '\((.*)\)', '\{(.*)\}'):
+        for pattern in (r'\[(.*)\]', r'\((.*)\)', r'\{(.*)\}'):
             m = re.compile(pattern).match(value)
             if m:
                 return [self._clean_simple_value(v) for v in m.group(1).split(',')] if m.group(1) else []

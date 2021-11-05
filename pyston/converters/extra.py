@@ -1,6 +1,6 @@
 import re
 
-from pyston.converters import JSONConverter, is_collection
+from pyston.converters import JsonConverter, is_collection
 
 
 def to_camel_case(snake_str):
@@ -18,7 +18,7 @@ def to_snake_case(name):
     return re.sub('([^_])([A-Z])', r'\1_\2', s1).lower()
 
 
-class JSONCamelCaseConverter(JSONConverter):
+class JsonCamelCaseConverter(JsonConverter):
 
     def _encode_snake_to_camel(self, data):
         from pyston.serializer import LAZY_SERIALIZERS
@@ -44,4 +44,4 @@ class JSONCamelCaseConverter(JSONConverter):
         super()._encode_to_stream(output_stream, self._encode_snake_to_camel(data), options=None, **kwargs)
 
     def _decode(self, data, **kwargs):
-        return self._decode_camel_to_snake(super(JSONCamelCaseConverter, self)._decode(data))
+        return self._decode_camel_to_snake(super(JsonCamelCaseConverter, self)._decode(data))

@@ -20,7 +20,7 @@ from chamber.utils.datastructures import Enum
 from .conf import settings
 from .converters import get_converter
 from .exception import NotAllowedException, UnsupportedMediaTypeException
-from .forms import RESTDictError, RESTDictIndexError, RESTListError
+from .forms import RestDictError, RestDictIndexError, RestListError
 from .utils import rfs
 from .utils.compatibility import get_last_parent_pk_field_name, get_reverse_field_name
 from .utils.helpers import ModelIteratorHelper, UniversalBytesIO, serialized_data_to_python, str_to_class
@@ -82,7 +82,7 @@ class SerializableObj(Serializable, metaclass=SerializableObjMetaClass):
         }
 
     def get_fields(self):
-        return self.RESTMeta.fields
+        return self.RestMeta.fields
 
 
 class SerializationException(Exception):
@@ -115,15 +115,19 @@ def get_resource_or_none(request, thing, resource_typemapper=None):
     return resource_class(request) if resource_class else None
 
 
+def get_thing_class(thing):
+    return thing.model if isinstance(thing, (QuerySet, ModelIteratorHelper)) else type(thing)
+
+
 def get_serializer(thing, request=None, resource_typemapper=None):
+    thing_class = get_thing_class(thing)
     if request:
-        thing_class = thing.model if isinstance(thing, (QuerySet, ModelIteratorHelper)) else type(thing)
         resource = get_resource_or_none(request, thing_class, resource_typemapper)
         if resource:
             return resource.serializer(resource, request=request)
 
     for serialized_types, serializer in default_serializers:
-        if isinstance(thing, serialized_types):
+        if issubclass(thing_class, serialized_types):
             return serializer(request=request)
     return DefaultSerializer(request=request)
 
@@ -173,12 +177,12 @@ class LazyMappedSerializedData:
         return self.data_mapping.get(lookup_key, lookup_key)
 
     def serialize(self):
-        if isinstance(self.data, RESTDictError):
-            return RESTDictError({self._map_key(key): val for key, val in self.data.items()})
-        elif isinstance(self.data, RESTListError):
-            return RESTListError([LazyMappedSerializedData(val, self.data_mapping) for val in self.data])
-        elif isinstance(self.data, RESTDictIndexError):
-            return RESTDictIndexError(
+        if isinstance(self.data, RestDictError):
+            return RestDictError({self._map_key(key): val for key, val in self.data.items()})
+        elif isinstance(self.data, RestListError):
+            return RestListError([LazyMappedSerializedData(val, self.data_mapping) for val in self.data])
+        elif isinstance(self.data, RestDictIndexError):
+            return RestDictIndexError(
                 self.data.index,
                 {self._map_key(key): val for key, val in self.data.data.items()}
             )
@@ -266,7 +270,7 @@ class ResourceSerializer(ResourceSerializerMixin, Serializer):
     pass
 
 
-class ObjectSerializer(Serializer):
+class ModelSerializer(Serializer):
 
     obj_iterable_classes = (list, tuple)
     obj_class = object
@@ -430,7 +434,7 @@ class ObjectSerializer(Serializer):
             raise RuntimeError('Invalid data type')
 
 
-class ObjectResourceSerializer(ResourceSerializerMixin, ObjectSerializer):
+class ModelResourceSerializer(ResourceSerializerMixin, ModelSerializer):
 
     obj_iterable_classes = (list, tuple)
 
@@ -646,8 +650,8 @@ class SerializableSerializer(Serializer):
         return data.serialize(serialization_format, request=self.request, **kwargs)
 
 
-@register((Model, QuerySet, ModelIteratorHelper))
-class ModelSerializer(ObjectSerializer):
+@register((Model,))
+class DjangoSerializer(ModelSerializer):
 
     obj_class = Model
     obj_iterable_classes = (ModelIteratorHelper, QuerySet)
@@ -830,7 +834,7 @@ class ModelSerializer(ObjectSerializer):
                                       direct_serialization=direct_serialization, **kwargs)
 
 
-class ModelResourceSerializer(ObjectResourceSerializer, ModelSerializer):
+class DjangoResourceSerializer(ModelResourceSerializer, DjangoSerializer):
 
     obj_iterable_classes = (ModelIteratorHelper, QuerySet)
 

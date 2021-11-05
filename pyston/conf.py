@@ -2,10 +2,10 @@ from django.conf import settings as django_settings
 
 
 CONVERTERS = (
-    'pyston.converters.JSONConverter',
-    'pyston.converters.XMLConverter',
-    'pyston.converters.CSVConverter',
-    'pyston.converters.TXTConverter',
+    'pyston.converters.JsonConverter',
+    'pyston.converters.XmlConverter',
+    'pyston.converters.CsvConverter',
+    'pyston.converters.TxtConverter',
 )
 
 DEFAULT_FILENAMES = (
@@ -16,20 +16,20 @@ DEFAULT_FILENAMES = (
 DEFAULT_FILENAME = 'attachment'
 
 try:
-    import xlsxwriter
+    import xlsxwriter  # noqa: F401
 
     CONVERTERS += (
-        'pyston.converters.XLSXConverter',
+        'pyston.converters.XlsxConverter',
     )
 except ImportError:
     pass
 
 try:
     # pisa isn't standard with python. It shouldn't be required if it isn't used.
-    from xhtml2pdf import pisa
+    from xhtml2pdf import pisa  # noqa: F401
 
     CONVERTERS += (
-        'pyston.converters.PDFConverter',
+        'pyston.converters.PdfConverter',
     )
 except ImportError:
     pass
@@ -53,8 +53,8 @@ DEFAULTS = {
     'AUTO_RELATED_DIRECT_FIELDS': True,
     'PARTIAL_PUT_UPDATE': False,
     'PARTIAL_RELATED_UPDATE': False,
-    'ERRORS_RESPONSE_CLASS': 'pyston.response.RESTErrorsResponse',
-    'ERROR_RESPONSE_CLASS': 'pyston.response.RESTErrorResponse',
+    'ERRORS_RESPONSE_CLASS': 'pyston.response.RestErrorsResponse',
+    'ERROR_RESPONSE_CLASS': 'pyston.response.RestErrorResponse',
     'AUTO_REGISTER_RESOURCE': True,
     'ALLOW_TAGS': False,
     'DEFAULT_FILENAMES': DEFAULT_FILENAMES,

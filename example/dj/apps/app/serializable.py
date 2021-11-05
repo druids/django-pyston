@@ -22,5 +22,5 @@ class CountWatchersPerIssue(SerializableObj):
         self.name = issue.name
         self.watchers_count = issue.watched_by.count()
 
-    class RESTMeta:
+    class RestMeta:
         fields = ('name', 'watchers_count')

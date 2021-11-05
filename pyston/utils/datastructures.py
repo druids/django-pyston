@@ -1,15 +1,8 @@
-from django.utils.encoding import force_text
-from django.db import models
-from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
 from django.template.defaultfilters import capfirst
 from django.forms.utils import pretty_name
 
-from chamber.utils import get_class_method
-
-from collections import OrderedDict
-
-from pyston.utils import split_fields, is_match, get_model_from_relation_or_none, LOOKUP_SEP, rfs
-from pyston.utils.compatibility import get_all_related_objects_from_model, get_concrete_field, get_model_from_relation
+from pyston.utils import split_fields, is_match, LOOKUP_SEP, rfs
+from pyston.utils.compatibility import get_model_from_relation_or_none
 
 
 class Field:
@@ -50,11 +43,11 @@ class FieldsetGenerator:
             return None
 
     def _get_allowed_fieldset(self):
-        from pyston.resource import DefaultRESTObjectResource
+        from pyston.resource import ModelResourceMixin
 
         # For security reasons only resource which defines allowed fields can be fully converted to the CSV/XLSX
         # or similar formats
-        return self.resource.get_allowed_fields_rfs() if isinstance(self.resource, DefaultRESTObjectResource) else rfs()
+        return self.resource.get_allowed_fields_rfs() if isinstance(self.resource, ModelResourceMixin) else rfs()
 
     def _parse_fields_string(self, fields_string):
         fields_string = fields_string or ''
@@ -63,7 +56,7 @@ class FieldsetGenerator:
         for field in split_fields(fields_string):
             if LOOKUP_SEP in field:
                 field_name, subfields_string = field.split(LOOKUP_SEP, 1)
-            elif is_match('^[^\(\)]+\(.+\)$', field):
+            elif is_match(r'^[^\(\)]+\(.+\)$', field):
                 field_name, subfields_string = field[:len(field) - 1].split('(', 1)
             else:
                 field_name, subfields_string = field, None

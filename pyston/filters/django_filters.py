@@ -1,59 +1,19 @@
-from decimal import Decimal, InvalidOperation
-
-from django.db.models import Q
-from django.core.validators import validate_ipv4_address, validate_ipv46_address
-from django.core.exceptions import ValidationError
+from django.db.models import (
+    Q, AutoField, DateField, DateTimeField, DecimalField, GenericIPAddressField, IPAddressField, BooleanField,
+    TextField, CharField, IntegerField, FloatField, SlugField, EmailField, NullBooleanField, UUIDField, JSONField
+)
+from django.db.models.fields.related import ForeignKey, ManyToManyField, ForeignObjectRel
 from django.utils.translation import ugettext
-from django.utils.translation import ugettext_lazy as _
-from django.utils.timezone import make_aware
-
-from chamber.utils.datastructures import Enum
-
-from dateutil.parser import DEFAULTPARSER
 
 from pyston.utils import LOOKUP_SEP
 
-from .exceptions import FilterValueError, OperatorFilterError
-
-
-OPERATORS = Enum(
-    ('GT', 'gt'),
-    ('LT', 'lt'),
-    ('EQ', 'eq'),
-    ('NEQ', 'neq'),
-    ('LTE', 'lte'),
-    ('GTE', 'gte'),
-    ('CONTAINS', 'contains'),
-    ('ICONTAINS', 'icontains'),
-    ('RANGE', 'range'),
-    ('EXACT', 'exact'),
-    ('IEXACT', 'iexact'),
-    ('STARTSWITH', 'startswith'),
-    ('ISTARTSWITH', 'istartswith'),
-    ('ENDSWITH', 'endswith'),
-    ('IENDSWITH', 'iendswith'),
-    ('IN', 'in'),
-    ('RANGE', 'range'),
-    ('ALL', 'all'),
-    ('ISNULL', 'isnull'),
+from .filters import (
+    Operator, BooleanFilterMixin, NullBooleanFilterMixin, OperatorsModelFieldFilter,
+    FloatFilterMixin, IntegerFilterMixin, DecimalFilterMixin,
+    IPAddressFilterMixin, GenericIPAddressFilterMixin, DateFilterMixin,
+    OPERATORS, Filter, MethodFilter, ModelFieldFilter
 )
-
-
-NONE_LABEL = _('(None)')
-
-
-class Operator:
-    """
-    Operator is used for specific type of filters that allows more different ways how to filter queryset data according
-    to input operator between identifier and value.
-    """
-
-    def get_q(self, value, request):
-        """
-        Method must be implemented inside descendant and should return django db Q object that will be used for purpose
-        of filtering queryset.
-        """
-        raise NotImplementedError
+from .exceptions import FilterValueError, OperatorFilterError
 
 
 class EqualOperator(Operator):
@@ -200,155 +160,6 @@ PK_CONTAINS = SimpleOperator('pk__contains')
 PK_ICONTAINS = SimpleOperator('pk__icontains')
 
 
-class Filter:
-    """
-    Filters purpose is return Q object that is used for filtering data that resource returns.
-    Filter can be joined to the field, method or resource.
-    """
-
-    suffixes = {}
-    choices = None
-
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, field=None, method=None):
-        """
-        Filter init values are these:
-        :param identifiers_prefix: because filters are recursive if model relations property contains list of
-               identifiers that was used for recursive searching the filter.
-        :param identifiers: list of identifiers that conclusively identifies the filter.
-        :param identifiers_suffix: list of suffixes that can be used for more specific filters.
-               For example for a date filter can be used suffixes month, day, year.
-        :param model: Django model class of filtered object.
-        :param field: model field which is related with filter.
-        :param method: method that is related with filter.
-        method and field cannot be set together.
-        """
-        assert field is None or method is None, 'Field and method cannot be set together'
-
-        self.identifiers_prefix = identifiers_prefix
-        self.identifiers = identifiers
-        self.identifiers_suffix = identifiers_suffix
-        self.full_identifiers = identifiers_prefix + identifiers + identifiers_suffix
-        self.field = field
-        self.method = method
-        self.model = model
-
-    def get_allowed_operators(self):
-        """
-        :return: list of allowed operators to the concrete filter.
-        """
-        return self.allowed_operators
-
-    @classmethod
-    def get_suffixes(cls):
-        """
-        :return: set of allowed suffixes for the operator.
-        """
-        return cls.suffixes
-
-    def get_q(self, value, operator_slug, request):
-        """
-        Method must be implemented inside descendant and should return django db Q object that will be used for purpose
-        of filtering rest response data.
-        """
-        raise NotImplementedError
-
-
-class OperatorsFilterMixin:
-    """
-    Mixin is used for specific type of filter that uses operator objects.
-    """
-
-    operators = ()
-
-    def clean_value(self, value, operator_slug, request):
-        """
-        Method that cleans input value to the filter specific format.
-        """
-        return value
-
-    def get_allowed_operators(self):
-        return [operator_key for operator_key, operator in self.operators]
-
-    def get_operator_obj(self, operator_slug):
-        """
-        :return: concrete operator object for the specific operator key.
-        """
-        operator_obj = dict(self.operators).get(operator_slug)
-        if not operator_obj:
-            raise OperatorFilterError
-        return operator_obj
-
-    def get_full_filter_key(self):
-        return LOOKUP_SEP.join(self.full_identifiers)
-
-    def get_q(self, value, operator_slug, request):
-        operator_obj = self.get_operator_obj(operator_slug)
-        return operator_obj.get_q(self, value, operator_slug, request)
-
-
-class MethodFilter(Filter):
-    """
-    Abstract parent for all method filters.
-    """
-
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, method=None):
-        assert method, 'Method is required'
-        super(MethodFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, model, method=method)
-
-
-class ModelFieldFilter(Filter):
-    """
-    Abstract parent for all model field filters.
-    """
-
-    def __init__(self, identifiers_prefix, identifiers, identifiers_suffix, model, field=None):
-        assert field, 'Field is required'
-        super(ModelFieldFilter, self).__init__(identifiers_prefix, identifiers, identifiers_suffix, model, field=field)
-
-
-class OperatorsModelFieldFilter(OperatorsFilterMixin, ModelFieldFilter):
-    pass
-
-
-class BooleanFilterMixin:
-    """
-    Helper that contains cleaner for boolean input values.
-    """
-
-    choices = (
-        (1, _('Yes')),
-        (0, _('No'))
-    )
-
-    def clean_value(self, value, operator_slug, request):
-        if isinstance(value, bool):
-            return value
-        elif value in {'true', 'false'}:
-            return value == 'true'
-        elif value in {'0', '1'}:
-            return value == '1'
-        else:
-            raise FilterValueError(ugettext('Value must be boolean'))
-
-
-class NullBooleanFilterMixin(BooleanFilterMixin):
-    """
-    Helper that contains cleaner for boolean input values where value can be None.
-    """
-
-    choices = (
-        (None, NONE_LABEL),
-        (1, _('Yes')),
-        (0, _('No'))
-    )
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        else:
-            return super(NullBooleanFilterMixin, self).clean_value(value, operator_slug, request)
-
-
 class BooleanFieldFilter(BooleanFilterMixin, OperatorsModelFieldFilter):
 
     operators = (
@@ -369,7 +180,7 @@ class NullBooleanFieldFilter(NullBooleanFilterMixin, OperatorsModelFieldFilter):
     )
 
 
-class NumberFieldFilter(OperatorsModelFieldFilter):
+class BaseNumberFieldFilter(OperatorsModelFieldFilter):
 
     operators = (
         (OPERATORS.EQ, EQ),
@@ -382,44 +193,16 @@ class NumberFieldFilter(OperatorsModelFieldFilter):
     )
 
 
-class IntegerFieldFilterMixin:
-    """
-    Helper that contains cleaner for integer input values.
-    """
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        try:
-            return int(value)
-        except (ValueError, TypeError):
-            raise FilterValueError(ugettext('Value must be integer'))
-
-
-class IntegerFieldFilter(IntegerFieldFilterMixin, NumberFieldFilter):
+class IntegerFieldFilter(IntegerFilterMixin, BaseNumberFieldFilter):
     pass
 
 
-class FloatFieldFilter(NumberFieldFilter):
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            raise FilterValueError(ugettext('Value must be float'))
+class FloatFieldFilter(FloatFilterMixin, BaseNumberFieldFilter):
+    pass
 
 
-class DecimalFieldFilter(NumberFieldFilter):
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        try:
-            return Decimal(value)
-        except InvalidOperation:
-            raise FilterValueError(ugettext('Value must be decimal'))
+class DecimalFieldFilter(DecimalFilterMixin, BaseNumberFieldFilter):
+    pass
 
 
 class StringFieldFilter(OperatorsModelFieldFilter):
@@ -460,73 +243,15 @@ class CaseSensitiveStringFieldFilter(StringFieldFilter):
     )
 
 
-class IPAddressFilterFilter(CaseSensitiveStringFieldFilter):
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        elif operator_slug not in {OPERATORS.CONTAINS, OPERATORS.EXACT, OPERATORS.STARTSWITH, OPERATORS.ENDSWITH}:
-            try:
-                validate_ipv4_address(value)
-            except ValidationError:
-                raise FilterValueError(ugettext('Value must be in format IPv4.'))
-        return value
+class IPAddressFieldFilter(IPAddressFilterMixin, CaseSensitiveStringFieldFilter):
+    pass
 
 
-class GenericIPAddressFieldFilter(CaseSensitiveStringFieldFilter):
-
-    def clean_value(self, value, operator_slug, request):
-        if value is None:
-            return value
-        elif operator_slug not in {OPERATORS.CONTAINS, OPERATORS.EXACT, OPERATORS.STARTSWITH, OPERATORS.ENDSWITH}:
-            try:
-                validate_ipv46_address(value)
-            except ValidationError:
-                raise FilterValueError(ugettext('Value must be in format IPv4 or IPv6.'))
-        return value
+class GenericIPAddressFieldFilter(GenericIPAddressFilterMixin, CaseSensitiveStringFieldFilter):
+    pass
 
 
-class DateFilterMixin:
-
-    suffixes = {
-        'day', 'month', 'year'
-    }
-
-    def _clean_datetime_to_parts(self, value):
-        value = DEFAULTPARSER._parse(value, dayfirst='-' not in value)
-        value = value[0] if isinstance(value, tuple) else value
-
-        if value is None:
-            raise FilterValueError(ugettext('Value cannot be parsed to partial datetime'))
-        else:
-            return value
-
-    def _clean_integer(self, value):
-        try:
-            return int(value)
-        except ValueError:
-            raise FilterValueError(ugettext('Value must be integer'))
-
-    def _clean_datetime(self, value):
-        try:
-            datetime_value = DEFAULTPARSER.parse(value, dayfirst='-' not in value)
-            return make_aware(datetime_value, is_dst=True) if datetime_value.tzinfo is None else datetime_value
-        except ValueError:
-            raise FilterValueError(ugettext('Value must be in format ISO 8601.'))
-
-    def clean_value(self, value, operator_slug, request):
-        suffix = self.identifiers_suffix[0] if self.identifiers_suffix else None
-        if suffix in self.suffixes:
-            return self._clean_integer(value)
-        elif operator_slug == OPERATORS.CONTAINS:
-            return self._clean_datetime_to_parts(value)
-        elif value is None:
-            return value
-        else:
-            return self._clean_datetime(value)
-
-
-class DateFilter(DateFilterMixin, OperatorsModelFieldFilter):
+class DateFieldFilter(DateFilterMixin, OperatorsModelFieldFilter):
 
     operators = (
         (OPERATORS.CONTAINS, DATE_CONTAINS),
@@ -540,7 +265,7 @@ class DateFilter(DateFilterMixin, OperatorsModelFieldFilter):
     )
 
 
-class DateTimeFilter(DateFilter):
+class DateTimeFieldFilter(DateFieldFilter):
 
     suffixes = {
         'day', 'month', 'year', 'hour', 'minute', 'second'
@@ -563,7 +288,7 @@ class RelatedFieldFilter(OperatorsModelFieldFilter):
             return self.get_last_rel_field(next_field)
 
 
-class ForeignKeyFilter(RelatedFieldFilter):
+class ForeignKeyFieldFilter(RelatedFieldFilter):
 
     operators = (
         (OPERATORS.EQ, EQ),
@@ -633,8 +358,6 @@ class SimpleFilterMixin:
     Helper that is used for implementation all simple custom filters.
     """
 
-    allowed_operators = None
-
     def _update_q_with_prefix(self, q):
         """
         Because implementation of custom filter should be as simple as possible this methods add identifier prefixes
@@ -654,12 +377,6 @@ class SimpleFilterMixin:
         else:
             filter_term = self.get_filter_term(self.clean_value(value, operator_slug, request), operator_slug, request)
             return self._update_q_with_prefix(Q(**filter_term) if isinstance(filter_term, dict) else filter_term)
-
-    def clean_value(self, value, operator_slug, request):
-        return value
-
-    def get_allowed_operators(self):
-        return self.allowed_operators
 
     def get_filter_term(self, value, operator_slug, request):
         """
@@ -716,3 +433,37 @@ class SimpleModelFieldEqualFilter(SimpleEqualFilterMixin, ModelFieldFilter):
     Combination of simple equal filter and model field filter used for custom model field filters.
     """
     pass
+
+
+default_django_model_field_filters = {
+    BooleanField: BooleanFieldFilter,
+    NullBooleanField: NullBooleanFieldFilter,
+    TextField: StringFieldFilter,
+    CharField: StringFieldFilter,
+    IntegerField: IntegerFieldFilter,
+    FloatField: FloatFieldFilter,
+    DecimalField: DecimalFieldFilter,
+    AutoField: IntegerFieldFilter,
+    DateField: DateFieldFilter,
+    DateTimeField: DateTimeFieldFilter,
+    GenericIPAddressField: GenericIPAddressFieldFilter,
+    IPAddressField: IPAddressFieldFilter,
+    ManyToManyField: ManyToManyFieldFilter,
+    ForeignKey: ForeignKeyFieldFilter,
+    ForeignObjectRel: ForeignObjectRelFilter,
+    SlugField: CaseSensitiveStringFieldFilter,
+    EmailField: CaseSensitiveStringFieldFilter,
+    UUIDField: StringFieldFilter,
+    JSONField: StringFieldFilter
+}
+
+
+def register_default_field_filter_class(field_class, filter_class):
+    default_django_model_field_filters[field_class] = filter_class
+
+
+def get_default_field_filter_class(model_field):
+    for field_class, filter_class in list(default_django_model_field_filters.items())[::-1]:
+        if isinstance(model_field, field_class):
+            return filter_class
+    return None

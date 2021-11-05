@@ -3,10 +3,9 @@ from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
 
 from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags, sorter_class
-from pyston.filters.default_filters import (
-    IntegerFieldFilterMixin, StringFieldFilter, SimpleMethodEqualFilter, OPERATORS, CONTAINS
-)
-from pyston.order.sorters import ExtraSorter
+from pyston.filters.filters import OPERATORS, IntegerFilterMixin
+from pyston.filters.django_filters import CONTAINS, StringFieldFilter, SimpleMethodEqualFilter
+from pyston.order.django_sorters import ExtraDjangoSorter
 
 
 class OnlyContainsStringFieldFilter(StringFieldFilter):
@@ -16,7 +15,7 @@ class OnlyContainsStringFieldFilter(StringFieldFilter):
     )
 
 
-class WatchedIssuesCountMethodFilter(IntegerFieldFilterMixin, SimpleMethodEqualFilter):
+class WatchedIssuesCountMethodFilter(IntegerFilterMixin, SimpleMethodEqualFilter):
 
     def get_filter_term(self, value, operator, request):
         return {
@@ -26,10 +25,10 @@ class WatchedIssuesCountMethodFilter(IntegerFieldFilterMixin, SimpleMethodEqualF
         }
 
 
-class WatchedIssuesCountSorter(ExtraSorter):
+class WatchedIssuesCountSorter(ExtraDjangoSorter):
 
     def update_queryset(self, qs):
-        return qs.annotate(**{self.order_string: Count('watched_issues')})
+        return qs.annotate(**{self._get_order_string(): Count('watched_issues')})
 
 
 class User(models.Model):
@@ -51,7 +50,7 @@ class User(models.Model):
     def __str__(self):
         return 'user: %s' % self.email
 
-    class RESTMeta:
+    class RestMeta:
         fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser',
                   'manual_created_date', 'watched_issues_count')
         detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name',
@@ -92,6 +91,6 @@ class Issue(models.Model):
     def __str__(self):
         return 'issue: <b>%s</b>' % self.name
 
-    class RESTMeta:
+    class RestMeta:
         extra_order_fields = ('solver__created_at',)
         extra_filter_fields = ('solver__created_at',)

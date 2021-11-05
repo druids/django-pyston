@@ -3,14 +3,12 @@ from operator import or_
 
 from chamber.shortcuts import get_object_or_none
 
-from django.utils.translation import ugettext
-from django.db.models.query import QuerySet
 from django.db.models import Q
 from django.db.models.expressions import OrderBy
 from django.utils.translation import ugettext
 
-from .forms import RESTValidationError
-from .exception import RESTException
+from .forms import RestValidationError
+from .exception import RestException
 from .utils.compatibility import get_last_parent_pk_field_name
 from .utils.helpers import ModelIterableIteratorHelper
 from .response import HeadersResponse
@@ -30,39 +28,34 @@ class BasePaginator:
         raise NotImplementedError
 
 
-class OffsetBasedPaginator(BasePaginator):
-    """
-    REST paginator for list and querysets
-    """
+class BaseModelOffsetBasedPaginator(BasePaginator):
+
+    iterable_helper_class = ModelIterableIteratorHelper
 
     def __init__(self, max_offset=pow(2, 63) - 1, max_base=100, default_base=20):
         self.max_offset = max_offset
         self.max_base = max_base
         self.default_base = default_base
 
-    def get_response(self, qs, request):
-        base = self._get_base(qs, request)
-        total = self._get_total(qs, request)
-        offset = self._get_offset(qs, request)
-        qs = qs[offset:(offset + base + 1)]
-        next_offset = self._get_next_offset(qs, offset, base, total)
-        prev_offset = self._get_prev_offset(qs, offset, base, total)
+    def _get_model(self, qs):
+        raise NotImplementedError
 
-        return HeadersResponse(
-            ModelIterableIteratorHelper(qs[:base], qs.model),
-            self.get_headers(total, next_offset, prev_offset)
-        )
+    def _get_list_from_queryset(self, qs, from_, to_):
+        raise NotImplementedError
+
+    def _get_total(self, qs, request):
+        raise NotImplementedError
 
     def _get_offset(self, qs, request):
         offset = request._rest_context.get('offset', '0')
         if offset.isdigit():
             offset_int = int(offset)
             if offset_int > self.max_offset:
-                raise RESTException(ugettext('Offset must be lower or equal to {}').format(self.max_offset))
+                raise RestException(ugettext('Offset must be lower or equal to {}').format(self.max_offset))
             else:
                 return offset_int
         else:
-            raise RESTException(ugettext('Offset must be natural number'))
+            raise RestException(ugettext('Offset must be natural number'))
 
     def _get_base(self, qs, request):
         base = request._rest_context.get('base')
@@ -71,28 +64,19 @@ class OffsetBasedPaginator(BasePaginator):
         elif base.isdigit():
             base_int = int(base)
             if base_int > self.max_base:
-                raise RESTException(ugettext('Base must lower or equal to {}').format(self.max_base))
+                raise RestException(ugettext('Base must lower or equal to {}').format(self.max_base))
             else:
                 return base_int
         else:
-            raise RESTException(ugettext('Base must be natural number or empty'))
+            raise RestException(ugettext('Base must be natural number or empty'))
 
-    def _get_total(self, qs, request):
-        if isinstance(qs, QuerySet):
-            return qs.count()
-        else:
-            return len(qs)
+    def _get_next_offset(self, iterable, offset, base):
+        return offset + base if len(iterable) > base else None
 
-    def _get_next_offset(self, qs, offset, base, total):
-        if total is not None:
-            return offset + base if base and offset + base < total else None
-        else:
-            return offset + base if len(qs) > base else None
-
-    def _get_prev_offset(self, qs, offset, base, total):
+    def _get_prev_offset(self, iterable, offset, base):
         return None if offset == 0 or not base else max(offset - base, 0)
 
-    def get_headers(self, total, next_offset, prev_offset):
+    def _get_headers(self, total, next_offset, prev_offset):
         return {
             k: v for k, v in {
                 'X-Total': total,
@@ -101,8 +85,37 @@ class OffsetBasedPaginator(BasePaginator):
             }.items() if v is not None
         }
 
+    def get_response(self, qs, request):
+        base = self._get_base(qs, request)
+        total = self._get_total(qs, request)
+        offset = self._get_offset(qs, request)
+        model = self._get_model(qs)
+        # To check next offset, one more object is get from queryset
+        iterable = self._get_list_from_queryset(qs, offset, offset + base + 1)
+        next_offset = self._get_next_offset(iterable, offset, base)
+        prev_offset = self._get_prev_offset(iterable, offset, base)
+        return HeadersResponse(
+            self.iterable_helper_class(iterable[:base], model),
+            self._get_headers(total, next_offset, prev_offset)
+        )
 
-class OffsetBasedPaginatorWithoutTotal(OffsetBasedPaginator):
+
+class DjangoOffsetBasedPaginator(BaseModelOffsetBasedPaginator):
+    """
+    REST paginator for list and querysets
+    """
+
+    def _get_model(self, qs):
+        return qs.model
+
+    def _get_list_from_queryset(self, qs, from_, to_):
+        return list(qs[from_:to_])
+
+    def _get_total(self, qs, request):
+        return qs.count()
+
+
+class DjangoOffsetBasedPaginatorWithoutTotal(DjangoOffsetBasedPaginator):
 
     def _get_total(self, qs, request):
         return None
@@ -115,7 +128,7 @@ class CursorBasedModelIterableIteratorHelper(ModelIterableIteratorHelper):
         self.next = next
 
 
-class CursorBasedPaginator(BasePaginator):
+class DjangoCursorBasedPaginator(BasePaginator):
 
     def __init__(self, max_base=100, default_base=20):
         self.max_base = max_base
@@ -188,10 +201,7 @@ class CursorBasedPaginator(BasePaginator):
             if current_row:
                 qs = qs.filter(self._get_page_filter_kwargs(current_row))
             else:
-                raise RESTException(RESTValidationError(
-                    ugettext('Cursor object was not found'),
-                    code=ERROR_CODE.PAGINATION)
-                )
+                raise RestException(RestValidationError(ugettext('Cursor object was not found')))
         return self._get_page(qs, base)
 
     def _get_base(self, request):
@@ -201,11 +211,11 @@ class CursorBasedPaginator(BasePaginator):
         elif base.isdigit():
             base_int = int(base)
             if base_int > self.max_base:
-                raise RESTException(ugettext('Base must lower or equal to {}').format(self.max_base))
+                raise RestException(ugettext('Base must lower or equal to {}').format(self.max_base))
             else:
                 return base_int
         else:
-            raise RESTException(ugettext('Base must be natural number or empty'))
+            raise RestException(ugettext('Base must be natural number or empty'))
 
     def _get_cursor(self, request):
         return request._rest_context.get('cursor')

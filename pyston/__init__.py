@@ -2,10 +2,9 @@
 try:
     from django.core.exceptions import ImproperlyConfigured
     try:
-        from django.db import models  # NOQA
-        from pyston.patch import *  # NOQA
-        from pyston.filters.default_filters import * # NOQA
+        from django.db import models  # noqa: F401
+        from pyston import patch  # noqa: F401
     except ImproperlyConfigured:
         pass
-except ImportError as ex:
+except ImportError:
     pass

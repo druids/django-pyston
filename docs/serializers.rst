@@ -14,9 +14,9 @@ There are several serializers -- each one is used to serialize a different data 
  * ``DecimalSerializer`` - serializes decimal data.
  * ``RawVerboseSerializer`` - Pyston allows return data in three formats RAW, VERBOSE or BOTH. RAW value is the value that is stored inside database, VERBOSE is hummanized (human readable) value. The format is selected via ``serialization_format`` property (can be set via HTTP header X-Serialization-Format header). The RawVerboseSerializer determines which of these formats should be used using RawVerboseValue class.
  * ``SerializableSerializer`` - this serializer is used for custom serialization formats :ref:`serializable`.
- * ``ModelSerializer`` - serializes Django Model and Queryset class. It is the most complex serializer in the Pyston. It allows serialize model or resource fields, methods and properties.
+ * ``DjangoSerializer`` - serializes Django Model and Queryset class. It is the most complex serializer in the Pyston. It allows serialize model or resource fields, methods and properties.
  * ``ResourceSerializer`` - serializer of the concrete resource. It can be used for the resource serialization results.
- * ``ModelResourceSerializer`` - resource serializer that inherit from ``ModelSerializer`` and is used for Django model resources.
+ * ``DjangoResourceSerializer`` - resource serializer that inherit from ``DjangoSerializer`` and is used for Django model resources.
 
 Custom serializer
 -----------------
@@ -57,7 +57,7 @@ If you don't want to implement custom serializer you can use ``Serializable`` mi
 SerializableObj
 ---------------
 
-As simplification you can use SerializableObj that serializes data from class properties according to RESTMeta field parameter::
+As simplification you can use SerializableObj that serializes data from class properties according to RestMeta field parameter::
 
 
     from pyston.serializer import SerializableObj
@@ -69,5 +69,5 @@ As simplification you can use SerializableObj that serializes data from class pr
             self.name = issue.name
             self.watchers_count = issue.watched_by.count()
 
-        class RESTMeta:
+        class RestMeta:
             fields = ('name', 'watchers_count')

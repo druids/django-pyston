@@ -27,7 +27,7 @@ setup(
         'django>=2.2',
         'python-mimeparse>=1.6.0',
         'django-chamber>=0.6.11',
-        'pyparsing>=2.4.7',
+        'pyparsing==2.4.7',
         'defusedxml>=0.6.0',
     ],
     zip_safe=False
