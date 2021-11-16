@@ -195,7 +195,10 @@ class XMLConverter(Converter):
             return ''
 
     def _decode(self, data, **kwargs):
-        return ET.fromstring(data)
+        try:
+            return ET.fromstring(data)
+        except ET.ParseError as ex:
+            raise ValueError(str(ex))
 
 
 class LazyDjangoJSONEncoder(DjangoJSONEncoder):
