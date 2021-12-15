@@ -5,7 +5,7 @@ from django.conf import settings
 from django.test.utils import override_settings
 from django.utils.translation import ugettext
 
-from germanium.decorators import data_provider
+from germanium.decorators import data_consumer
 from germanium.tools.trivials import assert_in, assert_equal, assert_not_equal
 from germanium.tools.http import assert_http_bad_request, assert_http_created
 from germanium.tools.rest import assert_valid_JSON_created_response, assert_valid_JSON_response
@@ -21,7 +21,7 @@ from app.models import User, Issue
 
 class FieldsTestCase(PystonTestCase):
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_create_user_with_file(self, number, data):
         data['contract'] = {
             'content_type': 'text/plain',
@@ -38,7 +38,7 @@ class FieldsTestCase(PystonTestCase):
         assert_in('url', data['contract'])
         assert_equal(data['contract']['content_type'], 'text/plain')
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_create_user_with_file_and_not_defined_content_type(self, number, data):
         data['contract'] = {
             'filename': 'contract.txt',
@@ -54,7 +54,7 @@ class FieldsTestCase(PystonTestCase):
         assert_in('url', data['contract'])
         assert_equal(data['contract']['content_type'], 'text/plain')
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_error_during_creating_user_with_file_and_not_defined_content_type(self, number, data):
         data['contract'] = {
             'filename': 'contract',
@@ -81,7 +81,7 @@ class FieldsTestCase(PystonTestCase):
             self.serve_file(rsps, url, content)
             return self.post(self.USER_API_URL, data=data)
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_create_user_with_file_url(self, number, data):
         resp = self.get_file_url_response(data)
 
@@ -94,28 +94,28 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(data['contract']['content_type'], 'application/pdf')
 
     @override_settings(PYSTON_FILE_SIZE_LIMIT=7000)
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_create_user_with_file_url_too_large(self, number, data):
         resp = self.get_file_url_response(data)
 
         assert_http_bad_request(resp)
         assert_in('contract', self.deserialize(resp).get('messages', {}).get('errors', {}))
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_create_issue_with_user_id(self, number, issue_data, user_data):
         resp = self.post(self.USER_API_URL, data=user_data)
         issue_data['created_by'] = self.get_pk(resp)
         resp = self.post(self.ISSUE_API_URL, data=issue_data)
         assert_valid_JSON_created_response(resp)
 
-    @data_provider('get_issues_data')
+    @data_consumer('get_issues_data')
     def test_atomic_create_issue_with_user(self, number, data):
         users_before_count = User.objects.all().count()
         resp = self.post(self.ISSUE_API_URL, data=data)
         assert_valid_JSON_created_response(resp)
         assert_equal(users_before_count + 2, User.objects.all().count())
 
-    @data_provider('get_issues_data')
+    @data_consumer('get_issues_data')
     def test_atomic_update_issue_with_user(self, number, data):
         users_before_count = User.objects.all().count()
         resp = self.post(self.ISSUE_API_URL, data=data)
@@ -128,7 +128,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(users_before_count + 3, User.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_set_issue_with_user_reverse(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         user_data['createdIssues'] = {'set': (issue_data,)}
@@ -136,7 +136,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count + 1, Issue.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_add_and_delete_issues_with_reverse(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
 
@@ -165,7 +165,7 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(issues_before_count + 4, Issue.objects.all().count())
         assert_valid_JSON_response(resp)
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_add_issues_by_m2m_reverse(self, number, issue_data, user_data):
         user_data['watchedIssues'] = {'add': (self.get_issue_data(), self.get_issue_data(), self.get_issue_data())}
         resp = self.post(self.USER_API_URL, data=user_data)
@@ -189,7 +189,7 @@ class FieldsTestCase(PystonTestCase):
             assert_equal(list(issue.watched_by.values_list('email', flat=True)),
                          [user_data['email'], user_data2['email']])
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_atomic_add_and_delete_issues_with_auto_reverse_fields_turned_off(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
@@ -200,14 +200,14 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count, Issue.objects.all().count())
 
-    @data_provider('get_issues_data')
+    @data_consumer('get_issues_data')
     @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
     def test_atomic_create_issue_with_user_with_auto_related_fields_turned_off(self, number, data):
         users_before_count = User.objects.all().count()
         resp = self.post(self.ISSUE_API_URL, data=data)
         assert_http_bad_request(resp)
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issues_with_errors(self, number, issue_data, user_data):
         user_data['createdIssues'] = {'set': (None, '', None, {}, [None])}
         resp = self.post(self.USER_API_URL, data=user_data)
@@ -234,7 +234,7 @@ class FieldsTestCase(PystonTestCase):
         )
         assert_http_bad_request(resp)
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_set_issue_with_watchers(self, number, issue_data, user_data):
         users_before_count = User.objects.all().count()
 
@@ -252,7 +252,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(users_before_count + 24, User.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_add_and_delete_issue_with_watchers(self, number, issue_data, user_data):
         issue_data['created_by'] = user_data
         issue_data['watched_by'] = {'add': self.get_users_data(flat=True)}
@@ -274,7 +274,7 @@ class FieldsTestCase(PystonTestCase):
         resp = self.put('%s%s/' % (self.ISSUE_API_URL, pk), data=issue_data)
         assert_equal(len(self.deserialize(resp).get('watched_by')), 10)
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_atomic_add_delete_and_set_issue_with_watchers_with_errors(self, number, issue_data, user_data):
         issue_data['created_by'] = user_data
         issue_data['watched_by'] = {'add': [None, [], 'invalid_text', {}], 'remove': [None, 'invalid_text', 5, {}]}
@@ -318,7 +318,7 @@ class FieldsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
         assert_equal(self.deserialize(resp).get('messages', {}).get('errors')['watched_by'][0]['_index'], 0)
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_create_issue_via_user_one_to_one(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         issue_data['created_by'] = self.get_user_data()
@@ -343,7 +343,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_response(resp)
         assert_equal(issues_before_count + 1, Issue.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_create_issue_via_user_one_to_one_bad_request(self, number, issue_data, user_data):
         issue_data['created_by'] = self.get_user_data()
         user_data['leading_issue'] = {}
@@ -356,7 +356,7 @@ class FieldsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
         assert_in('leading_issue', self.deserialize(resp).get('messages', {}).get('errors'))
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_reverse_with_defined_field_created_issues_renamed(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
@@ -366,7 +366,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count + 3, Issue.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
     def test_create_user_via_renamed_field(self, number, issue_data, user_data):
         users_before_count = User.objects.all().count()
@@ -377,7 +377,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(users_before_count + 2, User.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_DIRECT_FIELDS=False)
     def test_typemapper_settings_of_resource_should_define_related_obj_serializer(self, number, issue_data, user_data):
         issue_data['created_by'] = self.get_user_data()
@@ -385,7 +385,7 @@ class FieldsTestCase(PystonTestCase):
         resp = self.post(self.ISSUE_WITH_FORM_API_URL, data=issue_data)
         assert_equal(resp.json()['creator']['user_email'], issue_data['created_by']['email'])
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     def test_reverse_with_defined_field_created_issues_renamed_fail(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
         user_data['created_issues_renamed'] = {'add': (self.get_issue_data(),
@@ -395,7 +395,7 @@ class FieldsTestCase(PystonTestCase):
         assert_in('created_issues_renamed', self.deserialize(resp).get('messages', {}).get('errors'))
         assert_equal(issues_before_count + 0, Issue.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_reverse_with_defined_field_created_issues_renamed_invalid_issue_name(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
@@ -409,7 +409,7 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(issues_before_count, Issue.objects.all().count())
         assert_equal(users_before_count, User.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_create_issue_via_user_one_to_one_renamed(self, number, issue_data, user_data):
         issues_before_count = Issue.objects.all().count()
@@ -418,7 +418,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_equal(issues_before_count + 1, Issue.objects.all().count())
 
-    @data_provider('get_issues_and_users_data')
+    @data_consumer('get_issues_and_users_data')
     @override_settings(PYSTON_AUTO_RELATED_REVERSE_FIELDS=False)
     def test_create_issue_via_user_one_to_one_renamed_fail(self, number, issue_data, user_data):
         user_data['leading_issue_renamed'] = {}
@@ -426,7 +426,7 @@ class FieldsTestCase(PystonTestCase):
         assert_http_bad_request(resp)
         assert_in('leading_issue_renamed', self.deserialize(resp).get('messages', {}).get('errors'))
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_with_invalid_filename(self, number, data):
         data['contract'] = {
             'filename': 'contract',
@@ -443,7 +443,7 @@ class FieldsTestCase(PystonTestCase):
             ugettext('Content type cannot be evaluated from input data please send it')
         )
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_if_file_content_is_not_in_base64(self, number, data):
         data['contract'] = {
             'content_type': 'text/plain',
@@ -456,7 +456,7 @@ class FieldsTestCase(PystonTestCase):
         assert_in('contract', errors)
         assert_equal(errors['contract']['content'], ugettext('File content must be in base64 format'))
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_if_url_is_not_valid(self, number, data):
         data['contract'] = {
             'filename': 'testfile.pdf',
@@ -468,7 +468,7 @@ class FieldsTestCase(PystonTestCase):
         assert_in('contract', errors)
         assert_equal(errors['contract']['url'], ugettext('Enter a valid URL.'))
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_if_required_items_are_not_provided(self, number, data):
         REQUIRED_ITEMS = {'content'}
         REQUIRED_URL_ITEMS = {'url'}
@@ -482,7 +482,7 @@ class FieldsTestCase(PystonTestCase):
               )
         assert_equal(errors['contract'], msg)
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_if_file_is_unreachable(self, number, data):
         url = 'http://foo.bar/testfile.pdf'
         data['contract'] = {
@@ -496,7 +496,7 @@ class FieldsTestCase(PystonTestCase):
         assert_equal(errors['contract']['url'], ugettext('File is unreachable on the URL address'))
 
     @override_settings(PYSTON_FILE_SIZE_LIMIT=10)
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_should_raise_bad_request_if_response_is_too_large(self, number, data):
         data['contract'] = {
             'content_type': 'text/plain',
@@ -512,7 +512,7 @@ class FieldsTestCase(PystonTestCase):
         msg = ugettext('Response too large, maximum size is {} bytes').format(pyston_settings.FILE_SIZE_LIMIT)
         assert_equal(errors['contract']['url'], msg)
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_filename_and_content_type_can_be_evaluated_from_file_content(self, number, data):
         data['contract'] = {
             'content': base64.b64encode(
@@ -523,7 +523,7 @@ class FieldsTestCase(PystonTestCase):
         assert_valid_JSON_created_response(resp)
         assert_in('.txt', self.deserialize(resp)['contract']['filename'])
 
-    @data_provider('get_users_data')
+    @data_consumer('get_users_data')
     def test_filename_override_evaluated_filename_from_content(self, number, data):
         data['contract'] = {
             'content': base64.b64encode(

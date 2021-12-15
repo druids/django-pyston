@@ -37,3 +37,5 @@ Content
    filters
    order
    exceptions
+   elasticsearch
+   dynamodb

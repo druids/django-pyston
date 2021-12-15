@@ -1,5 +1,4 @@
-from pyston.exception import RESTException
-from pyston.utils import rfs
+from pyston.exception import RestException
 
 from .parser import DefaultRequestedFieldsParser
 
@@ -15,8 +14,8 @@ class ModelRequestedFieldsManager:
                 return None
             else:
                 return parsed_requested_rfs
-        except RESTException as ex:
-            raise RESTException(ex)
+        except RestException as ex:
+            raise RestException(ex)
 
 
 class DefaultRequestedFieldsManager(ModelRequestedFieldsManager):

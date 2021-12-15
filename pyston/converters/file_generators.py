@@ -3,8 +3,6 @@ import os
 import csv
 import codecs
 
-from io import StringIO
-
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -18,7 +16,7 @@ try:
     import xlsxwriter
 except ImportError:
     xlsxwriter = None
-    XLSXGenerator = None
+    XlsxGenerator = None
 
 
 try:
@@ -26,7 +24,7 @@ try:
     from xhtml2pdf import pisa
 except ImportError:
     pisa = None
-    PDFGenerator = None
+    PdfGenerator = None
 
 from pyston.conf import settings
 
@@ -34,7 +32,7 @@ from pyston.conf import settings
 TWOPLACES = Decimal(10) ** -2
 
 
-class CSVGenerator:
+class CsvGenerator:
 
     def __init__(self, delimiter=chr(59), quotechar=chr(34), quoting=csv.QUOTE_ALL, encoding='utf-8', **kwargs):
         self.encoding = encoding
@@ -93,7 +91,7 @@ class StreamCSV:
             self.writerow(row)
 
 
-class TXTGenerator:
+class TxtGenerator:
 
     def _prepare_value(self, value):
         return value.replace('&nbsp;', ' ')
@@ -112,7 +110,7 @@ class TXTGenerator:
 
 
 if xlsxwriter:
-    class XLSXGenerator:
+    class XlsxGenerator:
 
         def _prepare_value(self, value):
             return value.replace('&nbsp;', ' ')
@@ -149,7 +147,7 @@ if xlsxwriter:
             wb.close()
 
 if pisa:
-    class PDFGenerator:
+    class PdfGenerator:
 
         encoding = 'utf-8'
 

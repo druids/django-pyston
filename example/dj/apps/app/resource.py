@@ -1,14 +1,15 @@
 from django import forms
 from django.db.models import F, Q
-from pyston.converters import XMLConverter
-from pyston.filters.default_filters import BooleanFilterMixin, SimpleEqualFilter
+from pyston.converters import XmlConverter
+from pyston.filters.filters import BooleanFilterMixin
+from pyston.filters.django_filters import SimpleEqualFilter
 from pyston.forms import (
-    ISODateTimeField, MultipleRelatedField, RESTModelForm, RESTValidationError, ReverseManyField, ReverseOneToOneField,
+    ISODateTimeField, MultipleRelatedField, RestModelForm, RestValidationError, ReverseManyField, ReverseOneToOneField,
     SingleRelatedField
 )
-from pyston.forms.postgres import RESTSimpleArrayField
-from pyston.resource import BaseModelResource, BaseObjectResource, BaseResource
-from pyston.response import RESTCreatedResponse
+from pyston.forms.postgres import RestSimpleArrayField
+from pyston.resource import DjangoResource, BaseModelResource, BaseResource
+from pyston.response import RestCreatedResponse
 from pyston.serializer import SerializableObj
 
 from .models import Issue, User
@@ -24,7 +25,7 @@ class OvertimeIssuesFilter(BooleanFilterMixin, SimpleEqualFilter):
         return filter_term if value else ~filter_term
 
 
-class IssueResource(BaseModelResource):
+class IssueResource(DjangoResource):
 
     model = Issue
     fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'solver',
@@ -35,8 +36,8 @@ class IssueResource(BaseModelResource):
                       'short_description')
 
     converter_classes = (
-        'pyston.converters.JSONConverter',
-        XMLConverter,
+        'pyston.converters.JsonConverter',
+        XmlConverter,
     )
     can_create_obj = True
     can_read_obj = True
@@ -47,7 +48,7 @@ class IssueResource(BaseModelResource):
         return str(obj)
 
 
-class UserResource(BaseModelResource):
+class UserResource(DjangoResource):
 
     model = User
     renamed_fields = {
@@ -115,7 +116,7 @@ class TestTextObject(SerializableObj):
         fields = ('fiz_baz',)
 
 
-class TestTextObjectCamelCaseResource(BaseObjectResource):
+class TestTextObjectCamelCaseResource(BaseModelResource):
 
     model = TestTextObject
     register = True
@@ -138,7 +139,7 @@ class TestCamelCaseResource(BaseResource):
         }
 
 
-class UserForm(RESTModelForm):
+class UserForm(RestModelForm):
 
     watched_issues = ReverseManyField('watched_issues')
     created_issues_renamed = ReverseManyField('created_issues')
@@ -148,10 +149,10 @@ class UserForm(RESTModelForm):
     def clean_created_issues_renamed(self):
         created_issues = self.cleaned_data.get('created_issues_renamed')
         if created_issues and any(issue.name == 'invalid' for issue in created_issues):
-            raise RESTValidationError('Invalid issue name')
+            raise RestValidationError('Invalid issue name')
 
 
-class UserWithFormResource(BaseModelResource):
+class UserWithFormResource(DjangoResource):
 
     register = False
     model = User
@@ -167,14 +168,14 @@ class UserWithFormResource(BaseModelResource):
         return obj.email
 
 
-class IssueForm(RESTModelForm):
+class IssueForm(RestModelForm):
 
     created_by = SingleRelatedField('created_by')
     leader = SingleRelatedField('leader', is_allowed_foreign_key=False)
     another_users = MultipleRelatedField('watched_by', form_field=forms.ModelMultipleChoiceField(
         queryset=User.objects.all(), required=False
     ), is_allowed_foreign_key=False)
-    tags_list = RESTSimpleArrayField(label='tags', base_field=forms.CharField(max_length=5), required=False)
+    tags_list = RestSimpleArrayField(label='tags', base_field=forms.CharField(max_length=5), required=False)
     iso_date = ISODateTimeField(required=False)
 
     def save(self, commit=True):
@@ -190,7 +191,7 @@ class IssueForm(RESTModelForm):
         exclude = ('tags',)
 
 
-class IssueWithFormResource(BaseModelResource):
+class IssueWithFormResource(DjangoResource):
 
     register = False
     model = Issue

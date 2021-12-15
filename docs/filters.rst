@@ -7,9 +7,9 @@ REST resource filtering is provided via the ``_filter_queryset method``. If you 
 technique, you can override it. Its single argument ``qs`` contains data that you will filter (an instance of Django
 QuerySet in case of a model resource).
 
-A better way is to use pre-implemented managers defined in model ``BaseModelResource``::
+A better way is to use pre-implemented managers defined in model ``DjangoResource``::
 
-    class BaseModelResource(DefaultRESTModelResource, BaseObjectResource):
+    class DjangoResource(BaseDjangoResource, BaseModelResource):
         filter_manager = MultipleFilterManager()
 
         def _filter_queryset(self, qs):
@@ -38,9 +38,9 @@ A manager must be able to:
 * check if the specific filter is allowed on the resource, i.e. if it is in filter_fields_rfs
 
 By default, ``filter_fields_rfs`` contains all fields the user is allowed to read. These fields can be rewritten in
-``RESTMeta`` class or on the resource using attributes ``filter_fields`` or ``extra_filter_fields``. Attribute
+``RestMeta`` class or on the resource using attributes ``filter_fields`` or ``extra_filter_fields``. Attribute
 ``filter_fields`` defines a list of fields that are allowed to filter by and ``extra_filter_fields`` extends the list.
-The rule of resource fields overriding the values from ``RESTMeta`` class of the model applies just like with other REST
+The rule of resource fields overriding the values from ``RestMeta`` class of the model applies just like with other REST
 fields attributes.
 
 Pyston provides three pre-implemented managers::
@@ -71,7 +71,7 @@ Filtering field configuration
 Fields that can be filtered are generated as a join of ``filter_fields`` and ``extra_fields_fields``. You can
 change this behaviour by overriding the method ``get_filter_fields_rfs``. The values ``filter_fields`` and
 ``extra_filter_fields`` are first taken from a resource and if thay are not set in the resource theayare  obtained
-from the model RESTMeta. If the value ``filter_fields`` is not defined in RESTMeta, the value ``filter_fields`` is
+from the model RestMeta. If the value ``filter_fields`` is not defined in RestMeta, the value ``filter_fields`` is
 replaces with response of method ``get_allowed_fields_rfs`` which returns all fields that a client of resource can
 read. The only exception of filters that needn't be explicitly allowed are resource filters becaouse they are always
 allowed.
@@ -88,7 +88,7 @@ As example we define can youse issue tracker with models ``Issue`` and ``User`` 
         last_name = models.CharField(null=True, blank=True, max_length=100)
         manual_created_date = models.DateTimeField(verbose_name=_('manual created date'), null=True, blank=True)
 
-        class RESTMeta:
+        class RestMeta:
             fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser',
                       'manual_created_date')
             detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name',
@@ -111,11 +111,11 @@ As example we define can youse issue tracker with models ``Issue`` and ``User`` 
         leader = models.OneToOneField('app.User', null=False, blank=False, related_name='leading_issue')
         description = models.TextField(null=True, blank=True)
 
-        class RESTMeta:
+        class RestMeta:
             extra_filter_fields = ('solver__created_at',)
 
 
-    class IssueResource(BaseModelResource):
+    class IssueResource(DjangoResource):
 
         model = Issue
         fields = ('id', 'created_at', '_obj_name', 'name', ('created_by', ('id', 'contract', 'created_at')), 'solver',
@@ -129,7 +129,7 @@ As example we define can youse issue tracker with models ``Issue`` and ``User`` 
         delete_obj_permission = True
 
 
-    class UserResource(BaseModelResource):
+    class UserResource(DjangoResource):
 
         model = User
         create_obj_permission = True
@@ -138,7 +138,7 @@ As example we define can youse issue tracker with models ``Issue`` and ``User`` 
         delete_obj_permission = True
         extra_filter_fields = ()
 
-Atributes ``filter_fields`` and ``extra_filter_fields`` are set inside model RESTMeta for User model. RESTMeta
+Atributes ``filter_fields`` and ``extra_filter_fields`` are set inside model RestMeta for User model. RestMeta
 configuration allows to filter four fields ('email', 'first_name', 'last_name', 'created_at'). But because
 extra_filter_fields is  overridden inside UserResource client can filter only with ('email', 'first_name', 'last_name').
 
@@ -208,7 +208,7 @@ Field filter is always joined to specific model field. Most Django fields have p
 * DateField - DateFilter
 * DateTimeField - DateTimeFilter
 * GenericIPAddressField - GenericIPAddressFieldFilter
-* IPAddressField - IPAddressFilterFilter
+* IPAddressField - IPAddressFieldFilter
 * ManyToManyField - ManyToManyFieldFilter
 * ForeignKey - ForeignKeyFilter
 * ForeignObjectRel - ForeignObjectRelFilter
@@ -314,7 +314,8 @@ ___________________
 Because Pyston improves Django model fields (monkey patch) you can very simply change default field filter::
 
     from pyston.utils.decorators import order_by
-    from pyston.filters.default_filters import StringFieldFilter, OPERATORS, CONTAINS
+    from pyston.filters.filters import OPERATORS
+    from pyston.filters.django_filters import StringFieldFilter, CONTAINS
 
 
     class OnlyContainsStringFieldFilter(StringFieldFilter):
@@ -341,7 +342,8 @@ be integer and ``SimpleMethodEqualFilter`` class::
 
 
     from pyston.utils.decorators import filter_class
-    from pyston.filters.default_filters import IntegerFieldFilterMixin, SimpleMethodEqualFilter
+    from pyston.filters.filters import IntegerFieldFilterMixin
+    from pyston.filters.django_filters import SimpleMethodEqualFilter
 
     class WatchedIssuesCountMethodFilter(IntegerFieldFilterMixin, SimpleMethodEqualFilter):
 
@@ -397,7 +399,7 @@ property ``filters``. As mentioned before, these filters don't have to be allowe
             })
             return filter_term if value else ~filter_term
 
-    class UserResource(BaseModelResource):
+    class UserResource(DjangoResource):
 
         model = User
         create_obj_permission = True

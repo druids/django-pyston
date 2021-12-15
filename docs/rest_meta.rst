@@ -14,7 +14,7 @@ Like Django Pyston allowes to define extra model configuration in meta class. Fo
         first_name = models.CharField(_('first name'), null=True, blank=True, max_length=100)
         last_name = models.CharField(_('last name'), null=True, blank=True, max_length=100)
 
-        class RESTMeta:
+        class RestMeta:
             fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name', 'is_superuser')
             detailed_fields = ('created_at', '_obj_name', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
             general_fields = ('email', 'first_name', 'last_name')

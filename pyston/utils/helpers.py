@@ -7,8 +7,6 @@ import datetime
 import decimal
 import uuid
 
-from collections import OrderedDict
-
 from django.utils.encoding import force_bytes
 from django.conf import settings
 from django.utils.duration import duration_iso_string
@@ -27,16 +25,6 @@ class ModelIteratorHelper:
 
     def __iter__(self):
         raise NotImplementedError
-
-
-class QuerysetIteratorHelper(ModelIteratorHelper):
-
-    def __init__(self, queryset):
-        super().__init__(queryset.model)
-        self.queryset = queryset
-
-    def __iter__(self):
-        return iter(self.queryset.iterator())
 
 
 class ModelIterableIteratorHelper(ModelIteratorHelper):
@@ -92,7 +80,6 @@ class UniversalBytesIO:
 
         # Handle non-string types
         return force_bytes(value, self.charset)
-
 
     def getvalue(self):
         return self._container.getvalue().decode(self.charset)

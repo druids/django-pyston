@@ -78,66 +78,66 @@ msgstr "Konflikt/Duplikace."
 msgid "Object already exists but you do not allowed to change it."
 msgstr "Objekt již existuje nebo není dovoleno jej změnit."
 
-#: filters/default_filters.py:42
+#: filters/filters.py:42
 msgid "(None)"
 msgstr "---"
 
-#: filters/default_filters.py:103
+#: filters/filters.py:103
 msgid "Invalid value inside list at position {}, {}"
 msgstr "Neplatná hodnota uvnitř listu na pozici {}, {}"
 
-#: filters/default_filters.py:118 filters/default_filters.py:149
+#: filters/filters.py:118 filters/filters.py:149
 msgid "Value must be list"
 msgstr "Hodnota musí být list"
 
-#: filters/default_filters.py:136
+#: filters/filters.py:136
 msgid "Value must be list with two values"
 msgstr "Hodnota musí být list dvou hodnot"
 
-#: filters/default_filters.py:319 filters/default_filters.py:341
+#: filters/filters.py:319 filters/filters.py:341
 #: serializer.py:602
 msgid "Yes"
 msgstr "Ano"
 
-#: filters/default_filters.py:320 filters/default_filters.py:342
+#: filters/filters.py:320 filters/filters.py:342
 #: serializer.py:602
 msgid "No"
 msgstr "Ne"
 
-#: filters/default_filters.py:331
+#: filters/filters.py:331
 msgid "Value must be boolean"
 msgstr "Hodnota musí být boolean"
 
-#: filters/default_filters.py:396 filters/default_filters.py:508
+#: filters/filters.py:396 filters/filters.py:508
 msgid "Value must be integer"
 msgstr "Hodnota musí být integer"
 
-#: filters/default_filters.py:411
+#: filters/filters.py:411
 msgid "Value must be float"
 msgstr "Hodnota musí být reálné číslo"
 
-#: filters/default_filters.py:422
+#: filters/filters.py:422
 msgid "Value must be decimal"
 msgstr "Hodnota musí být desítkové číslo"
 
-#: filters/default_filters.py:472
+#: filters/filters.py:472
 msgid "Value must be in format IPv4."
 msgstr "Hodnota musí být ve formátu IPv4"
 
-#: filters/default_filters.py:485
+#: filters/filters.py:485
 msgid "Value must be in format IPv4 or IPv6."
 msgstr "Hodnota musí být ve formátu IPv4 nebo IPv6"
 
-#: filters/default_filters.py:500
+#: filters/filters.py:500
 msgid "Value cannot be parsed to partial datetime"
 msgstr "Hodnota nemůže být vyhodnocena"
 
-#: filters/default_filters.py:515
+#: filters/filters.py:515
 msgid "Value must be in format ISO 8601."
 msgstr "Hodnota musí být ve formátu ISO 8601"
 
-#: filters/default_filters.py:586 filters/default_filters.py:607
-#: filters/default_filters.py:628
+#: filters/filters.py:586 filters/filters.py:607
+#: filters/filters.py:628
 msgid "Object with this PK cannot be found"
 msgstr "Objekt s tímto primárním klíčem nemůže být nalezen"
 

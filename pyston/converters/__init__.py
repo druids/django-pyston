@@ -18,7 +18,7 @@ from pyston.utils.helpers import UniversalBytesIO, serialized_data_to_python
 from pyston.utils.datastructures import FieldsetGenerator
 from pyston.conf import settings
 
-from .file_generators import CSVGenerator, XLSXGenerator, PDFGenerator, TXTGenerator
+from .file_generators import CsvGenerator, XlsxGenerator, PdfGenerator, TxtGenerator
 
 
 def is_collection(data):
@@ -150,7 +150,7 @@ class Converter:
         return output_stream if isinstance(output_stream, UniversalBytesIO) else UniversalBytesIO(output_stream)
 
 
-class XMLConverter(Converter):
+class XmlConverter(Converter):
     """
     Converter for XML.
     Supports only output conversion
@@ -201,7 +201,7 @@ class XMLConverter(Converter):
             raise ValueError(str(ex))
 
 
-class LazyDjangoJSONEncoder(DjangoJSONEncoder):
+class LazyDjangoJsonEncoder(DjangoJSONEncoder):
 
     def default(self, o):
         from pyston.serializer import LAZY_SERIALIZERS
@@ -211,10 +211,10 @@ class LazyDjangoJSONEncoder(DjangoJSONEncoder):
         elif isinstance(o, LAZY_SERIALIZERS):
             return o.serialize()
         else:
-            return super(LazyDjangoJSONEncoder, self).default(o)
+            return super(LazyDjangoJsonEncoder, self).default(o)
 
 
-class JSONConverter(Converter):
+class JsonConverter(Converter):
     """
     JSON emitter, understands timestamps.
     """
@@ -224,7 +224,7 @@ class JSONConverter(Converter):
     def _encode_to_stream(self, output_stream, data, options=None, **kwargs):
         options = settings.JSON_CONVERTER_OPTIONS if options is None else options
         if data is not None:
-            json.dump(data, output_stream, cls=LazyDjangoJSONEncoder, ensure_ascii=False, **options)
+            json.dump(data, output_stream, cls=LazyDjangoJsonEncoder, ensure_ascii=False, **options)
 
     def _decode(self, data, **kwargs):
         return json.loads(data)
@@ -316,56 +316,56 @@ class GeneratorConverter(Converter):
         )
 
 
-class CSVConverter(GeneratorConverter):
+class CsvConverter(GeneratorConverter):
     """
     Converter for CSV response.
     Supports only output conversion
     """
 
-    generator_class = CSVGenerator
+    generator_class = CsvGenerator
     media_type = 'text/csv'
     format = 'csv'
     allow_tags = True
 
 
-class XLSXConverter(GeneratorConverter):
+class XlsxConverter(GeneratorConverter):
     """
     Converter for XLSX response.
     For its use must be installed library xlsxwriter
     Supports only output conversion
     """
 
-    generator_class = XLSXGenerator
+    generator_class = XlsxGenerator
     media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     format = 'xlsx'
     allow_tags = True
 
 
-class PDFConverter(GeneratorConverter):
+class PdfConverter(GeneratorConverter):
     """
     Converter for PDF response.
     For its use must be installed library pisa
     Supports only output conversion
     """
 
-    generator_class = PDFGenerator
+    generator_class = PdfGenerator
     media_type = 'application/pdf'
     format = 'pdf'
 
 
-class TXTConverter(GeneratorConverter):
+class TxtConverter(GeneratorConverter):
     """
     Converter for TXT response.
     Supports only output conversion
     """
 
-    generator_class = TXTGenerator
+    generator_class = TxtGenerator
     media_type = 'plain/text'
     format = 'txt'
     allow_tags = True
 
 
-class HTMLConverter(Converter):
+class HtmlConverter(Converter):
     """
     Converter for HTML.
     Supports only output conversion and should be used only for debug
@@ -376,20 +376,20 @@ class HTMLConverter(Converter):
     template_name = 'pyston/html_converter.html'
 
     def _get_put_form(self, resource, obj):
-        from pyston.resource import BaseObjectResource
+        from pyston.resource import BaseModelResource
 
         return (
             resource._get_form(inst=obj)
-            if isinstance(resource, BaseObjectResource) and resource.has_put_permission(obj=obj)
+            if isinstance(resource, BaseModelResource) and resource.has_put_permission(obj=obj)
             else None
         )
 
     def _get_post_form(self, resource, obj):
-        from pyston.resource import BaseObjectResource
+        from pyston.resource import BaseModelResource
 
         return (
             resource._get_form(inst=obj)
-            if isinstance(resource, BaseObjectResource) and resource.has_post_permission(obj=obj)
+            if isinstance(resource, BaseModelResource) and resource.has_post_permission(obj=obj)
             else None
         )
 
@@ -400,7 +400,7 @@ class HTMLConverter(Converter):
         }
 
     def _get_converter(self, resource):
-        return JSONConverter()
+        return JsonConverter()
 
     def _get_permissions(self, resource, obj):
         return {
@@ -435,14 +435,14 @@ class HTMLConverter(Converter):
             return data
 
     def _encode(self, data, response=None, http_headers=None, resource=None, result=None, **kwargs):
-        from pyston.resource import BaseObjectResource
+        from pyston.resource import BaseModelResource
 
         http_headers = {} if http_headers is None else http_headers.copy()
         converter = self._get_converter(resource)
 
         http_headers = self._update_headers(http_headers, resource, converter)
         obj = (
-            resource._get_obj_or_none() if isinstance(resource, BaseObjectResource) and resource.has_permission()
+            resource._get_obj_or_none() if isinstance(resource, BaseModelResource) and resource.has_permission()
             else None
         )
 

@@ -1,26 +1,23 @@
-from functools import reduce
-
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
 
-from pyston.exception import RESTException
+from pyston.exception import RestException
 from pyston.utils import rfs, LOOKUP_SEP
 from pyston.utils.helpers import get_field_or_none, get_method_or_none
 from pyston.serializer import get_resource_or_none
 
 from .exceptions import OrderIdentifierError
 from .parsers import DefaultOrderParser, OrderParserError
-from .utils import DIRECTION
-from .sorters import DefaultSorter
+from .django_sorters import DjangoSorter
 
 
 def get_allowed_order_fields_rfs_from_model(model):
     return rfs(model._rest_meta.extra_order_fields).join(rfs(model._rest_meta.order_fields))
 
 
-class ModelOrderManager:
+class BaseModelOrderManager:
     """
-    Order manager is used inside model resource for order response queryset according to input values.
+    Order manager is used inside object resource for order response queryset according to input values.
     This is abstract class that provides methods to obtain concrete order strings from resource and model methods
     and fields.
     """
@@ -77,39 +74,10 @@ class ModelOrderManager:
 
     def _get_sorter_from_model(self, identifiers_prefix, identifiers, direction, model, resource, request,
                                order_fields_rfs):
-        """
-        :param identifiers_prefix: because order strings are recursive if model relations property contains list of
-               identifiers that was used for recursive searching the order string.
-        :param identifiers: list of identifiers that conclusively identifies order string.
-        :param direction: direction of ordering ASC or DESC.
-        :param model: django model class.
-        :param resource: resource object.
-        :param request: django HTTP request.
-        :param order_fields_rfs: RFS of fields that is allowed to order.
-        :return: db order method string that is obtained from model fields or methods.
-        """
-        current_identifier = self._get_real_field_name(resource, identifiers[0])
-        identifiers_suffix = identifiers[1:]
+        return None
 
-        if current_identifier not in order_fields_rfs:
-            raise OrderIdentifierError
-
-        model_field = get_field_or_none(model, current_identifier)
-        model_method = get_method_or_none(model, current_identifier)
-
-        if model_field and not identifiers_suffix and (not model_field.is_relation or model_field.related_model):
-            return DefaultSorter(identifiers_prefix + identifiers, direction)
-        elif model_field and model_field.is_relation and model_field.related_model:
-            next_model = model_field.related_model
-            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
-            return self._get_sorter_recursive(
-                identifiers_prefix + [identifiers[0]], identifiers[1:], direction,
-                next_model, next_resource, request, order_fields_rfs[current_identifier].subfieldset
-            )
-        elif model_method and not identifiers_suffix:
-            return self._get_sorter_from_method(
-                model_method, identifiers_prefix, identifiers, direction, model, resource, request, order_fields_rfs
-            )
+    def _get_order_fields_rfs(self, model, resource):
+        return resource.get_order_fields_rfs() if resource else rfs()
 
     def _get_sorter_recursive(self, identifiers_prefix, identifiers, direction, model, resource, request,
                               extra_order_fields_rfs=None):
@@ -126,12 +94,7 @@ class ModelOrderManager:
                  getters.
         """
         extra_order_fields_rfs = rfs() if extra_order_fields_rfs is None else extra_order_fields_rfs
-        order_fields_rfs = (
-            extra_order_fields_rfs.join(
-                resource.get_order_fields_rfs() if resource else get_allowed_order_fields_rfs_from_model(model)
-            )
-        )
-
+        order_fields_rfs = extra_order_fields_rfs.join(self._get_order_fields_rfs(model, resource))
         order_string = (
             self._get_sorter_from_resource(
                 identifiers_prefix, identifiers, direction, model, resource, request, order_fields_rfs) or
@@ -153,12 +116,56 @@ class ModelOrderManager:
         return self._get_sorter_recursive([], identifiers, direction, resource.model, resource, request)
 
 
-class ParserModelOrderManager(ModelOrderManager):
+class BaseDjangoOrderManager(BaseModelOrderManager):
     """
-    Manager that uses parser to parse input order data to the list of order strings.
+    Order manager is used inside model resource for order response queryset according to input values.
+    This is abstract class that provides methods to obtain concrete order strings from resource and model methods
+    and fields.
     """
 
-    parser = None
+    def _get_order_fields_rfs(self, model, resource):
+        return resource.get_order_fields_rfs() if resource else get_allowed_order_fields_rfs_from_model(model)
+
+    def _get_sorter_from_model(self, identifiers_prefix, identifiers, direction, model, resource, request,
+                               order_fields_rfs):
+        """
+        :param identifiers_prefix: because order strings are recursive if model relations property contains list of
+               identifiers that was used for recursive searching the order string.
+        :param identifiers: list of identifiers that conclusively identifies order string.
+        :param direction: direction of ordering ASC or DESC.
+        :param model: django model class.
+        :param resource: resource object.
+        :param request: django HTTP request.
+        :param order_fields_rfs: RFS of fields that is allowed to order.
+        :return: db order method string that is obtained from model fields or methods.
+        """
+        current_identifier = self._get_real_field_name(resource, identifiers[0])
+        identifiers_suffix = identifiers[1:]
+
+        if current_identifier not in order_fields_rfs:
+            raise OrderIdentifierError
+
+        model_field = get_field_or_none(model, current_identifier)
+        model_method = get_method_or_none(model, current_identifier)
+
+        if model_field and not identifiers_suffix and (not model_field.is_relation or model_field.related_model):
+            return DjangoSorter(identifiers_prefix + identifiers, direction)
+        elif model_field and model_field.is_relation and model_field.related_model:
+            next_model = model_field.related_model
+            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
+            return self._get_sorter_recursive(
+                identifiers_prefix + [identifiers[0]], identifiers[1:], direction,
+                next_model, next_resource, request, order_fields_rfs[current_identifier].subfieldset
+            )
+        elif model_method and not identifiers_suffix:
+            return self._get_sorter_from_method(
+                model_method, identifiers_prefix, identifiers, direction, model, resource, request, order_fields_rfs
+            )
+
+
+class BaseParserModelOrderManager(BaseModelOrderManager):
+
+    parsers = [DefaultOrderParser()]
 
     def _get_sorters(self, parsed_order_terms, resource, request):
         """
@@ -169,7 +176,7 @@ class ParserModelOrderManager(ModelOrderManager):
             try:
                 sorters.append(self.get_sorter(ordering_term.identifiers, ordering_term.direction, resource, request))
             except OrderIdentifierError:
-                raise RESTException(
+                raise RestException(
                     mark_safe(ugettext('Invalid identifier of ordering "{}"').format(ordering_term.source))
                 )
         return sorters
@@ -184,23 +191,32 @@ class ParserModelOrderManager(ModelOrderManager):
         """
         Update queryset for extra sorter class (it is used for annotations before ordering)
         """
-        return reduce(
-            lambda qs, sorter: sorter.update_queryset(qs) if hasattr(sorter, 'update_queryset') else qs, sorters, qs
-        )
+        for sorter in sorters:
+            qs = sorter.update_queryset(qs)
+        return qs
 
-    def sort(self, resource, qs, request):
+    def _sort_queryset(self, qs, terms):
+        raise NotImplementedError
+
+    def _sort_with_parser(self, parser, resource, qs, request):
         try:
-            parsed_order_terms = self.parser.parse(request)
+            parsed_order_terms = parser.parse(request)
             sorters = self._get_sorters(parsed_order_terms or (), resource, request)
             qs = self._update_queryset(qs, sorters)
-            return qs.order_by(*self._convert_order_terms(sorters)) if sorters else qs
+            return self._sort_queryset(qs, self._convert_order_terms(sorters)) if sorters else qs
         except OrderParserError as ex:
-            raise RESTException(ex)
+            raise RestException(ex)
+
+    def sort(self, resource, qs, request):
+        for parser in self.parsers:
+            qs = self._sort_with_parser(parser, resource, qs, request)
+        return qs
 
 
-class DefaultModelOrderManager(ParserModelOrderManager):
+class DjangoOrderManager(BaseParserModelOrderManager, BaseDjangoOrderManager):
     """
-    Default order manager.
+    Manager that uses parser to parse input order data to the list of order strings.
     """
 
-    parser = DefaultOrderParser()
+    def _sort_queryset(self, qs, terms):
+        return qs.order_by(*terms)

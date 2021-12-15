@@ -1,7 +1,7 @@
-from germanium.test_cases.rest import RESTTestCase
+from germanium.test_cases.rest import RestTestCase
 
 
-class PystonTestCase(RESTTestCase):
+class PystonTestCase(RestTestCase):
 
     USER_API_URL = '/api/user/'
     USER_WITH_FORM_API_URL = '/api/user-form/'

@@ -3,7 +3,7 @@ from django.core.exceptions import FieldDoesNotExist
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
 
-from pyston.exception import RESTException
+from pyston.exception import RestException
 from pyston.utils import rfs, LOOKUP_SEP
 from pyston.utils.helpers import get_field_or_none, get_method_or_none
 from pyston.serializer import get_resource_or_none
@@ -11,15 +11,16 @@ from pyston.serializer import get_resource_or_none
 from .exceptions import FilterValueError, OperatorFilterError, FilterIdentifierError
 from .utils import LOGICAL_OPERATORS
 from .parser import QueryStringFilterParser, DefaultFilterParser, FilterParserError
+from .django_filters import get_default_field_filter_class
 
 
 def get_allowed_filter_fields_rfs_from_model(model):
     return rfs(model._rest_meta.extra_filter_fields).join(rfs(model._rest_meta.filter_fields))
 
 
-class ModelFilterManager:
+class BaseModelFilterManager:
     """
-    Filter manager is used inside model resource for composing filters with purpose to restrict output data according
+    Filter manager is used inside object resource for composing filters with purpose to restrict output data according
     to input values.
     This is abstract class that provides methods to obtain concrete filters from resource and model methods and fields.
     """
@@ -67,7 +68,6 @@ class ModelFilterManager:
         :param filters_fields_rfs: RFS of fields that is allowed to filter.
         :return: method returns filter that is obtained from resource and its methods.
         """
-
         # Filter is obtained from resource filters dict
         for i in range(1, len(identifiers) + 1):
             # Because resource filters can contains filter key with __ we must try all combinations with suffixes
@@ -103,37 +103,10 @@ class ModelFilterManager:
         :param filters_fields_rfs: RFS of fields that is allowed to filter.
         :return: method returns filter from model fields or methods
         """
-        current_identifier = self._get_real_field_name(resource, identifiers[0])
-        identifiers_suffix = identifiers[1:]
+        return None
 
-        if current_identifier not in filters_fields_rfs:
-            raise FilterIdentifierError
-
-        suffix = LOOKUP_SEP.join(identifiers_suffix)
-
-        model_field = get_field_or_none(model, current_identifier)
-        model_method = get_method_or_none(model, current_identifier)
-
-        if (model_field and hasattr(model_field, 'filter') and model_field.filter
-                and (not suffix or suffix in model_field.filter.get_suffixes())):
-            return model_field.filter(
-                identifiers_prefix, [current_identifier], identifiers_suffix, model, field=model_field
-            )
-        elif model_field and model_field.is_relation and model_field.related_model:
-            # recursive search for filter via related model fields
-            next_model = model_field.related_model
-            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
-            return self._get_filter_recursive(
-                identifiers_prefix + [identifiers[0]], identifiers[1:], next_model, next_resource, request,
-                filters_fields_rfs[current_identifier].subfieldset
-            )
-        elif model_method:
-            return self._get_method_filter(
-                model_method, identifiers_prefix, [current_identifier], identifiers_suffix,
-                model, resource, request, filters_fields_rfs
-            )
-        else:
-            return None
+    def _get_filters_fields_rfs(self, model, resource):
+        return resource.get_filter_fields_rfs() if resource else rfs()
 
     def _get_filter_recursive(self, identifiers_prefix, identifiers, model, resource, request,
                               extra_filter_fields_rfs=None):
@@ -147,12 +120,11 @@ class ModelFilterManager:
         :param extra_filter_fields_rfs: RFS of fields that is allowed to filter.
         :return: method search recursive filter with resource_filter and model_filter getters.
         """
+        if not identifiers:
+            return None
+
         extra_filter_fields_rfs = rfs() if extra_filter_fields_rfs is None else extra_filter_fields_rfs
-        filters_fields_rfs = (
-            extra_filter_fields_rfs.join(
-                resource.get_filter_fields_rfs() if resource else get_allowed_filter_fields_rfs_from_model(model)
-            )
-        )
+        filters_fields_rfs = extra_filter_fields_rfs.join(self._get_filters_fields_rfs(model, resource))
 
         filter_obj = (
             self._get_resource_filter(
@@ -183,6 +155,73 @@ class ModelFilterManager:
         :return: methods should return filtered queryset.
         """
         raise NotImplementedError
+
+
+class BaseDjangoFilterManager(BaseModelFilterManager):
+    """
+    Filter manager is used inside model resource for composing filters with purpose to restrict output data according
+    to input values.
+    This is abstract class that provides methods to obtain concrete filters from resource and model methods and fields.
+    """
+
+    model_field_filters = {}
+
+    def _get_default_model_field_filter_class(self, model_field):
+        model_field_filter = getattr(model_field, 'filter', None)
+        if model_field_filter:
+            return model_field_filter
+
+        for field_class, filter_class in list(self.model_field_filters.items())[::-1]:
+            if isinstance(model_field, field_class):
+                return filter_class
+
+        return get_default_field_filter_class(model_field)
+
+    def _get_model_filter(self, identifiers_prefix, identifiers, model, resource, request, filters_fields_rfs):
+        """
+        :param identifiers_prefix: because filters are recursive if model relations property contains list of
+               identifiers that was used for recursive searching the filter.
+        :param identifiers: list of identifiers that conclusively identifies the filter.
+        :param model: django model class.
+        :param resource: resource object.
+        :param request: django HTTP request.
+        :param filters_fields_rfs: RFS of fields that is allowed to filter.
+        :return: method returns filter from model fields or methods
+        """
+        current_identifier = self._get_real_field_name(resource, identifiers[0])
+        identifiers_suffix = identifiers[1:]
+
+        if current_identifier not in filters_fields_rfs:
+            return None
+
+        suffix = LOOKUP_SEP.join(identifiers_suffix)
+
+        model_field = get_field_or_none(model, current_identifier)
+        model_method = get_method_or_none(model, current_identifier)
+        model_filter_filter = self._get_default_model_field_filter_class(model_field) if model_field else None
+
+        if model_filter_filter and (not suffix or suffix in model_filter_filter.get_suffixes()):
+            return model_filter_filter(
+                identifiers_prefix, [current_identifier], identifiers_suffix, model, field=model_field
+            )
+        elif model_field and model_field.is_relation and model_field.related_model:
+            # recursive search for filter via related model fields
+            next_model = model_field.related_model
+            next_resource = get_resource_or_none(request, next_model, getattr(resource, 'resource_typemapper', None))
+            return self._get_filter_recursive(
+                identifiers_prefix + [identifiers[0]], identifiers[1:], next_model, next_resource, request,
+                filters_fields_rfs[current_identifier].subfieldset
+            )
+        elif model_method:
+            return self._get_method_filter(
+                model_method, identifiers_prefix, [current_identifier], identifiers_suffix,
+                model, resource, request, filters_fields_rfs
+            )
+        else:
+            return None
+
+    def _get_filters_fields_rfs(self, model, resource):
+        return resource.get_filter_fields_rfs() if resource else get_allowed_filter_fields_rfs_from_model(model)
 
 
 def get_flat_lookups(q):
@@ -216,27 +255,35 @@ def is_required_distinct_for_lookup(model, lookup, fail_first=False):
         return fail_first
 
 
-class ParserModelFilterManager(ModelFilterManager):
-    """
-    Manager that uses parser to parse input filter data to the logical conditions tree.
-    """
+class BaseParserModelFilterManager(BaseModelFilterManager):
 
-    parser = None
+    parsers = [DefaultFilterParser(), QueryStringFilterParser()]
+
+    def _logical_conditions_and(self, condition_a, condition_b):
+        raise RestException(ugettext('More filter terms combination are not supported'))
+
+    def _logical_conditions_or(self, condition_a, condition_b):
+        raise RestException(ugettext('More filter terms combination are not supported'))
+
+    def _logical_conditions_negation(self, condition):
+        raise RestException(ugettext('Filter term negation are not supported'))
 
     def _convert_logical_conditions(self, condition, resource, request):
         """
         Method that recursive converts condition tree to the django models Q objects.
         """
         if condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.NOT:
-            return ~Q(self._convert_logical_conditions(condition.condition_right, resource, request))
+            return self._logical_conditions_negation(
+                self._convert_logical_conditions(condition.condition_right, resource, request)
+            )
         elif condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.AND:
-            return Q(
+            return self._logical_conditions_and(
                 self._convert_logical_conditions(condition.condition_left, resource, request),
                 self._convert_logical_conditions(condition.condition_right, resource, request)
             )
         elif condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.OR:
-            return Q(
-                self._convert_logical_conditions(condition.condition_left, resource, request) |
+            return self._logical_conditions_or(
+                self._convert_logical_conditions(condition.condition_left, resource, request),
                 self._convert_logical_conditions(condition.condition_right, resource, request)
             )
         else:
@@ -245,15 +292,15 @@ class ParserModelFilterManager(ModelFilterManager):
                     condition.value, condition.operator_slug, request
                 )
             except FilterIdentifierError:
-                raise RESTException(
+                raise RestException(
                     mark_safe(ugettext('Invalid identifier of condition "{}"').format(condition.source))
                 )
             except FilterValueError as ex:
-                raise RESTException(
+                raise RestException(
                     mark_safe(ugettext('Invalid value of condition "{}". {}').format(condition.source, ex))
                 )
             except OperatorFilterError:
-                raise RESTException(
+                raise RestException(
                     mark_safe(ugettext('Invalid operator of condition "{}"').format(condition.source))
                 )
 
@@ -263,43 +310,47 @@ class ParserModelFilterManager(ModelFilterManager):
                 return True
         return False
 
-    def filter(self, resource, qs, request):
+    def _filter_queryset(self, qs, q):
+        raise NotImplementedError
+
+    def _filter_with_parser(self, parser, resource, qs, request):
         try:
-            parsed_conditions = self.parser.parse(request)
+            parsed_conditions = parser.parse(request)
             if parsed_conditions:
-                q = self._convert_logical_conditions(parsed_conditions, resource, request)
-                if self._is_required_distinct(qs, q):
-                    return qs.filter(pk__in=qs.filter(q).values('pk'))
-                else:
-                    return qs.filter(q)
+                return self._filter_queryset(qs, self._convert_logical_conditions(parsed_conditions, resource, request))
             else:
                 return qs
         except FilterParserError as ex:
-            raise RESTException(ex)
-
-
-class DefaultFilterManager(ParserModelFilterManager):
-    """
-    Default filter manager that provides complex logical operations with AND, OR, NOT operators.
-    """
-
-    parser = DefaultFilterParser()
-
-
-class QueryStringFilterManager(ParserModelFilterManager):
-    """
-    Simple filter manager where one filter term is one query string. Terms are always joined with AND operator.
-    """
-
-    parser = QueryStringFilterParser()
-
-
-class MultipleFilterManager(ModelFilterManager):
-    """
-    Helper that joins DefaultFilterManager and QueryStringFilterManager. Resource can use both options together.
-    """
+            raise RestException(ex)
 
     def filter(self, resource, qs, request):
-        return QueryStringFilterManager().filter(
-            resource, DefaultFilterManager().filter(resource, qs, request), request
-        )
+        for parser in self.parsers:
+            qs = self._filter_with_parser(parser, resource, qs, request)
+        return qs
+
+
+class DjangoFilterManager(BaseParserModelFilterManager, BaseDjangoFilterManager):
+    """
+    Manager that uses parser to parse input filter data to the logical conditions tree.
+    """
+
+    def _logical_conditions_and(self, condition_a, condition_b):
+        return Q(condition_a, condition_b)
+
+    def _logical_conditions_or(self, condition_a, condition_b):
+        return Q(condition_a | condition_b)
+
+    def _logical_conditions_negation(self, condition):
+        return ~Q(condition)
+
+    def _is_required_distinct(self, qs, q):
+        for lookup in get_flat_lookups(q):
+            if is_required_distinct_for_lookup(qs.model, lookup):
+                return True
+        return False
+
+    def _filter_queryset(self, qs, q):
+        if self._is_required_distinct(qs, q):
+            return qs.filter(pk__in=qs.filter(q).values('pk'))
+        else:
+            return qs.filter(q)

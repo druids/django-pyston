@@ -2,7 +2,6 @@ import binascii
 import sys
 import base64
 import inspect
-import mimetypes
 
 from io import BytesIO
 
@@ -12,30 +11,18 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
 
-from django.forms.models import ModelChoiceField, ModelMultipleChoiceField
-from django.http.response import Http404
-from django.utils.encoding import force_text
-
-from chamber.shortcuts import get_object_or_none
-
 from requests.exceptions import RequestException
 
 from pyston.conf import settings as pyston_settings
-from pyston.utils.compatibility import (
-    is_reverse_one_to_one, is_reverse_many_to_one, is_reverse_many_to_many,
-    get_reverse_field_name, get_model_from_relation
-)
 from pyston.utils.files import (
     get_file_name_type_and_content_from_url, get_content_type_from_filename, get_content_type_from_file_content,
     get_filename_from_content_type, RequestDataTooBig, InvalidResponseStatusCode
 )
 
 from .exception import DataInvalidException
-from .resource import BaseObjectResource, BaseModelResource
-from .forms import (
-    ReverseField, ReverseSingleField, ReverseOneToOneField, ReverseStructuredManyField, SingleRelatedField,
-    MultipleStructuredRelatedField, ReverseManyField, RESTFormMixin, RESTDictError, RESTError, RESTValidationError
-)
+from .resource import BaseModelResource, DjangoResource
+from .forms import RestDictError, RestError, RestValidationError
+
 
 url_validator = URLValidator()
 
@@ -80,7 +67,7 @@ class DataProcessor:
     def process_data(self, data, files):
         data, files = self._clear_data(data, files)
 
-        self.errors = RESTDictError()
+        self.errors = RestDictError()
         for key, data_item in data.items():
             self._process_field(data, files, key, data_item)
 
@@ -89,13 +76,13 @@ class DataProcessor:
         return data, files
 
 
-@data_preprocessors.register(BaseObjectResource)
+@data_preprocessors.register(BaseModelResource)
 class FileDataPreprocessor(DataProcessor):
 
     def _validate_not_empty(self, data_item, key, item):
         if not data_item.get(item):
-            error = self.errors.get(key, RESTDictError())
-            error.update(RESTDictError({item: RESTValidationError(ugettext('This field is required'))}))
+            error = self.errors.get(key, RestDictError())
+            error.update(RestDictError({item: RestValidationError(ugettext('This field is required'))}))
             self.errors[key] = error
 
     def _get_content_type(self, content_type, filename, file_content):
@@ -119,11 +106,11 @@ class FileDataPreprocessor(DataProcessor):
         content_type = self._get_content_type(content_type, filename, file_content)
         filename = self._get_filename(content_type, filename)
         if not content_type:
-            self.errors[key] = RESTValidationError(ugettext(
+            self.errors[key] = RestValidationError(ugettext(
                 'Content type cannot be evaluated from input data please send it'
             ))
         elif not filename:
-            self.errors[key] = RESTValidationError(ugettext(
+            self.errors[key] = RestValidationError(ugettext(
                 'File name cannot be evaluated from input data please send it'
             ))
         else:
@@ -140,7 +127,7 @@ class FileDataPreprocessor(DataProcessor):
             file_content = BytesIO(base64.b64decode(data_item.get('content').encode('utf-8')))
             self._process_file_data(data, files, key, data_item, file_content)
         except (TypeError, binascii.Error):
-            self.errors[key] = RESTDictError({'content': RESTValidationError(
+            self.errors[key] = RestDictError({'content': RestValidationError(
                 ugettext('File content must be in base64 format')
             )})
 
@@ -156,19 +143,19 @@ class FileDataPreprocessor(DataProcessor):
 
             self._process_file_data(data, files, key, data_item, file_content)
         except RequestDataTooBig:
-            self.errors[key] = RESTDictError({'url': RESTValidationError(
+            self.errors[key] = RestDictError({'url': RestValidationError(
                 ugettext('Response too large, maximum size is {} bytes').format(
                     pyston_settings.FILE_SIZE_LIMIT
                 ))
             })
         except (RequestException, InvalidResponseStatusCode):
-            self.errors[key] = RESTDictError({'url': RESTValidationError(
+            self.errors[key] = RestDictError({'url': RestValidationError(
                 ugettext('File is unreachable on the URL address')
             )})
         try:
             url_validator(url)
         except ValidationError as e:
-            self.errors[key] = RESTDictError({'url': RESTValidationError(e.messages[0])})
+            self.errors[key] = RestDictError({'url': RestValidationError(e.messages[0])})
 
     def _process_field(self, data, files, key, data_item):
         field = self.form.fields.get(key)
@@ -189,7 +176,7 @@ class FileDataPreprocessor(DataProcessor):
                 if not self.errors:
                     self._process_file_data_url_field(data, files, key, data_item)
             else:
-                self.errors[key] = RESTValidationError(
+                self.errors[key] = RestValidationError(
                     ugettext('File data item must contains {} or {}').format(
                         ', '.join(REQUIRED_ITEMS), ', '.join(REQUIRED_URL_ITEMS)
                     )
@@ -215,7 +202,7 @@ class MultipleDataProcessorMixin:
         self.errors[key].update({operation: errors})
 
 
-@data_preprocessors.register(BaseObjectResource)
+@data_preprocessors.register(BaseModelResource)
 class ModelDataPreprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
@@ -226,11 +213,11 @@ class ModelDataPreprocessor(ModelResourceDataProcessor):
                 data[key] = self.form.data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except RESTError as ex:
+            except RestError as ex:
                 self.errors[key] = ex
 
 
-@data_postprocessors.register(BaseModelResource)
+@data_postprocessors.register(DjangoResource)
 class ReverseDataPostprocessor(ModelResourceDataProcessor):
 
     def _process_field(self, data, files, key, data_item):
@@ -241,5 +228,5 @@ class ReverseDataPostprocessor(ModelResourceDataProcessor):
                 data[key] = self.form.cleaned_data[key] = rest_field.create_update_or_remove(
                     self.inst, data_item, self.via, self.request, self.partial_update, self.form
                 )
-            except RESTError as ex:
+            except RestError as ex:
                 self.errors[key] = ex
