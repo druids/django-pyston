@@ -4,6 +4,7 @@ import inspect
 import mimetypes
 import os
 import types
+import enum
 from collections import OrderedDict
 
 from django.db.models import Model
@@ -568,7 +569,7 @@ class BaseRawVerboseValueSerializer(Serializer):
             return self._data_to_python(
                 RawVerboseValue(
                     value,
-                    settings.NONE_HUMANIZED_VALUE if value is None else self._get_verbose_value(value, **kwargs)
+                    settings.NONE_HUMANIZED_VALUE if value is None else self._get_verbose_value(data, **kwargs)
                 ),
                 serialization_format=serialization_format,
                 **kwargs
@@ -593,7 +594,7 @@ class TimeSerializer(BaseRawVerboseValueSerializer):
 class DateTimeSerializer(BaseRawVerboseValueSerializer):
 
     def _get_verbose_value(self, data, **kwargs):
-        return formats.localize(timezone.template_localtime(data))
+        return formats.localize(timezone.template_localtime(self._get_raw_value(data)))
 
     def _get_raw_value(self, data):
         return timezone.localtime(data) if timezone.is_aware(data) else data
@@ -603,7 +604,7 @@ class DateTimeSerializer(BaseRawVerboseValueSerializer):
 class BoolSerializer(BaseRawVerboseValueSerializer):
 
     def _get_verbose_value(self, data, **kwargs):
-        return data and ugettext('Yes') or ugettext('No')
+        return ugettext('Yes') if data else ugettext('No')
 
 
 @register(dict)
@@ -620,6 +621,16 @@ class DictSerializer(Serializer):
             )) for k, v in data.items()
             if not requested_fieldset or k in requested_fieldset
         ])
+
+
+@register(enum.Enum)
+class EnumSerializer(BaseRawVerboseValueSerializer):
+
+    def _get_verbose_value(self, data, **kwargs):
+        return str(data)
+
+    def _get_raw_value(self, data):
+        return data.value
 
 
 @register((list, tuple, set))
