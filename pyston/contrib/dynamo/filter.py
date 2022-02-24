@@ -1,8 +1,8 @@
 from pyston.utils import LOOKUP_SEP
 from pyston.filters.filters import Filter
+from pyston.filters.utils import OperatorSlug
 from pyston.filters.exceptions import OperatorFilterError
 from pyston.filters.managers import BaseParserModelFilterManager
-from pyston.filters.filters import OPERATORS
 
 
 class BaseDynamoFilter(Filter):
@@ -34,8 +34,8 @@ class DynamoFilterManager(BaseParserModelFilterManager):
             condition_a_full_identifier, condition_b_full_identifier = sorted_keys
             condition_a_identifier, condition_a_operator = condition_a_full_identifier.rsplit(LOOKUP_SEP, 1)
             condition_b_identifier, condition_b_operator = condition_b_full_identifier.rsplit(LOOKUP_SEP, 1)
-            if (condition_a_identifier == condition_b_identifier and condition_a_operator == OPERATORS.GTE
-                    and condition_b_operator == OPERATORS.LT):
+            if (condition_a_identifier == condition_b_identifier and condition_a_operator == OperatorSlug.GTE
+                    and condition_b_operator == OperatorSlug.LT):
                 return {
                     f'{condition_a_identifier}__between': (
                         conditions_union[condition_a_full_identifier], conditions_union[condition_b_full_identifier]

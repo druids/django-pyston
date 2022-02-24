@@ -9,7 +9,7 @@ from pyston.utils.helpers import get_field_or_none, get_method_or_none
 from pyston.serializer import get_resource_or_none
 
 from .exceptions import FilterValueError, OperatorFilterError, FilterIdentifierError
-from .utils import LOGICAL_OPERATORS
+from .utils import LogicalOperatorSlug
 from .parser import QueryStringFilterParser, DefaultFilterParser, FilterParserError
 from .django_filters import get_default_field_filter_class
 
@@ -272,16 +272,16 @@ class BaseParserModelFilterManager(BaseModelFilterManager):
         """
         Method that recursive converts condition tree to the django models Q objects.
         """
-        if condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.NOT:
+        if condition.is_composed and condition.operator_slug == LogicalOperatorSlug.NOT:
             return self._logical_conditions_negation(
                 self._convert_logical_conditions(condition.condition_right, resource, request)
             )
-        elif condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.AND:
+        elif condition.is_composed and condition.operator_slug == LogicalOperatorSlug.AND:
             return self._logical_conditions_and(
                 self._convert_logical_conditions(condition.condition_left, resource, request),
                 self._convert_logical_conditions(condition.condition_right, resource, request)
             )
-        elif condition.is_composed and condition.operator_slug == LOGICAL_OPERATORS.OR:
+        elif condition.is_composed and condition.operator_slug == LogicalOperatorSlug.OR:
             return self._logical_conditions_or(
                 self._convert_logical_conditions(condition.condition_left, resource, request),
                 self._convert_logical_conditions(condition.condition_right, resource, request)

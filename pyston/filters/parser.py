@@ -5,8 +5,7 @@ import pyparsing as pp
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext
 
-from .filters import OPERATORS
-from .utils import LOGICAL_OPERATORS
+from .utils import LogicalOperatorSlug, OperatorSlug
 
 
 class FilterParserError(Exception):
@@ -83,12 +82,12 @@ class DefaultFilterParser(FilterParser):
         '[a-z]+'
     )
     OPERATORS_MAPPING = {
-        '=': OPERATORS.EQ,
-        '!=': OPERATORS.NEQ,
-        '<': OPERATORS.LT,
-        '>': OPERATORS.GT,
-        '>=': OPERATORS.GTE,
-        '<=': OPERATORS.LTE,
+        '=': OperatorSlug.EQ,
+        '!=': OperatorSlug.NEQ,
+        '<': OperatorSlug.LT,
+        '>': OperatorSlug.GT,
+        '>=': OperatorSlug.GTE,
+        '<=': OperatorSlug.LTE,
     }
     VALUE_MAPPERS = {
         'null': None
@@ -106,9 +105,9 @@ class DefaultFilterParser(FilterParser):
 
     def _parse_to_conditions(self, parsed_result_list, condition_positions, condition, input):
         def _parse_to_conditions_recursive(term):
-            if len(term) == 2 and term[0] == LOGICAL_OPERATORS.NOT:
-                return ComposedCondition(LOGICAL_OPERATORS.NOT, _parse_to_conditions_recursive(term[1]))
-            elif len(term) == 3 and term[1] in {LOGICAL_OPERATORS.AND, LOGICAL_OPERATORS.OR}:
+            if len(term) == 2 and term[0] == LogicalOperatorSlug.NOT:
+                return ComposedCondition(LogicalOperatorSlug.NOT, _parse_to_conditions_recursive(term[1]))
+            elif len(term) == 3 and term[1] in {LogicalOperatorSlug.AND, LogicalOperatorSlug.OR}:
                 return ComposedCondition(
                     term[1],
                     _parse_to_conditions_recursive(term[2]),
@@ -135,9 +134,9 @@ class DefaultFilterParser(FilterParser):
         operator = pp.Regex('|'.join(self.ALLOWED_OPERATORS))
         number = pp.Regex(r"[+-]?\d+(:?\.\d*)?(:?[eE][+-]?\d+)?")
 
-        AND = pp.Literal(LOGICAL_OPERATORS.AND)
-        OR = pp.Literal(LOGICAL_OPERATORS.OR)
-        NOT = pp.Literal(LOGICAL_OPERATORS.NOT)
+        AND = pp.Literal(LogicalOperatorSlug.AND)
+        OR = pp.Literal(LogicalOperatorSlug.OR)
+        NOT = pp.Literal(LogicalOperatorSlug.NOT)
 
         identifier = pp.Regex(r"[a-zA-Z]+[a-zA-Z0-9]*(_[a-zA-Z0-9]+)*")
         identifiers = pp.Group(
@@ -195,7 +194,7 @@ class FlatAndFilterParser(FilterParser):
         if len(conditions_list) == 1:
             return conditions_list[0]
         else:
-            return ComposedCondition(LOGICAL_OPERATORS.AND, self._parse_to_composed_conditions(conditions_list[1:]),
+            return ComposedCondition(LogicalOperatorSlug.AND, self._parse_to_composed_conditions(conditions_list[1:]),
                                      conditions_list[0])
 
 
@@ -210,7 +209,7 @@ class QueryStringFilterParser(FlatAndFilterParser):
         '__none__': None
     }
     MULTIPLE_VALUES_OPERATORS = {
-        OPERATORS.IN, OPERATORS.ALL
+        OperatorSlug.IN, OperatorSlug.ALL
     }
     DELIMITER = '__'
 
@@ -235,7 +234,7 @@ class QueryStringFilterParser(FlatAndFilterParser):
         if len(conditions_list) == 1:
             return conditions_list[0]
         else:
-            return ComposedCondition(LOGICAL_OPERATORS.AND, self._parse_to_composed_conditions(conditions_list[1:]),
+            return ComposedCondition(LogicalOperatorSlug.AND, self._parse_to_composed_conditions(conditions_list[1:]),
                                      conditions_list[0])
 
     def parse(self, request):
@@ -250,17 +249,17 @@ class QueryStringFilterParser(FlatAndFilterParser):
         for filter_term, value in filter_terms_with_values:
             identifiers = filter_term.split(self.DELIMITER) if self.DELIMITER else [filter_term]
 
-            if len(identifiers) > 1 and identifiers[-1].upper() == LOGICAL_OPERATORS.NOT:
+            if len(identifiers) > 1 and identifiers[-1].upper() == LogicalOperatorSlug.NOT:
                 identifiers = identifiers[:-1]
                 exclude = True
             else:
                 exclude = False
 
-            if len(identifiers) > 1 and identifiers[-1].lower() in OPERATORS:
+            if len(identifiers) > 1 and identifiers[-1].lower() in set(OperatorSlug):
                 operator_slug = identifiers[-1].lower()
                 identifiers = identifiers[:-1]
             else:
-                operator_slug = OPERATORS.EQ
+                operator_slug = OperatorSlug.EQ
 
             try:
                 cleaned_value = self._clean_value(operator_slug, value)
@@ -271,6 +270,6 @@ class QueryStringFilterParser(FlatAndFilterParser):
 
             condition = Term(operator_slug, identifiers, cleaned_value, '{}={}'.format(filter_term, value))
             if exclude:
-                condition = ComposedCondition(LOGICAL_OPERATORS.NOT, condition)
+                condition = ComposedCondition(LogicalOperatorSlug.NOT, condition)
             conditions_list.append(condition)
         return self._parse_to_composed_conditions(conditions_list)

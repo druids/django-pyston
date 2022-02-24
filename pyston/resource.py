@@ -36,7 +36,8 @@ from .forms import ISODateTimeField, RestModelForm, rest_modelform_factory, Rest
 from .utils import coerce_rest_request_method, set_rest_context_to_request, rfs
 from .utils.helpers import str_to_class
 from .serializer import (
-    ResourceSerializer, DjangoResourceSerializer, LazyMappedSerializedData, ModelResourceSerializer
+    ResourceSerializer, DjangoResourceSerializer, LazyMappedSerializedData, ModelResourceSerializer,
+    SerializationType
 )
 from .converters import get_converter_name_from_request, get_converter_from_request
 from .filters.managers import DjangoFilterManager
@@ -308,11 +309,11 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         )
 
     def _get_serialization_format(self):
-        serialization_format = self.request._rest_context.get('serialization_format',
-                                                              self.serializer.SERIALIZATION_TYPES.RAW)
-        if serialization_format not in self.serializer.SERIALIZATION_TYPES:
-            return self.serializer.SERIALIZATION_TYPES.RAW
-        return serialization_format
+        serialization_format = self.request._rest_context.get('serialization_format', SerializationType.RAW)
+        if serialization_format in SerializationType:
+            return SerializationType(serialization_format)
+        else:
+            return SerializationType.RAW
 
     def head(self):
         return self.get()
@@ -501,7 +502,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         http_headers['Vary'] = 'Accept'
 
         if self.has_permission():
-            http_headers['X-Serialization-Format-Options'] = ','.join(self.serializer.SERIALIZATION_TYPES)
+            http_headers['X-Serialization-Format-Options'] = ','.join([v.value for v in SerializationType])
             http_headers['Content-Disposition'] = 'inline; filename="{}"'.format(self._get_filename())
             http_headers['Allow'] = self._get_allow_header()
 

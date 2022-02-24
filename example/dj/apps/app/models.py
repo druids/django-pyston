@@ -3,7 +3,8 @@ from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
 
 from pyston.utils.decorators import order_by, filter_class, filter_by, allow_tags, sorter_class
-from pyston.filters.filters import OPERATORS, IntegerFilterMixin
+from pyston.filters.filters import IntegerFilterMixin
+from pyston.filters.utils import OperatorSlug
 from pyston.filters.django_filters import CONTAINS, StringFieldFilter, SimpleMethodEqualFilter
 from pyston.order.django_sorters import ExtraDjangoSorter
 
@@ -11,7 +12,7 @@ from pyston.order.django_sorters import ExtraDjangoSorter
 class OnlyContainsStringFieldFilter(StringFieldFilter):
 
     operators = (
-        (OPERATORS.CONTAINS, CONTAINS),
+        (OperatorSlug.CONTAINS, CONTAINS),
     )
 
 

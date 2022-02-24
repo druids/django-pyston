@@ -4,7 +4,7 @@ from django.db.models import F
 
 from pyston.utils import LOOKUP_SEP
 
-from .utils import DIRECTION
+from .utils import DirectionSlug
 from .sorters import BaseSorter
 
 
@@ -20,7 +20,7 @@ class DjangoSorter(BaseSorter):
         return LOOKUP_SEP.join(self.identifiers)
 
     def get_order_term(self):
-        if self.direction == DIRECTION.DESC:
+        if self.direction == DirectionSlug.DESC:
             return F(self._get_order_string()).desc(nulls_last=True)
         else:
             return F(self._get_order_string()).asc(nulls_first=True)

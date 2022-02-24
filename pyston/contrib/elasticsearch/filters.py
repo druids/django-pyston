@@ -1,4 +1,5 @@
-from pyston.filters.filters import Filter, OPERATORS, BooleanFilterMixin, DateFilterMixin
+from pyston.filters.filters import Filter, BooleanFilterMixin, DateFilterMixin
+from pyston.filters.utils import OperatorSlug
 from pyston.filters.exceptions import OperatorFilterError
 from pyston.filters.managers import BaseParserModelFilterManager
 
@@ -24,21 +25,21 @@ class ElasticsearchFilter(Filter):
 
 class WildcardElasticsearchFilter(ElasticsearchFilter):
 
-    allowed_operators = (OPERATORS.CONTAINS, OPERATORS.EQ)
+    allowed_operators = (OperatorSlug.CONTAINS, OperatorSlug.EQ)
 
     def clean_value(self, value, operator_slug, request):
-        if operator_slug == OPERATORS.EQ:
+        if operator_slug == OperatorSlug.EQ:
             return value
         else:
             return '*{}*'.format(value.replace('*', '\\*').replace('?', '\\?'))
 
     def get_filter_term(self, value, operator_slug, request):
-        return Q('term' if operator_slug == OPERATORS.EQ else 'wildcard', **{self.get_full_filter_key(): value})
+        return Q('term' if operator_slug == OperatorSlug.EQ else 'wildcard', **{self.get_full_filter_key(): value})
 
 
 class MatchElasticsearchFilter(ElasticsearchFilter):
 
-    allowed_operators = (OPERATORS.ICONTAINS,)
+    allowed_operators = (OperatorSlug.ICONTAINS,)
 
     def get_filter_term(self, value, operator_slug, request):
         return Q('match_phrase', **{self.get_full_filter_key(): value})
@@ -46,7 +47,7 @@ class MatchElasticsearchFilter(ElasticsearchFilter):
 
 class BooleanElasticsearchFilter(BooleanFilterMixin, ElasticsearchFilter):
 
-    allowed_operators = (OPERATORS.EQ,)
+    allowed_operators = (OperatorSlug.EQ,)
 
     def get_filter_term(self, value, operator_slug, request):
         return Q('term', **{self.get_full_filter_key(): value})
@@ -54,7 +55,7 @@ class BooleanElasticsearchFilter(BooleanFilterMixin, ElasticsearchFilter):
 
 class IDElasticsearchFilter(ElasticsearchFilter):
 
-    allowed_operators = (OPERATORS.EQ,)
+    allowed_operators = (OperatorSlug.EQ,)
 
     def get_filter_term(self, value, operator_slug, request):
         return Q('ids', **{'values': [value]})
@@ -63,7 +64,7 @@ class IDElasticsearchFilter(ElasticsearchFilter):
 class DateTimeElasticsearchFilter(DateFilterMixin, ElasticsearchFilter):
 
     suffixes = {}
-    allowed_operators = (OPERATORS.GT, OPERATORS.GTE, OPERATORS.LT, OPERATORS.LTE)
+    allowed_operators = (OperatorSlug.GT, OperatorSlug.GTE, OperatorSlug.LT, OperatorSlug.LTE)
 
     def get_filter_term(self, value, operator_slug, request):
         return Q('range', **{self.get_full_filter_key(): {operator_slug: value}})

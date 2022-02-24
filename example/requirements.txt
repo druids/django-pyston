@@ -9,6 +9,7 @@ django-germanium==2.3.0
 xhtml2pdf==0.2.5
 coverage==5.3.1
 factory-boy==3.2.0
+reportlab==3.6.6
 responses==0.12.1
 pytz==2020.5
 psycopg2-binary==2.8.6

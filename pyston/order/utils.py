@@ -1,7 +1,7 @@
-from chamber.utils.datastructures import Enum
+from pyston.utils import StrEnum
 
 
-DIRECTION = Enum(
-    'ASC',
-    'DESC',
-)
+class DirectionSlug(StrEnum):
+
+    ASC = 'ASC'
+    DESC = 'DESC'
