@@ -8,15 +8,16 @@ from django.utils.translation import ugettext
 from pyston.utils import LOOKUP_SEP
 
 from .filters import (
-    Operator, BooleanFilterMixin, NullBooleanFilterMixin, OperatorsModelFieldFilter,
+    OperatorQuery, BooleanFilterMixin, NullBooleanFilterMixin, OperatorsModelFieldFilter,
     FloatFilterMixin, IntegerFilterMixin, DecimalFilterMixin,
     IPAddressFilterMixin, GenericIPAddressFilterMixin, DateFilterMixin,
-    OPERATORS, Filter, MethodFilter, ModelFieldFilter
+    Filter, MethodFilter, ModelFieldFilter
 )
 from .exceptions import FilterValueError, OperatorFilterError
+from .utils import OperatorSlug
 
 
-class EqualOperator(Operator):
+class EqualOperatorQuery(OperatorQuery):
     """
     Equal operator returns Q object that filter data if cleaned value is equal to DB object.
     """
@@ -25,7 +26,7 @@ class EqualOperator(Operator):
         return Q(**{filter.get_full_filter_key(): filter.clean_value(value, operator_slug, request)})
 
 
-class NotEqualOperator(Operator):
+class NotEqualOperatorQuery(OperatorQuery):
     """
     Not equal operator is opposite to equal operator.
     """
@@ -34,7 +35,7 @@ class NotEqualOperator(Operator):
         return ~Q(**{filter.get_full_filter_key(): filter.clean_value(value, operator_slug, request)})
 
 
-class SimpleOperator(Operator):
+class SimpleOperatorQuery(OperatorQuery):
     """
     Simple operator is used for more operators that differ (in a DB view) only with string ORM operator.
     """
@@ -65,7 +66,7 @@ class ListOperatorMixin:
         return cleaned_values
 
 
-class SimpleListOperator(ListOperatorMixin, Operator):
+class SimpleListOperatorQuery(ListOperatorMixin, OperatorQuery):
     """
     The operator object is alternative to the Simple operator. It only accepts data in list format.
     """
@@ -86,7 +87,7 @@ class SimpleListOperator(ListOperatorMixin, Operator):
         return q
 
 
-class RangeOperator(ListOperatorMixin, Operator):
+class RangeOperatorQuery(ListOperatorMixin, OperatorQuery):
     """
     Operator filters range between two input values.
     """
@@ -99,7 +100,7 @@ class RangeOperator(ListOperatorMixin, Operator):
         return Q(**{'{}__range'.format(filter.get_full_filter_key()): values})
 
 
-class AllListOperator(ListOperatorMixin, Operator):
+class AllListOperatorQuery(ListOperatorMixin, OperatorQuery):
     """
     Operator that is used for filtering m2m or m2o relations. All sent values must be related.
     """
@@ -122,7 +123,7 @@ class AllListOperator(ListOperatorMixin, Operator):
         )
 
 
-class DateContainsOperator(Operator):
+class DateContainsOperatorQuery(OperatorQuery):
     """
     Specific operator for datetime that allows filter date or datetime that is not fully sent.
     For example filter according to month and year (1.2017).
@@ -138,58 +139,58 @@ class DateContainsOperator(Operator):
         return Q(**filter_term)
 
 
-EQ = EqualOperator()
-NEQ = NotEqualOperator()
-LT = SimpleOperator('lt')
-GT = SimpleOperator('gt')
-LTE = SimpleOperator('lte')
-GTE = SimpleOperator('gte')
-CONTAINS = SimpleOperator('contains')
-ICONTAINS = SimpleOperator('icontains')
-EXACT = SimpleOperator('exact')
-IEXACT = SimpleOperator('iexact')
-STARTSWITH = SimpleOperator('startswith')
-ISTARTSWITH = SimpleOperator('istartswith')
-ENDSWITH = SimpleOperator('endswith')
-IENDSWITH = SimpleOperator('iendswith')
-IN = SimpleListOperator('in')
-RANGE = RangeOperator()
-ALL = AllListOperator()
-DATE_CONTAINS = DateContainsOperator()
-PK_CONTAINS = SimpleOperator('pk__contains')
-PK_ICONTAINS = SimpleOperator('pk__icontains')
+EQ = EqualOperatorQuery()
+NEQ = NotEqualOperatorQuery()
+LT = SimpleOperatorQuery('lt')
+GT = SimpleOperatorQuery('gt')
+LTE = SimpleOperatorQuery('lte')
+GTE = SimpleOperatorQuery('gte')
+CONTAINS = SimpleOperatorQuery('contains')
+ICONTAINS = SimpleOperatorQuery('icontains')
+EXACT = SimpleOperatorQuery('exact')
+IEXACT = SimpleOperatorQuery('iexact')
+STARTSWITH = SimpleOperatorQuery('startswith')
+ISTARTSWITH = SimpleOperatorQuery('istartswith')
+ENDSWITH = SimpleOperatorQuery('endswith')
+IENDSWITH = SimpleOperatorQuery('iendswith')
+IN = SimpleListOperatorQuery('in')
+RANGE = RangeOperatorQuery()
+ALL = AllListOperatorQuery()
+DATE_CONTAINS = DateContainsOperatorQuery()
+PK_CONTAINS = SimpleOperatorQuery('pk__contains')
+PK_ICONTAINS = SimpleOperatorQuery('pk__icontains')
 
 
 class BooleanFieldFilter(BooleanFilterMixin, OperatorsModelFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
     )
 
 
 class NullBooleanFieldFilter(NullBooleanFilterMixin, OperatorsModelFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
     )
 
 
 class BaseNumberFieldFilter(OperatorsModelFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
-        (OPERATORS.LTE, LTE),
-        (OPERATORS.GTE, GTE),
-        (OPERATORS.IN, IN),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
+        (OperatorSlug.LTE, LTE),
+        (OperatorSlug.GTE, GTE),
+        (OperatorSlug.IN, IN),
     )
 
 
@@ -208,38 +209,38 @@ class DecimalFieldFilter(DecimalFilterMixin, BaseNumberFieldFilter):
 class StringFieldFilter(OperatorsModelFieldFilter):
 
     operators = (
-        (OPERATORS.ICONTAINS, ICONTAINS),
-        (OPERATORS.CONTAINS, CONTAINS),
-        (OPERATORS.EXACT, EXACT),
-        (OPERATORS.IEXACT, IEXACT),
-        (OPERATORS.STARTSWITH, STARTSWITH),
-        (OPERATORS.ISTARTSWITH, ISTARTSWITH),
-        (OPERATORS.ENDSWITH, ENDSWITH),
-        (OPERATORS.IENDSWITH, IENDSWITH),
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
-        (OPERATORS.LTE, LTE),
-        (OPERATORS.GTE, GTE),
-        (OPERATORS.IN, IN),
+        (OperatorSlug.ICONTAINS, ICONTAINS),
+        (OperatorSlug.CONTAINS, CONTAINS),
+        (OperatorSlug.EXACT, EXACT),
+        (OperatorSlug.IEXACT, IEXACT),
+        (OperatorSlug.STARTSWITH, STARTSWITH),
+        (OperatorSlug.ISTARTSWITH, ISTARTSWITH),
+        (OperatorSlug.ENDSWITH, ENDSWITH),
+        (OperatorSlug.IENDSWITH, IENDSWITH),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
+        (OperatorSlug.LTE, LTE),
+        (OperatorSlug.GTE, GTE),
+        (OperatorSlug.IN, IN),
     )
 
 
 class CaseSensitiveStringFieldFilter(StringFieldFilter):
 
     operators = (
-        (OPERATORS.CONTAINS, CONTAINS),
-        (OPERATORS.EXACT, EXACT),
-        (OPERATORS.STARTSWITH, STARTSWITH),
-        (OPERATORS.ENDSWITH, ENDSWITH),
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
-        (OPERATORS.LTE, LTE),
-        (OPERATORS.GTE, GTE),
-        (OPERATORS.IN, IN),
+        (OperatorSlug.CONTAINS, CONTAINS),
+        (OperatorSlug.EXACT, EXACT),
+        (OperatorSlug.STARTSWITH, STARTSWITH),
+        (OperatorSlug.ENDSWITH, ENDSWITH),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
+        (OperatorSlug.LTE, LTE),
+        (OperatorSlug.GTE, GTE),
+        (OperatorSlug.IN, IN),
     )
 
 
@@ -254,14 +255,14 @@ class GenericIPAddressFieldFilter(GenericIPAddressFilterMixin, CaseSensitiveStri
 class DateFieldFilter(DateFilterMixin, OperatorsModelFieldFilter):
 
     operators = (
-        (OPERATORS.CONTAINS, DATE_CONTAINS),
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
-        (OPERATORS.LTE, LTE),
-        (OPERATORS.GTE, GTE),
-        (OPERATORS.IN, IN),
+        (OperatorSlug.CONTAINS, DATE_CONTAINS),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
+        (OperatorSlug.LTE, LTE),
+        (OperatorSlug.GTE, GTE),
+        (OperatorSlug.IN, IN),
     )
 
 
@@ -291,19 +292,19 @@ class RelatedFieldFilter(OperatorsModelFieldFilter):
 class ForeignKeyFieldFilter(RelatedFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.NEQ, NEQ),
-        (OPERATORS.LT, LT),
-        (OPERATORS.GT, GT),
-        (OPERATORS.LTE, LTE),
-        (OPERATORS.GTE, GTE),
-        (OPERATORS.IN, IN),
-        (OPERATORS.CONTAINS, PK_CONTAINS),
-        (OPERATORS.ICONTAINS, PK_ICONTAINS),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.NEQ, NEQ),
+        (OperatorSlug.LT, LT),
+        (OperatorSlug.GT, GT),
+        (OperatorSlug.LTE, LTE),
+        (OperatorSlug.GTE, GTE),
+        (OperatorSlug.IN, IN),
+        (OperatorSlug.CONTAINS, PK_CONTAINS),
+        (OperatorSlug.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
+        if value is None or operator_slug in {OperatorSlug.CONTAINS, OperatorSlug.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(self.field).get_prep_value(value)
@@ -314,15 +315,15 @@ class ForeignKeyFieldFilter(RelatedFieldFilter):
 class ManyToManyFieldFilter(RelatedFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.IN, IN),
-        (OPERATORS.ALL, ALL),
-        (OPERATORS.CONTAINS, PK_CONTAINS),
-        (OPERATORS.ICONTAINS, PK_ICONTAINS),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.IN, IN),
+        (OperatorSlug.ALL, ALL),
+        (OperatorSlug.CONTAINS, PK_CONTAINS),
+        (OperatorSlug.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
+        if value is None or operator_slug in {OperatorSlug.CONTAINS, OperatorSlug.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(
@@ -335,15 +336,15 @@ class ManyToManyFieldFilter(RelatedFieldFilter):
 class ForeignObjectRelFilter(RelatedFieldFilter):
 
     operators = (
-        (OPERATORS.EQ, EQ),
-        (OPERATORS.IN, IN),
-        (OPERATORS.ALL, ALL),
-        (OPERATORS.CONTAINS, PK_CONTAINS),
-        (OPERATORS.ICONTAINS, PK_ICONTAINS),
+        (OperatorSlug.EQ, EQ),
+        (OperatorSlug.IN, IN),
+        (OperatorSlug.ALL, ALL),
+        (OperatorSlug.CONTAINS, PK_CONTAINS),
+        (OperatorSlug.ICONTAINS, PK_ICONTAINS),
     )
 
     def clean_value(self, value, operator_slug, request):
-        if value is None or operator_slug in {OPERATORS.CONTAINS, OPERATORS.ICONTAINS}:
+        if value is None or operator_slug in {OperatorSlug.CONTAINS, OperatorSlug.ICONTAINS}:
             return value
         try:
             return self.get_last_rel_field(
@@ -390,7 +391,7 @@ class SimpleEqualFilterMixin(SimpleFilterMixin):
     Helper that allows filter only with operator equal (=).
     """
 
-    allowed_operators = (OPERATORS.EQ,)
+    allowed_operators = (OperatorSlug.EQ,)
 
 
 class SimpleFilter(SimpleFilterMixin, Filter):

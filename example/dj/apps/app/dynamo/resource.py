@@ -1,4 +1,4 @@
-from pyston.filters.filters import OPERATORS
+from pyston.filters.utils import OperatorSlug
 from pyston.contrib.dynamo.resource import BaseDynamoResource
 from pyston.contrib.dynamo.filter import BaseDynamoFilter
 
@@ -7,7 +7,7 @@ from .models import Comment
 
 class UserIDFilter(BaseDynamoFilter):
 
-    allowed_operators = (OPERATORS.EQ,)
+    allowed_operators = (OperatorSlug.EQ,)
 
     def get_filter_term(self, value, operator_slug, request):
         return {'user_id__startswith': value}

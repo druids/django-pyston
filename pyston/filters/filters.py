@@ -6,45 +6,21 @@ from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
 from django.utils.timezone import make_aware
 
-from chamber.utils.datastructures import Enum
-
 from dateutil.parser import DEFAULTPARSER
 
 from pyston.utils import LOOKUP_SEP
 
 from .exceptions import FilterValueError, OperatorFilterError
-
-
-OPERATORS = Enum(
-    ('GT', 'gt'),
-    ('LT', 'lt'),
-    ('EQ', 'eq'),
-    ('NEQ', 'neq'),
-    ('LTE', 'lte'),
-    ('GTE', 'gte'),
-    ('CONTAINS', 'contains'),
-    ('ICONTAINS', 'icontains'),
-    ('RANGE', 'range'),
-    ('EXACT', 'exact'),
-    ('IEXACT', 'iexact'),
-    ('STARTSWITH', 'startswith'),
-    ('ISTARTSWITH', 'istartswith'),
-    ('ENDSWITH', 'endswith'),
-    ('IENDSWITH', 'iendswith'),
-    ('IN', 'in'),
-    ('RANGE', 'range'),
-    ('ALL', 'all'),
-    ('ISNULL', 'isnull'),
-)
+from .utils import OperatorSlug
 
 
 NONE_LABEL = _('(None)')
 
 
-class Operator:
+class OperatorQuery:
     """
-    Operator is used for specific type of filters that allows more different ways how to filter queryset data according
-    to input operator between identifier and value.
+    OperatorQuery is used for specific type of filters that allows more different ways how to filter queryset
+    data according to input operator between identifier and value.
     """
 
     def get_q(self, value, request):
@@ -246,7 +222,8 @@ class IPAddressFilterMixin:
     def clean_value(self, value, operator_slug, request):
         if value is None:
             return value
-        elif operator_slug not in {OPERATORS.CONTAINS, OPERATORS.EXACT, OPERATORS.STARTSWITH, OPERATORS.ENDSWITH}:
+        elif operator_slug not in {OperatorSlug.CONTAINS, OperatorSlug.EXACT,
+                                   OperatorSlug.STARTSWITH, OperatorSlug.ENDSWITH}:
             try:
                 validate_ipv4_address(value)
             except ValidationError:
@@ -259,7 +236,8 @@ class GenericIPAddressFilterMixin:
     def clean_value(self, value, operator_slug, request):
         if value is None:
             return value
-        elif operator_slug not in {OPERATORS.CONTAINS, OPERATORS.EXACT, OPERATORS.STARTSWITH, OPERATORS.ENDSWITH}:
+        elif operator_slug not in {OperatorSlug.CONTAINS, OperatorSlug.EXACT,
+                                   OperatorSlug.STARTSWITH, OperatorSlug.ENDSWITH}:
             try:
                 validate_ipv46_address(value)
             except ValidationError:
@@ -299,7 +277,7 @@ class DateFilterMixin:
         suffix = self.identifiers_suffix[0] if self.identifiers_suffix else None
         if suffix in self.suffixes:
             return self._clean_integer(value)
-        elif operator_slug == OPERATORS.CONTAINS:
+        elif operator_slug == OperatorSlug.CONTAINS:
             return self._clean_datetime_to_parts(value)
         elif value is None:
             return value

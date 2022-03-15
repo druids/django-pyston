@@ -1,5 +1,7 @@
 import re
 
+from enum import Enum
+
 from collections import OrderedDict
 
 from django.template.defaultfilters import lower
@@ -312,3 +314,9 @@ class RestFieldset:
 RF = RestField
 RFS = RestFieldset
 rfs = RFS.create_from_list
+
+
+class StrEnum(str, Enum):
+
+    def __str__(self):
+        return self.value

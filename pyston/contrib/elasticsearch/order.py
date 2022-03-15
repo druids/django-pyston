@@ -1,6 +1,6 @@
 from pyston.order.managers import BaseParserModelOrderManager
 from pyston.order.sorters import BaseSorter
-from pyston.order.utils import DIRECTION
+from pyston.order.utils import DirectionSlug
 from pyston.utils import LOOKUP_SEP
 
 
@@ -8,7 +8,7 @@ class ElasticsearchSorter(BaseSorter):
 
     def get_order_term(self):
         term = LOOKUP_SEP.join(self.identifiers)
-        return f'-{term}' if self.direction == DIRECTION.DESC else term
+        return f'-{term}' if self.direction == DirectionSlug.DESC else term
 
 
 class ElasticsearchOrderManager(BaseParserModelOrderManager):

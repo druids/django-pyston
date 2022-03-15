@@ -1,6 +1,6 @@
 from pyston.utils import LOOKUP_SEP
 
-from .utils import DIRECTION
+from .utils import DirectionSlug
 
 
 class OrderParserError(Exception):
@@ -45,10 +45,10 @@ class DefaultOrderParser:
     def _clean_order_term(self, ordering_string):
         ordering_string = ordering_string.strip()
         if ordering_string.startswith('-'):
-            direction = DIRECTION.DESC
+            direction = DirectionSlug.DESC
             ordering_string = ordering_string[1:]
         else:
-            direction = DIRECTION.ASC
+            direction = DirectionSlug.ASC
 
         identifiers = ordering_string.split(LOOKUP_SEP)
         return OrderTerm(identifiers, direction, ordering_string)

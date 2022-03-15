@@ -1,12 +1,12 @@
 from pyston.order.sorters import BaseSorter
 from pyston.order.managers import BaseParserModelOrderManager
-from pyston.order.utils import DIRECTION
+from pyston.order.utils import DirectionSlug
 
 
 class DynamoSorter(BaseSorter):
 
     def get_order_term(self):
-        return self.direction == DIRECTION.ASC
+        return self.direction == DirectionSlug.ASC
 
 
 class DynamoOrderManager(BaseParserModelOrderManager):

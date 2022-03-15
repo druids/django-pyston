@@ -16,7 +16,6 @@ from django.utils.html import conditional_escape
 from django.utils.translation import ugettext
 
 from chamber.utils import get_class_method
-from chamber.utils.datastructures import Enum
 
 from .conf import settings
 from .converters import get_converter
@@ -143,9 +142,9 @@ class RawVerboseValue:
         self.verbose_value = verbose_value
 
     def serialize(self, data, serialization_format, lazy=False, **kwargs):
-        if serialization_format == Serializer.SERIALIZATION_TYPES.RAW:
+        if serialization_format == SerializationType.RAW:
             return self.raw_value
-        elif serialization_format == Serializer.SERIALIZATION_TYPES.VERBOSE:
+        elif serialization_format == SerializationType.VERBOSE:
             return self.verbose_value
         elif self.raw_value == self.verbose_value:
             return self.raw_value
@@ -198,13 +197,18 @@ class LazyMappedSerializedData:
 LAZY_SERIALIZERS = (LazySerializedData, LazyMappedSerializedData)
 
 
+class SerializationType(str, enum.Enum):
+
+    VERBOSE = 'VERBOSE'
+    RAW = 'RAW'
+    BOTH = 'BOTH'
+
+
 class Serializer:
     """
     REST serializer and deserializer, firstly is data serialized to standard python data types and after that is
     used convertor for final serialization
     """
-
-    SERIALIZATION_TYPES = Enum('VERBOSE', 'RAW', 'BOTH')
 
     def __init__(self, resource=None, request=None):
         self.resource = resource
@@ -283,10 +287,10 @@ class ModelSerializer(Serializer):
                               serialization_format=None, **kwargs):
         if hasattr(field_or_method, 'humanized') and field_or_method.humanized:
             return RawVerboseValue(
-                self._data_to_python(val, serialization_format=Serializer.SERIALIZATION_TYPES.RAW, **kwargs),
+                self._data_to_python(val, serialization_format=SerializationType.RAW, **kwargs),
                 self._data_to_python(
                     field_or_method.humanized(val, obj, **(method_kwargs or {})),
-                    serialization_format=Serializer.SERIALIZATION_TYPES.RAW, **kwargs
+                    serialization_format=SerializationType.RAW, **kwargs
                 )
             )
         else:
@@ -563,7 +567,7 @@ class BaseRawVerboseValueSerializer(Serializer):
 
     def serialize(self, data, serialization_format, **kwargs):
         value = self._get_raw_value(data)
-        if serialization_format == Serializer.SERIALIZATION_TYPES.RAW:
+        if serialization_format == SerializationType.RAW:
             return value
         else:
             return self._data_to_python(
@@ -683,10 +687,10 @@ class DjangoSerializer(ModelSerializer):
                               **kwargs):
         if hasattr(field_or_method, 'choices') and field_or_method.choices:
             return RawVerboseValue(
-                self._data_to_python(val, serialization_format=Serializer.SERIALIZATION_TYPES.RAW, **kwargs),
+                self._data_to_python(val, serialization_format=SerializationType.RAW, **kwargs),
                 self._data_to_python(
                     getattr(obj, 'get_{}_display'.format(field_or_method.attname))(),
-                    serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
+                    serialization_format=SerializationType.RAW,
                     **kwargs
                 ),
             )
@@ -850,7 +854,7 @@ class DjangoResourceSerializer(ModelResourceSerializer, DjangoSerializer):
     obj_iterable_classes = (ModelIteratorHelper, QuerySet)
 
 
-def serialize(data, requested_fieldset=None, serialization_format=Serializer.SERIALIZATION_TYPES.RAW,
+def serialize(data, requested_fieldset=None, serialization_format=SerializationType.RAW,
               converter_name=None, allow_tags=None, output_stream=None):
     from pyston.converters import get_default_converter_name
 
