@@ -1,3 +1,4 @@
+from pyston.order.exceptions import OrderIdentifierError
 from pyston.order.managers import BaseParserModelOrderManager
 from pyston.order.sorters import BaseSorter
 from pyston.order.utils import DirectionSlug
@@ -22,6 +23,10 @@ class ElasticsearchOrderManager(BaseParserModelOrderManager):
                                order_fields_rfs):
         if len(identifiers) == 1:
             current_identifier = self._get_real_field_name(resource, identifiers[0])
+
+            if current_identifier not in order_fields_rfs:
+                raise OrderIdentifierError
+
             try:
                 field = model._doc_type.mapping.properties[current_identifier]
                 field_name = field.name

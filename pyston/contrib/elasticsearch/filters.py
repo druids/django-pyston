@@ -78,7 +78,7 @@ class ElasticsearchFilterManager(BaseParserModelFilterManager):
         'keyword': WildcardElasticsearchFilter,
         'boolean': BooleanElasticsearchFilter,
         'date': DateTimeElasticsearchFilter,
-        'id': IDElasticsearchFilter,
+        'pk': IDElasticsearchFilter,
     }
 
     def _logical_conditions_and(self, condition_a, condition_b):
@@ -96,9 +96,9 @@ class ElasticsearchFilterManager(BaseParserModelFilterManager):
 
         if current_identifier in filters_fields_rfs and not identifiers_prefix and not identifiers_suffix:
             try:
-                if current_identifier == 'id':
+                if current_identifier == 'pk':
                     field = None
-                    field_name = 'id'
+                    field_name = 'pk'
                 else:
                     field = model._doc_type.mapping.properties[current_identifier]
                     field_name = field.name

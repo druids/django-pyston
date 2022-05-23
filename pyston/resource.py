@@ -312,7 +312,7 @@ class BaseResource(PermissionsResourceMixin, metaclass=ResourceMetaClass):
         serialization_format = self.request._rest_context.get('serialization_format', SerializationType.RAW)
         try:
             return SerializationType(serialization_format)
-        except ValueError as ex:
+        except ValueError:
             return SerializationType.RAW
 
     def head(self):
