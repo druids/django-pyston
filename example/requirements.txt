@@ -1,4 +1,4 @@
-Django==3.1.14
+Django<=3.2
 flake8
 coveralls
 html5lib==1.1
@@ -15,6 +15,6 @@ pytz==2020.5
 psycopg2-binary==2.8.6
 elasticsearch==7.13.4
 elasticsearch-dsl==7.4.0
-https://github.com/druids/pynamodb/tarball/AddTagsSupport#egg=pynamodb
+pynamodb==5.3.3
 pydjamodb==0.0.7
 -e ../
