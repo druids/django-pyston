@@ -882,8 +882,7 @@ class BaseModelResource(ModelResourceMixin, BaseResource):
             raise Http404
 
     def delete(self):
-        pk = self.kwargs.get(self.pk_name)
-        self.delete_obj_with_pk(pk)
+        self.delete_obj_with_pk(self._get_pk())
         return RestNoContentResponse()
 
     def delete_obj_with_pk(self, pk, via=None):
