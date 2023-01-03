@@ -159,8 +159,8 @@ class DefaultFilterParser(FilterParser):
             pp.QuotedString("'", escChar='\\', unquoteResults=True) | pp.QuotedString('"', escChar='\\',
                                                                                       unquoteResults=True)
         )
-        null = pp.Literal('null').setParseAction(lambda s, l, t: None)
-        boolean = pp.Regex('|'.join(('true', 'false'))).setParseAction(lambda s, l, t: t[0] == 'true')
+        null = pp.Literal('null').setParseAction(lambda _s, _l, _t: None)
+        boolean = pp.Regex('|'.join(('true', 'false'))).setParseAction(lambda _s, _l, _t: _t[0] == 'true')
 
         comparison_term << (string | number | list_term | null | boolean)
 
