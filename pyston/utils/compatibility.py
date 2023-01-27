@@ -1,4 +1,5 @@
 from django.core.exceptions import FieldError, FieldDoesNotExist
+from django.db.models import Model
 
 
 def get_field_or_none(model, field_name):
@@ -79,6 +80,10 @@ def get_model_from_relation(model, field_name):
 
 
 def get_model_from_relation_or_none(model, field_name):
+    # Ugly hack to fix the export for the NoSQL models
+    if not issubclass(model, Model):
+        return None
+
     try:
         return get_model_from_relation(model, field_name)
     except FieldError:
