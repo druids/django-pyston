@@ -25,10 +25,10 @@ setup(
     ],
     install_requires=[
         'django>=2.2, <4.0',
-        'python-mimeparse>=1.6.0',
-        'skip-django-chamber>=0.6.16.3',
-        'pyparsing==2.4.7',
         'defusedxml>=0.6.0',
+        'pyparsing==2.4.7',
+        'python-mimeparse>=1.6.0',
+        'skip-django-chamber>=0.6.17.1',
     ],
     zip_safe=False
 )

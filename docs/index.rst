@@ -33,6 +33,7 @@ Content
    serializers
    forms
    converters
+   resources
    rest_meta
    filters
    order

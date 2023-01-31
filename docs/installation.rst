@@ -9,11 +9,11 @@ Requirements
 Python/Django versions
 ^^^^^^^^^^^^^^^^^^^^^^
 
-+-----------------+------------+
-|  Python         | Django     |
-+=================+============+
-| 2.7, 3.4, 3.5   | 1.8 - 1.10 |
-+-----------------+------------+
++----------------------------+------------------+
+|  Python                    | Django           |
++============================+==================+
+| 3.5, 3.6, 3.9, 3.10, 3.11  | >=2.2 <4         |
++----------------------------+------------------+
 
 
 Requirements
@@ -21,8 +21,10 @@ Requirements
 
  * **python-mimeparse** - A module provides basic functions for parsing mime-type names and matching them against a list of media-ranges. Pyston uses it to evaluate which response format should be returned.
  * **django-chamber** - Our library of helpers that simplify development (https://github.com/druids/django-chamber)
+ * **pyparsing** - to parse the filter logical expressions
+ * **defusedxml** - to parse XML data to the response body with the ``XmlConverter``
 
-Libraries are dependecies defined inside setup file.
+Libraries dependencies are defined inside the setup file.
 
 Using Pip
 ---------
