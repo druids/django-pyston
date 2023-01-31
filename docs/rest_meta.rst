@@ -3,7 +3,7 @@
 RestMeta
 ========
 
-Like Django Pyston allowes to define extra model configuration in meta class. For Pyston Meta class is named RestMeta. You can see its definition in short example::
+Like Django Pyston allows to define extra model configuration in meta class. For Pyston Meta class is named RestMeta. You can see its definition in short example::
 
     class User(models.Model):
 
@@ -21,7 +21,7 @@ Like Django Pyston allowes to define extra model configuration in meta class. Fo
             direct_serialization_fields = ('created_at', 'email', 'contract', 'solving_issue', 'first_name', 'last_name')
 
 
-Access to rest meta values is throught ``rest_meta`` static parameter of the model::
+Access to rest meta values is through ``rest_meta`` static parameter of the model::
 
     User._rest_meta.fields
 
