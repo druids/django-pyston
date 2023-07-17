@@ -219,4 +219,4 @@ class DjangoOrderManager(BaseParserModelOrderManager, BaseDjangoOrderManager):
     """
 
     def _sort_queryset(self, qs, terms):
-        return qs.order_by(*terms)
+        return qs.order_by(*terms, 'pk')  # Add PK to make ordering deterministic
