@@ -36,10 +36,9 @@ def get_content_type_from_filename(filename):
 
 
 def get_content_type_from_file_content(content):
-    with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
-        mime_type = m.id_buffer(content.read(1024))
-        content.seek(0)
-        return mime_type
+    mime_type = magic.from_buffer(content.read(1024), mime=True)
+    content.seek(0)
+    return mime_type
 
 
 def get_filename_from_content_type(content_type):
